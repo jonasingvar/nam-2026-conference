@@ -99,6 +99,69 @@ test.describe('Schedule', () => {
   });
 });
 
+test.describe('Schedule track filter', () => {
+  test('several tracks can be selected, added to and removed from, and survive a reload', async ({ page, request }) => {
+    const boot = await (await request.get(`${API}/bootstrap`)).json();
+    const [ta, tb] = boot.tracks;
+    const day = boot.days[0].date;
+    const count = async (qs) => (await (await request.get(`${API}/sessions?day=${day}${qs}`)).json()).length;
+    const [nAll, nA, nAB] = [await count(''), await count(`&trackSlug=${ta.slug}`), await count(`&trackSlug=${ta.slug},${tb.slug}`)];
+    expect(nAB).toBeGreaterThan(nA);
+
+    const chip = (t) => page.getByRole('button', { name: t.shortName ?? t.name, exact: true });
+    const shows = (n) => expect(page.getByTestId('result-count')).toHaveText(`${n} ${n === 1 ? 'session' : 'sessions'}`);
+    const openRail = async () => {
+      const filters = page.getByRole('button', { name: /^Filters/ });
+      if (await filters.isVisible()) await filters.click();
+    };
+
+    await visit(page, `/schedule?view=list&day=${day}`);
+    await openRail();
+    await shows(nAll);
+
+    await chip(ta).click();
+    await shows(nA);
+    await chip(tb).click();
+    await expect(chip(ta)).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip(tb)).toHaveAttribute('aria-pressed', 'true');
+    await shows(nAB);
+    await shotForPR(page, 'Two tracks selected on the schedule');
+
+    // reload restores both from the URL
+    await page.reload();
+    await openRail();
+    await expect(chip(ta)).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip(tb)).toHaveAttribute('aria-pressed', 'true');
+    await shows(nAB);
+
+    // deselect only one
+    await chip(tb).click();
+    await expect(chip(tb)).toHaveAttribute('aria-pressed', 'false');
+    await expect(chip(ta)).toHaveAttribute('aria-pressed', 'true');
+    await shows(nA);
+
+    // last one off shows everything, no track in the URL
+    await chip(ta).click();
+    await shows(nAll);
+    await expect(page).not.toHaveURL(/track=/);
+
+    // All clears a multi-selection
+    await chip(ta).click();
+    await chip(tb).click();
+    await shows(nAB);
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await shows(nAll);
+    await expect(page).not.toHaveURL(/track=/);
+
+    // an old single-track link still works
+    await visit(page, `/schedule?view=list&day=${day}&track=${ta.slug}`);
+    await openRail();
+    await expect(chip(ta)).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip(tb)).toHaveAttribute('aria-pressed', 'false');
+    await shows(nA);
+  });
+});
+
 test.describe('Schedule grid', () => {
   test('the grid lays sessions out by time and room', async ({ page }) => {
     await visit(page, '/schedule?view=grid');
