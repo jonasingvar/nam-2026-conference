@@ -11,6 +11,7 @@ files:
   - server/routes/sessions.js
 tests:
   - tests/schedule.spec.js
+  - tests/api/track-filter.test.js
   - tests/session.spec.js
 related: [seats, attendance, agenda, venues, speakers, ui, clock]
 ---
@@ -29,7 +30,7 @@ and a bound `?` to `args`:
 | param | clause |
 | --- | --- |
 | `day` | `s.day = ?` |
-| `trackSlug` | `t.slug = ?` |
+| `trackSlug` | `t.slug IN (?, …)` (comma-separated, any-of) |
 | `venueId` / `roomId` | `v.id = ?` / `r.id = ?` |
 | `level` / `format` | `s.level = ?` / `s.format = ?` |
 | `q` | `LIKE %q%` on title, abstract, subtitle, or any speaker name (`EXISTS`) |
