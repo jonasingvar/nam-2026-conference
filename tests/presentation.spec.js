@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 import { failOnPageErrors } from './helpers.js';
 
 /**
- * /engineering-presentation — the engineering harness talk. It books nothing and reads no
- * attendee state, so no data lane and no pinned clock are needed.
+ * /engineering-presentation — the software factory: the engineering harness,
+ * on Vercel. It books nothing and reads no attendee state, so no data lane and
+ * no pinned clock are needed.
  */
 
 const counter = (page) => page.getByTestId('presentation-counter');
@@ -27,11 +28,11 @@ test.describe('The harness presentation', () => {
     const errors = failOnPageErrors(page);
     await page.goto('/engineering-presentation');
 
-    await expect(page.getByRole('heading', { level: 1, name: /The engineering harness/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /The software factory/i })).toBeVisible();
     await expect(page.getByRole('banner')).toHaveCount(0);
     await expect(page.getByRole('contentinfo')).toHaveCount(0);
     await expect(counter(page)).toHaveText(/^1 \/ \d+$/);
-    await expect(page).toHaveTitle(/The engineering harness/);
+    await expect(page).toHaveTitle(/The software factory/);
 
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -115,6 +116,36 @@ test.describe('The harness presentation', () => {
     await expect(counter(page)).toHaveText(new RegExp(`^${at + 3} /`));
   });
 
+  test('every beat renders without errors and tells the story of the factory on Vercel', async ({ page }) => {
+    test.slow(); // walks every beat once
+    const errors = failOnPageErrors(page);
+    await page.goto('/engineering-presentation');
+    const { total } = await readCounter(page);
+    const caption = page.getByTestId('presentation-caption');
+    const stage = page.getByTestId('presentation');
+
+    // three frames are bare — the title, the closing line and the turn to the room; every other beat is captioned
+    const bare = [];
+    let said = '';
+    for (let at = 1; at <= total; at++) {
+      if (at > 1) await page.keyboard.press('ArrowRight');
+      await expect(counter(page)).toHaveText(new RegExp(`^${at} /`));
+      if (await caption.count()) await expect(caption.getByRole('heading', { level: 2 }), `beat ${at} has an empty caption`).toHaveText(/\S/);
+      else bare.push(at);
+      said += ` ${await stage.innerText()}`;
+    }
+    expect(bare.length, `bare beats: ${bare.join(', ')}`).toBe(3);
+    expect(bare[0]).toBe(1);
+
+    // what the factory is made of is named…
+    for (const name of ['Vercel Workflows', 'Vercel Sandbox', 'AI Gateway', 'Jev', 'ready-for-ai', '/api/github', 'orbit-warm', 'Production']) {
+      expect(said, `the talk never mentions ${name}`).toContain(name);
+    }
+    // …and the harness it replaced is not presented as how it runs
+    expect(said).not.toMatch(/ship\.js|Claude Desktop|agent-qa\.yml|agent-code-review\.yml|worktree/i);
+    expect(errors).toEqual([]);
+  });
+
   test('with reduced motion every caption still shows', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/engineering-presentation?beat=2');
@@ -149,7 +180,7 @@ test.describe('The product presentation', () => {
 
     await page.getByRole('button', { name: /^Continue to the engineering harness/ }).click();
     await expect(page).toHaveURL(/\/engineering-presentation$/);
-    await expect(page.getByRole('heading', { level: 1, name: /The engineering harness/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /The software factory/i })).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -230,7 +261,7 @@ test.describe('The product presentation', () => {
 
 test.describe('Reaching the talks from the app', () => {
   test('the attendee menu links to both talks from any page', async ({ page }) => {
-    for (const [title, path] of [['The product harness', '/product-presentation'], ['The engineering harness', '/engineering-presentation']]) {
+    for (const [title, path] of [['The product harness', '/product-presentation'], ['The software factory', '/engineering-presentation']]) {
       await page.goto('/speakers');
       await page.getByRole('button', { name: /Switch attendee/ }).click();
       await page.getByTestId('talk-links').getByRole('link', { name: new RegExp(title) }).click();
