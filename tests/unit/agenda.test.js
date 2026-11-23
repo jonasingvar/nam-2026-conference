@@ -51,9 +51,12 @@ describe('An agenda is what is still ahead of you', () => {
   });
 
   test('the moment before it ends it is still there — the boundary is the end, not the start', () => {
-    const clock = { day: '2026-11-23', time: '10:14' };
-    const [today] = upcomingDays(days, holdAll([morning, running, later, tomorrow]), clock);
-    assert.deepEqual(today.sessions.map((s) => s.id), [1, 2, 3]);
+    const hold = holdAll([morning, running, later, tomorrow]);
+    const early = upcomingDays(days, hold, { day: '2026-11-23', time: '09:44' });
+    assert.deepEqual(early[0].sessions.map((s) => s.id), [1, 2, 3]);
+
+    const ended = upcomingDays(days, hold, { day: '2026-11-23', time: '09:45' });
+    assert.deepEqual(ended[0].sessions.map((s) => s.id), [2, 3]);
   });
 
   test('sessions come back in time order within the day, days in date order', () => {

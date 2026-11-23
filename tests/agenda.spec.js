@@ -101,6 +101,7 @@ test.describe('My Agenda', () => {
       page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) navigations += 1; });
       await fullRow.getByTestId('agenda-remove').click();
       await expect(fullRow).toHaveCount(0);
+      await expect(talkRow).toBeVisible();
       await expect(talkRow.getByTestId('agenda-clash')).toHaveCount(0);
       await expect(talkRow.getByTestId('agenda-hop')).toBeVisible(); // still cannot make the trip
       expect(navigations, 'the list updated without a reload').toBe(0);
