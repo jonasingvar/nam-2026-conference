@@ -31,6 +31,15 @@ test('the preview bypass reaches only the preview hosts named, never all of verc
   assert.ok(!JSON.stringify(without).includes('bypass_REAL'));
 });
 
+test('a preview is asked not to inject the Vercel toolbar, whose host the sandbox cannot reach', () => {
+  for (const mode of ['none', 'read', 'push'] as const) {
+    const p: any = lockedPolicy(secrets, ['p.vercel.app'], mode);
+    assert.equal(p.allow['p.vercel.app'][0].transform[0].headers['x-vercel-skip-toolbar'], '1', mode);
+  }
+  // The toolbar's own host stays unreachable: skipping it is the fix, not allowing it.
+  assert.ok(!('vercel.live' in (lockedPolicy(secrets, ['p.vercel.app'], 'read') as any).allow));
+});
+
 test('each mode gets only what it needs: none has no credential, read only the Gateway, push both', () => {
   const none = JSON.stringify(lockedPolicy(secrets, ['p.vercel.app'], 'none'));
   assert.ok(!none.includes('ghs_REAL') && !none.includes(Buffer.from('x-access-token:ghs_REAL').toString('base64')), 'none: no GitHub token');

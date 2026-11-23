@@ -59,9 +59,16 @@ export function lockedPolicy(
       'fonts.gstatic.com': [],
       // QA probes a pull request's Vercel preview. Each host is named exactly —
       // never *.vercel.app — so the bypass header reaches only that deployment.
-      ...Object.fromEntries(previewHosts.map((h) => [h, secrets.previewBypass && mode !== 'none'
-        ? [{ transform: [{ headers: { 'x-vercel-protection-bypass': secrets.previewBypass, 'x-vercel-set-bypass-cookie': 'true' } }] }]
-        : []])),
+      // Every request to it also asks Vercel not to inject its toolbar: a
+      // preview's HTML loads vercel.live/_next-live/feedback/feedback.js for a
+      // browser's user agent, vercel.live is not reachable from here, and the
+      // "net::ERR_NAME_NOT_RESOLVED" console error that left failed every probe
+      // that watches the console (#36). Allowing vercel.live instead would put
+      // a floating toolbar over the page that attendees never see.
+      ...Object.fromEntries(previewHosts.map((h) => [h, [{ transform: [{ headers: {
+        'x-vercel-skip-toolbar': '1',
+        ...(secrets.previewBypass && mode !== 'none' ? { 'x-vercel-protection-bypass': secrets.previewBypass, 'x-vercel-set-bypass-cookie': 'true' } : {}),
+      } }] }]])),
     },
   };
 }
