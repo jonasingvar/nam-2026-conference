@@ -161,23 +161,29 @@ changed, else nothing; anything else is the app; a mix runs both, side by side.
 For the app: `select` (*Test selection*), then `runDesktop` ∥ `runMobile`, each
 in its own fork of the warm sandbox, npm test with desktop. On a pull request
 ship opened, verify reads ship's gate record for that commit and runs only
-what its own selection adds. The status reads like *ran 9 of 184 browser
-tests · selected: these reach MyAgendaPage.jsx · unit/API all (330)*; the run's
-attributes keep `kind`, `selection`, `selected`, `of`, `reason`, `confidence`
-and `reused`. The `full-suite` label runs everything.
+what its own selection adds. Tests are counted once, each running on both
+shards; the status reads like *ran 7 of 92 browser tests (map 2, smoke 5) ·
+selected: these reach MyAgendaPage.jsx · unit/API all (330)*. The run's
+attributes keep `kind`, `selection`, `selected`, `of`, `breakdown`, `reason`,
+`confidence` and `reused`. The `full-suite` label runs everything.
 
-**Test selection** (`lib/select.ts`, pure and tested). Candidates come from
-the **test map** — per source file, the unit/API test files and the browser
-tests (per project) that executed it — plus the specs the change's imports
-reach (`gate.mjs:affectedSpecs`), the branch's own specs and the smoke spec,
-which always runs. A cheap model (`testSelect`, called from the function
-through AI Gateway, so verify's sandbox keeps no credential) reads the diff,
-the candidates, every spec and recent escapes, and adds what a map cannot see
-(CSS, seed data, helpers, config, routes) or drops a candidate with a reason,
-with a confidence. Below 0.7, no map, a map more than 40 app commits behind,
-or a changed file the map has never seen: widen to the branch scope
-(`affectedSpecs || fastFallback`), or everything where that cannot be told.
-Ship's gate takes the branch scope as a floor. Main runs everything.
+**Test selection** (`lib/select.ts`, pure and tested). With a current map, the
+tests are the map's — the ones whose run executed a changed file, picked by
+exact title (`GATE_SPECS` + `GATE_GREP`) — plus the **smoke set**, five named
+tests (`SMOKE_SET`: the layout shell and Home, the seeded API, a seat that
+survives a reload, a clash refused with a swap, a check-in that unlocks a
+rating), plus the branch's own specs whole. The import graph is not consulted
+then: a shared import "reaches" every page that pulls it in, and ran nothing.
+A cheap model (`testSelect`, called from the function through AI Gateway, so
+verify's sandbox keeps no credential) reads the diff, the candidates, every
+spec and recent escapes, and adds what a map cannot see (CSS, seed data,
+helpers, config, routes) or drops a candidate with a reason, with a
+confidence. Below 0.7, no map, a map more than 40 app commits behind, or a
+changed file the map has never seen: widen to the branch scope
+(`affectedSpecs || fastFallback`) and the map's candidate specs, whole — or
+everything where that cannot be told. Every selection is broken down by what
+brought each test in (`map`, `smoke`, `own`, `added`, `floor`, `widened`).
+Ship's gate adds the branch scope as a floor. Main runs everything.
 
 **The test map** (`scripts/test-map.mjs build`) is built on every push to
 main that touches the app, in a third sandbox beside verify's shards so the

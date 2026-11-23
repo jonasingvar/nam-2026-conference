@@ -26,21 +26,22 @@ export function factsScript(base: string) {
 
 /**
  * One shard: gate.mjs on one project with exactly these Playwright arguments
- * (null: its whole suite), npm test only where `unit`, then — when `red` is
+ * (null: its whole suite) and, when given, a --grep of their exact titles; npm test only where `unit`, then — when `red` is
  * set and the shard is green — `scripts/red-check.mjs` with that RED_SCOPE.
  * A commit whose gate.mjs predates shards runs its whole gate on desktop and
  * nothing on mobile.
  */
-export function shardScript(o: { project: Project; args: string[] | null; unit: boolean; base: string; red?: 'unit' | 'all' | null }) {
+export function shardScript(o: { project: Project; args: string[] | null; grep?: string | null; unit: boolean; base: string; red?: 'unit' | 'all' | null }) {
   const env = [
     `GATE_BASE=origin/${o.base}`,
     `GATE_PROJECT=${o.project}`,
     o.unit ? '' : 'GATE_UNIT=skip',
     o.args ? `GATE_SPECS=${sq(o.args.join(' ') || 'none')}` : '',
+    o.args && o.grep ? `GATE_GREP=${sq(o.grep)}` : '',
   ].filter(Boolean).join(' ');
   return [
     `GATE=""; RED=""`,
-    `if grep -q GATE_SPECS scripts/gate.mjs; then GATE=$(${env} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
+    `if grep -q GATE_GREP scripts/gate.mjs; then GATE=$(${env} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
     `elif [ ${o.project} = desktop ]; then GATE=$(GATE_BASE=origin/${o.base} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
     `else GATE='{"skippedOldGate":true}'; fi`,
     o.red ? `case "$GATE" in *'"ok":true'*) RED=$(${o.red === 'unit' ? 'RED_SCOPE=unit ' : ''}GATE_BASE=origin/${o.base} node scripts/red-check.mjs 2>"$JOB/red.err" | tail -1);; esac` : '',
@@ -76,7 +77,7 @@ export async function runShards(sel: Selection, o: {
     const args = o.full ? null : sel.args[p];
     const unit = p === 'desktop' && o.unit !== false;
     if (args && !args.length && !unit) return { gate: SKIPPED, red: '', skipped: true };
-    const r = await o.run(p, `${p}${o.tag ?? ''}`, shardScript({ project: p, args, unit, base: o.base, red: unit ? o.red : null }));
+    const r = await o.run(p, `${p}${o.tag ?? ''}`, shardScript({ project: p, args, grep: o.full ? null : sel.grep[p], unit, base: o.base, red: unit ? o.red : null }));
     return { gate: parseGateLine(r?.gate), red: String(r?.red ?? '') };
   };
   const [desktop, mobile] = await Promise.all([one('desktop'), one('mobile')]);

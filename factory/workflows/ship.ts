@@ -14,7 +14,7 @@ import {
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { isTestGap } from '../lib/review-policy';
 import { chooseTests, recordGate, stageTestMap } from '../lib/phases';
-import { classify as classifyFiles, mergeShards, type Facts, type Project, type Selection } from '../lib/select';
+import { breakdownLine, classify as classifyFiles, mergeShards, type Facts, type Project, type Selection } from '../lib/select';
 import { factsScript, runShards } from '../lib/testrun';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, FULL_SUITE_LABEL, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
@@ -255,8 +255,8 @@ async function shipRun(input: ShipInput) {
       spend.total += chosen.cost;
     }
     const sel = chosen.selection;
-    log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests${sel.notes.length ? ` (${sel.notes.join('; ')})` : ''}${chosen.error ? ` — selector failed: ${chosen.error}` : ''}`);
-    await setAttributes({ selection: sel.mode, selected: String(sel.ran), of: String(sel.total) });
+    log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests [${breakdownLine(sel)}]${sel.notes.length ? ` (${sel.notes.join('; ')})` : ''}${chosen.error ? ` — selector failed: ${chosen.error}` : ''}`);
+    await setAttributes({ selection: sel.mode, selected: String(sel.ran), of: String(sel.total), breakdown: breakdownLine(sel) });
     return { ran, sel };
   }
   const gateRecord = (head: string, g: any, sel: Selection) => ({

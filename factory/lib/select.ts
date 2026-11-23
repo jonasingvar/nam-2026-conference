@@ -63,16 +63,24 @@ export type Facts = {
 export type SpecWhy = { spec: string; why: string };
 export type SelectorAnswer = { add: SpecWhy[]; remove: SpecWhy[]; confidence: number; summary: string };
 
+/** Why a test is in a selection — the first reason that put it there. */
+export type Source = 'smoke' | 'own' | 'map' | 'added' | 'floor' | 'widened';
+
 export type Selection = {
   mode: 'none' | 'selected' | 'widened' | 'full';
   reason: string;
   confidence: number | null;
-  /** Per project, the Playwright arguments: spec files, or file:line for single tests. Empty: no browser test. */
+  /** Per project, the spec files to run (empty: nothing on that project). */
   args: Record<Project, string[]>;
-  /** Per project, the tests those arguments run (spec › title), for the record and for escapes. */
+  /** Per project, the exact tests within them (Playwright --grep); null runs the files whole. */
+  grep: Record<Project, string | null>;
+  /** Per project, the tests that run (spec › title), for the record and for escapes. */
   tests: Record<Project, string[]>;
+  /** Tests, counted once whether they run on one project or both (each runs on its own shard). */
   total: number;
   ran: number;
+  /** How many of `ran` each reason brought in, so a selection can be read and argued with. */
+  breakdown: Partial<Record<Source, number>>;
   notes: string[];
 };
 
@@ -80,11 +88,24 @@ export const CONFIDENCE = 0.7;
 /** A map this many app commits behind the base is stale: too much has moved since it was measured. */
 export const MAX_BEHIND = 40;
 const DECK = 'tests/presentation.spec.js';
-/** The smoke set every app change runs: it opens every page on both viewports and fails on any that breaks or throws. */
 export const SMOKE = 'tests/smoke.spec.js';
+/**
+ * The smoke set every app change runs, on both projects: the layout shell and
+ * Home with no console errors, the seeded API, a seat that survives a reload,
+ * a clash refused with a swap, a check-in that unlocks a rating. A test
+ * renamed away takes its whole spec instead, rather than leaving a hole.
+ */
+export const SMOKE_SET: { spec: string; title: string }[] = [
+  { spec: 'tests/smoke.spec.js', title: 'Home renders cleanly' },
+  { spec: 'tests/smoke.spec.js', title: 'the API is reachable and seeded' },
+  { spec: 'tests/seats.spec.js', title: 'Seat reservation › a reservation is server state and survives a reload' },
+  { spec: 'tests/attendance.spec.js', title: 'You cannot be in two places at once › a second seat in the same slot is refused, and offers a swap' },
+  { spec: 'tests/attendance.spec.js', title: 'Check in and rate › checking in unlocks rating, and rating moves the session average' },
+];
 const isSpec = (f: string) => /^tests\/[^/]+\.spec\.js$/.test(f) && f !== 'tests/qa-probe.spec.js';
 const base = (f: string) => f.split('/').pop()!;
 const nameOf = (t: Listed) => `${t.spec} › ${t.title}`;
+const unique = (tests: Record<Project, string[]>) => new Set([...tests.desktop, ...tests.mobile]).size;
 
 /** Why a map cannot be trusted for this change, or null when it can. */
 export function mapProblem(map: MapFacts | null): string | null {
@@ -95,35 +116,36 @@ export function mapProblem(map: MapFacts | null): string | null {
   return null;
 }
 
+/** How many tests a full run has — the "of N", each test once; the decks' spec only for a deck change, as it only runs then. */
+export const suiteSize = (f: Facts | null) => new Set(PROJECTS.flatMap((p) => (f?.tests?.[p] || []).filter((t) => f!.deck || t.spec !== DECK).map(nameOf))).size;
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 /**
- * Tests → the Playwright arguments that run exactly them: a whole spec when
- * every test of it is chosen, else `spec:line` per line (a loop's tests share one).
+ * Tests → the Playwright arguments that run exactly them on one project: the
+ * spec files, and a --grep of their full titles. Playwright matches grep
+ * against "<project> <file> <describe…> <title>", so a test generated in a
+ * loop (smoke's routes share one line) is still picked out on its own.
  */
-export function argsFor(listed: Listed[], chosen: Set<string>): string[] {
-  const out: string[] = [];
-  for (const spec of [...new Set(listed.map((t) => t.spec))].sort()) {
-    const of = listed.filter((t) => t.spec === spec);
-    const hit = of.filter((t) => chosen.has(nameOf(t)));
-    if (!hit.length) continue;
-    if (hit.length === of.length) out.push(spec);
-    else out.push(...[...new Set(hit.map((t) => t.line))].sort((x, y) => x - y).map((l) => `${spec}:${l}`));
-  }
-  return out;
+export function argsFor(project: Project, listed: Listed[], chosen: Set<string>): { args: string[]; grep: string | null } {
+  const hit = listed.filter((t) => chosen.has(nameOf(t)));
+  if (!hit.length) return { args: [], grep: null };
+  const args = [...new Set(hit.map((t) => t.spec))].sort();
+  const whole = args.every((s) => listed.filter((t) => t.spec === s).every((t) => chosen.has(nameOf(t))));
+  const grep = whole ? null : `^${escape(project)} (${hit.map((t) => `${escape(t.spec.replace(/^tests\//, ''))} ${escape(t.title.split(' › ').join(' '))}`).join('|')})$`;
+  return { args, grep };
 }
 
 /** Everything (less the decks' spec unless the change is a deck), with why. */
 export function everything(f: Facts | null, reason: string, confidence: number | null = null): Selection {
-  const listed = f?.tests;
-  const total = listed ? listed.desktop.length + listed.mobile.length : 0;
   const tests = { desktop: [] as string[], mobile: [] as string[] };
   const args = { desktop: [] as string[], mobile: [] as string[] };
   for (const p of PROJECTS) {
-    const here = (listed?.[p] || []).filter((t) => f?.deck || t.spec !== DECK);
+    const here = (f?.tests?.[p] || []).filter((t) => f?.deck || t.spec !== DECK);
     tests[p] = here.map(nameOf);
     args[p] = [...new Set(here.map((t) => t.spec))].sort();
   }
   // Nothing listed: empty arguments, and the shard's gate runs its own whole suite (scope full).
-  return { mode: 'full', reason, confidence, args, tests, total, ran: tests.desktop.length + tests.mobile.length, notes: [] };
+  return { mode: 'full', reason, confidence, args, grep: { desktop: null, mobile: null }, tests, total: suiteSize(f), ran: unique(tests), breakdown: {}, notes: [] };
 }
 
 export type SelectOptions = {
@@ -134,96 +156,119 @@ export type SelectOptions = {
   floor?: boolean;
 };
 
+export const none = (f: Facts | null, reason: string): Selection => ({
+  mode: 'none', reason, confidence: null, args: { desktop: [], mobile: [] }, grep: { desktop: null, mobile: null },
+  tests: { desktop: [], mobile: [] }, total: suiteSize(f), ran: 0, breakdown: {}, notes: [],
+});
+
 export function decideSelection(c: Classified, f: Facts | null, a: SelectorAnswer | null, o: SelectOptions = {}): Selection {
   const threshold = o.threshold ?? CONFIDENCE;
   const confidence = a?.confidence ?? null;
-  if (!c.app) {
-    const total = f?.tests ? f.tests.desktop.length + f.tests.mobile.length : 0;
-    return { mode: 'none', reason: c.factory ? 'factory only' : 'docs only', confidence: null, args: { desktop: [], mobile: [] }, tests: { desktop: [], mobile: [] }, total, ran: 0, notes: [] };
-  }
+  if (!c.app) return none(f, c.factory ? 'factory only' : 'docs only');
   if (o.full) return everything(f, o.full, confidence);
   const listed = f?.tests;
   if (!f || !listed) return everything(f, 'the tests could not be listed', confidence);
-  const allSpecs = new Set([...listed.desktop, ...listed.mobile].map((t) => t.spec).filter((s) => f.deck || s !== DECK));
+  const runnable = (t: Listed) => f.deck || t.spec !== DECK;
+  const allSpecs = new Set([...listed.desktop, ...listed.mobile].filter(runnable).map((t) => t.spec));
+  if (o.floor && f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
 
-  const notes: string[] = [];
-  const adds = (a?.add || []).filter((x) => allSpecs.has(x.spec));
-  // Whole spec files: the smoke set, the branch's own specs, what its imports reach, what the selector added.
-  const whole = new Set<string>([SMOKE, ...f.changed.filter(isSpec), ...(f.static || []), ...adds.map((x) => x.spec)].filter((s) => allSpecs.has(s)));
-  if (o.floor) {
-    if (f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
-    for (const s of f.branch) if (allSpecs.has(s)) whole.add(s);
-  }
   const problem = mapProblem(f.map) ?? (!a ? 'the selector did not answer' : a.confidence < threshold ? `the selector was ${Math.round(a.confidence * 100)}% sure` : null);
+  if (problem && f.branch === null) return everything(f, `${problem}, and its reach cannot be told`, confidence);
 
+  // Each test, per project, with the first reason that chose it.
+  const chosen: Record<Project, Map<string, Source>> = { desktop: new Map(), mobile: new Map() };
+  const add = (p: Project, t: Listed, why: Source) => { if (runnable(t) && !chosen[p].has(nameOf(t))) chosen[p].set(nameOf(t), why); };
+  const addSpec = (spec: string, why: Source) => { for (const p of PROJECTS) for (const t of listed[p]) if (t.spec === spec) add(p, t, why); };
+  const notes: string[] = [];
+
+  for (const s of SMOKE_SET) {
+    const found = PROJECTS.some((p) => listed[p].some((t) => t.spec === s.spec && t.title === s.title));
+    if (found) for (const p of PROJECTS) for (const t of listed[p]) { if (t.spec === s.spec && t.title === s.title) add(p, t, 'smoke'); }
+    else addSpec(s.spec, 'smoke');
+  }
+  // The branch's own specs, whole: they are what it set out to prove.
+  for (const s of f.changed.filter(isSpec)) if (allSpecs.has(s)) addSpec(s, 'own');
+
+  const adds = (a?.add || []).filter((x) => allSpecs.has(x.spec));
   let mode: Selection['mode'] = 'selected';
   let reason: string;
-  const titled: Record<Project, Record<string, string[]>> = { desktop: {}, mobile: {} };
   if (problem) {
-    // Widen to the branch scope (what the imports reach, else the branch's specs and smoke); everything where even that cannot be told.
-    if (f.branch === null) return everything(f, `${problem}, and its reach cannot be told`, confidence);
+    // Widen: the branch scope (the specs the imports reach, else the branch's own and smoke) and the map's candidates, whole.
     mode = 'widened';
-    for (const s of f.branch) if (allSpecs.has(s)) whole.add(s);
-    for (const p of PROJECTS) for (const s of Object.keys(f.map?.[p] || {})) if (allSpecs.has(s)) whole.add(s);
-    if (adds.length) notes.push(`added ${adds.map((x) => base(x.spec)).join(', ')}`);
+    for (const s of adds) addSpec(s.spec, 'added');
+    for (const s of f.branch!) if (allSpecs.has(s)) addSpec(s, 'widened');
+    for (const p of PROJECTS) for (const s of Object.keys(f.map?.[p] || {})) if (allSpecs.has(s)) addSpec(s, 'widened');
     reason = `${problem} — the specs it reaches`;
   } else {
+    // A current map is the evidence: the tests whose run executed a changed file, by title. The import
+    // graph is not consulted — a shared import "reaches" every page that pulls it in, which ran nothing.
     const map = f.map!;
-    const removed = new Set((a!.remove || []).map((x) => x.spec).filter((s) => !whole.has(s)));
+    const removed = new Set((a!.remove || []).map((x) => x.spec));
     for (const p of PROJECTS) {
       for (const [spec, titles] of Object.entries(map[p])) {
-        if (!allSpecs.has(spec) || whole.has(spec) || removed.has(spec)) continue;
-        titled[p][spec] = titles;
+        if (!allSpecs.has(spec) || removed.has(spec)) continue;
+        const of = listed[p].filter((t) => t.spec === spec);
+        const hit = of.filter((t) => titles.includes(t.title));
+        // A title the map knows that this commit renamed or moved: the whole spec, rather than nothing.
+        for (const t of hit.length === titles.length ? hit : of) add(p, t, 'map');
       }
     }
+    for (const s of adds) addSpec(s.spec, 'added');
     if (removed.size) notes.push(`dropped ${[...removed].map(base).join(', ')}`);
     if (adds.length) notes.push(`added ${adds.map((x) => base(x.spec)).join(', ')}`);
     const reached = [...new Set(Object.values(map.reach).flat())];
     reason = reached.length ? `these reach ${reached.slice(0, 3).map(base).join(', ')}${reached.length > 3 ? ` +${reached.length - 3}` : ''}` : 'no test ran the changed code';
   }
+  // Ship's floor: GATE_SCOPE=branch's specs, whole, whatever the map says.
+  if (o.floor) for (const s of f.branch!) if (allSpecs.has(s)) addSpec(s, 'floor');
 
-  const args = { desktop: [] as string[], mobile: [] as string[] };
-  const tests = { desktop: [] as string[], mobile: [] as string[] };
-  for (const p of PROJECTS) {
-    const here = listed[p];
-    const chosen = new Set<string>();
-    for (const t of here) if (whole.has(t.spec)) chosen.add(nameOf(t));
-    for (const [spec, titles] of Object.entries(titled[p])) {
-      const of = here.filter((t) => t.spec === spec);
-      const hit = of.filter((t) => titles.includes(t.title));
-      // A title the map knows that this commit renamed or moved: the whole spec, rather than nothing.
-      const lines = new Set((hit.length === titles.length ? hit : of).map((t) => t.line));
-      for (const t of of) if (lines.has(t.line)) chosen.add(nameOf(t));
-    }
-    args[p] = argsFor(here, chosen);
-    tests[p] = here.filter((t) => chosen.has(nameOf(t))).map(nameOf);
-  }
-  return { mode, reason, confidence, args, tests, total: listed.desktop.length + listed.mobile.length, ran: tests.desktop.length + tests.mobile.length, notes };
+  return finish({ mode, reason, confidence, notes }, f, chosen);
 }
+
+function finish(head: Pick<Selection, 'mode' | 'reason' | 'confidence' | 'notes'>, f: Facts, chosen: Record<Project, Map<string, Source>>): Selection {
+  const args = { desktop: [] as string[], mobile: [] as string[] };
+  const grep = { desktop: null as string | null, mobile: null as string | null };
+  const tests = { desktop: [] as string[], mobile: [] as string[] };
+  const why = new Map<string, Source>();
+  for (const p of PROJECTS) {
+    const here = f.tests![p];
+    const set = new Set(chosen[p].keys());
+    ({ args: args[p], grep: grep[p] } = argsFor(p, here, set));
+    tests[p] = here.filter((t) => set.has(nameOf(t))).map(nameOf);
+    for (const [t, s] of chosen[p]) if (!why.has(t)) why.set(t, s);
+  }
+  const breakdown: Partial<Record<Source, number>> = {};
+  for (const s of why.values()) breakdown[s] = (breakdown[s] || 0) + 1;
+  return { ...head, args, grep, tests, total: suiteSize(f), ran: unique(tests), breakdown };
+}
+
+/** "map 2 · smoke 5 · added 1": what brought the tests in. */
+export const breakdownLine = (s: Selection) =>
+  (['map', 'smoke', 'own', 'added', 'floor', 'widened'] as Source[]).filter((k) => s.breakdown[k]).map((k) => `${k} ${s.breakdown[k]}`).join(' · ');
 
 /**
  * What is left once an earlier gate on the same code ran `done` green (ship's,
  * on the commit it opened the pull request at): only the rest.
  */
 export function withoutRan(s: Selection, f: Facts, done: Record<Project, string[]>): Selection {
-  if (!f.tests) return s;
-  const args = { desktop: [] as string[], mobile: [] as string[] };
-  const tests = { desktop: [] as string[], mobile: [] as string[] };
+  if (!f.tests || s.mode === 'none') return s;
+  const chosen: Record<Project, Map<string, Source>> = { desktop: new Map(), mobile: new Map() };
   for (const p of PROJECTS) {
     const ran = new Set(done[p] || []);
-    const chosen = new Set(s.tests[p].filter((t) => !ran.has(t)));
-    args[p] = argsFor(f.tests[p], chosen);
-    tests[p] = s.tests[p].filter((t) => chosen.has(t));
+    for (const t of s.tests[p]) if (!ran.has(t)) chosen[p].set(t, 'map');
   }
-  return { ...s, args, tests, ran: tests.desktop.length + tests.mobile.length };
+  const out = finish(s, f, chosen);
+  // Keep the reasons of what still runs; it is the same selection, less what already ran.
+  return { ...out, mode: s.mode, breakdown: s.breakdown, reason: s.reason };
 }
 
 /** The commit status line: what ran, and why that. GitHub keeps 140 characters. */
 export function statusLine(c: Classified, s: Selection, r: { unit?: string; factory?: string; docs?: string; failed?: number; reused?: number; label?: boolean }) {
   const parts: string[] = [];
   if (c.app) {
+    // Each test runs on desktop and mobile, one shard each: counted once.
     const ran = s.mode === 'full' ? `ran all ${s.ran || s.total} browser tests` : `ran ${s.ran} of ${s.total} browser tests`;
-    parts.push(s.mode === 'full' ? `${ran}${r.label ? ' (full-suite label)' : ''}` : `${ran} · ${s.mode}: ${s.reason}`);
+    parts.push(s.mode === 'full' ? `${ran}${r.label ? ' (full-suite label)' : ''}` : `${ran} (${breakdownLine(s).replaceAll(' · ', ', ')}) · ${s.mode}: ${s.reason}`);
     if (r.reused) parts.push(`${r.reused} green in ship's gate`);
     parts.push(`unit/API ${r.unit ?? 'all'}`);
   }
@@ -314,8 +359,13 @@ export type GateRecord = {
 /** Shard results (gate.mjs JSON per project; null: it did not report) → one verdict, as gate.mjs would give it. */
 export function mergeShards(byProject: Record<Project, any | null>) {
   const shards = PROJECTS.map((p) => byProject[p]);
-  const ok = shards.every((g) => g && g.ok === true);
+  // A test the branch added that skipped on every shard that ran it never ran at all: it proves nothing (gate.mjs:neverRanAdded).
+  const ran = shards.filter((g) => g && !g.skipped);
+  const unran = ran.length ? ran.map((g) => (g.browser?.addedNeverRan || []) as { test: string; error: string }[])
+    .reduce((acc, l) => acc.filter((x) => l.some((y) => y.test === x.test))) : [];
+  const ok = shards.every((g) => g && g.ok === true) && !unran.length;
   const failed = [
+    ...unran,
     ...PROJECTS.filter((p) => !byProject[p]).map((p) => ({ test: `${p} shard`, error: 'the gate did not report' })),
     ...shards.flatMap((g) => g?.browser?.failed || []),
     ...(shards.some((g) => g?.dirty) ? [{ test: 'git status', error: 'the gate ran on uncommitted changes — commit or discard them' }] : []),

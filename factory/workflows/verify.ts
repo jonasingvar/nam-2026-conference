@@ -4,7 +4,7 @@ import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { setStatus } from '../lib/github-steps';
 import { chooseModels, modelBook } from '../lib/models';
 import { chooseTests, classify, gateRecordFor, recordEscapes, recordGate, saveTestMap, stageTestMap } from '../lib/phases';
-import { mergeShards, statusLine, withoutRan, type Facts, type Project, type Selection } from '../lib/select';
+import { breakdownLine, mergeShards, none, statusLine, withoutRan, type Facts, type Project, type Selection } from '../lib/select';
 import { factsScript, runShards } from '../lib/testrun';
 import { FACTORY_DASHBOARD, FACTORY_DEPS, REPO_DIR } from '../lib/constants';
 
@@ -80,7 +80,7 @@ async function verifyRun(input: VerifyInput) {
 
   // ── select ────────────────────────────────────────────────────────────────
   let facts: Facts | null = null;
-  let sel: Selection = { mode: 'none', reason: '', confidence: null, args: { desktop: [], mobile: [] }, tests: { desktop: [], mobile: [] }, total: 0, ran: 0, notes: [] };
+  let sel: Selection = none(null, '');
   let reused = 0;
   let unitDone = false;
   let prior: Awaited<ReturnType<typeof gateRecordFor>> = null;
@@ -98,7 +98,7 @@ async function verifyRun(input: VerifyInput) {
     });
     sel = chosen.selection;
     if (book && pick && chosen.asked) book.record({ job: 'testSelect', label: 'select', model: pick.model, tier: pick.tier, est: pick.est, cost: chosen.cost, ok: !!chosen.answer, seconds: chosen.seconds });
-    k.log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests${chosen.answer ? ` (selector ${Math.round(chosen.answer.confidence * 100)}%: ${chosen.answer.summary.slice(0, 200)})` : chosen.error ? ` (selector failed: ${chosen.error})` : ''}`);
+    k.log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests [${breakdownLine(sel)}]${chosen.answer ? ` (selector ${Math.round(chosen.answer.confidence * 100)}%: ${chosen.answer.summary.slice(0, 200)})` : chosen.error ? ` (selector failed: ${chosen.error})` : ''}`);
     // Ship gated this very code before it opened the pull request: run only what it did not.
     prior = onMain || input.full ? null : await gateRecordFor(input.sha);
     if (prior?.by === 'ship' && prior.ok && facts) {
@@ -109,7 +109,7 @@ async function verifyRun(input: VerifyInput) {
       k.log(`ship's gate ran ${reused} of these green at ${prior.ranAt.slice(0, 7)}${unitDone ? ', and npm test' : ''}`);
     }
     await setAttributes({
-      selection: sel.mode, selected: String(sel.ran), of: String(sel.total), reason: sel.reason.slice(0, 120),
+      selection: sel.mode, selected: String(sel.ran), of: String(sel.total), reason: sel.reason.slice(0, 120), breakdown: breakdownLine(sel),
       ...(sel.confidence !== null ? { confidence: sel.confidence.toFixed(2) } : {}),
       ...(reused ? { reused: String(reused) } : {}),
       ...(book?.summary() ? { models: book.summary() } : {}),

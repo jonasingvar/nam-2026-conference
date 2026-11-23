@@ -3,7 +3,7 @@
  *
  *   node scripts/gate.mjs        # npm test, then the Playwright suite; prints one JSON line
  *   GATE_SCOPE=branch node scripts/gate.mjs   # …only the browser specs the change reaches (ship --fast)
- *   GATE_SPECS="tests/a.spec.js tests/b.spec.js:12" GATE_PROJECT=desktop GATE_UNIT=skip node scripts/gate.mjs
+ *   GATE_SPECS="tests/a.spec.js tests/b.spec.js" GATE_GREP="^desktop a.spec.js one test$" GATE_PROJECT=desktop GATE_UNIT=skip node scripts/gate.mjs
  *       # …exactly these (verify's selection, one shard per project), without npm test
  *
  * The decks' spec (`tests/presentation.spec.js`) runs only when the branch
@@ -453,7 +453,9 @@ function main() {
   rmSync(json, { force: true });
   const none = scope !== 'full' && !specs.length;
   const project = process.env.GATE_PROJECT ? [`--project=${process.env.GATE_PROJECT}`] : [];
-  const pw = none ? { status: 0 } : spawnSync('npx', ['playwright', 'test', ...specs, ...project, '--retries=1', '--forbid-only', '--reporter=json'], {
+  // GATE_GREP: with GATE_SPECS, the exact tests within those files (one regex of their full titles).
+  const grep = chosen && process.env.GATE_GREP ? ['--grep', process.env.GATE_GREP] : [];
+  const pw = none ? { status: 0 } : spawnSync('npx', ['playwright', 'test', ...specs, ...project, ...grep, '--retries=1', '--forbid-only', '--reporter=json'], {
     cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024,
     env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: json, PLAYWRIGHT_JSON_OUTPUT_FILE: json },
   });
@@ -481,7 +483,10 @@ function main() {
 
   let testDiff = '';
   try { testDiff = git('diff', `${base}...HEAD`, '--', 'tests/'); } catch { /* no base */ }
-  browser.failed.push(...neverRanAdded(browser.neverRan || [], addedTests(testDiff)));
+  // One project of two (a shard) cannot tell "skipped everywhere": it reports its own, and the factory
+  // fails only a test both shards skipped (lib/select.ts:mergeShards).
+  const unran = neverRanAdded(browser.neverRan || [], addedTests(testDiff));
+  if (process.env.GATE_PROJECT) browser.addedNeverRan = unran; else browser.failed.push(...unran);
 
   // No count at all is not a pass: a reporter the gate cannot read once
   // turned every unit test into "0 passed" and the gate green (Node 24's
