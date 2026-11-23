@@ -14,6 +14,7 @@ import { startChecks, startRespond, startShip, startShots, startVerify, startWar
  *   - `/review` on a pull request                      → verify, review and QA it again
  *   - `/screenshots` on a pull request                 → screenshot what it changes, on its preview
  *   - `@claude …` on a pull request                    → respond: make the change asked for
+ *   - `/dismiss <n>` on a pull request                  → nothing now: the next review reads it and drops that finding for good
  *   - a pull request closed (merged or not)            → wake the ship run waiting on it, tidy its issue
  *   - a push to a pull request                         → verify: the gate, as CI
  *   - a push to main                                   → verify it, and re-warm the sandbox runs fork
@@ -42,7 +43,8 @@ export async function POST(req: Request) {
   // write access, on the issue or on the draft ship handed back, resumes it — no label needed.
   if (event === 'issue_comment' && p.action === 'created' && WRITERS.has(p.comment?.author_association)) {
     const body: string = p.comment?.body || '';
-    if (!body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel')) {
+    // `/dismiss n` marks a review finding wrong (read back by the next review), not an answer to a hand-back.
+    if (!body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel') && !/(^|\s)\/dismiss\b/i.test(body)) {
       let n: number | null = null;
       if (!p.issue?.pull_request) {
         if ((p.issue.labels || []).some((l: any) => l.name === 'needs-human')) n = p.issue.number;

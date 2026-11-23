@@ -31,6 +31,7 @@ files:
   - factory/workflows/verify.ts
   - factory/workflows/warm.ts
   - factory/lib/kit.ts
+  - factory/lib/review-policy.ts
   - factory/app/api/cron/warm/route.ts
   - .claude/settings.json
   - context/engineering-context/index.md
@@ -39,6 +40,7 @@ tests:
   - factory/test/policy.test.ts
   - factory/test/phases.test.ts
   - factory/test/agent.test.ts
+  - factory/test/review-policy.test.ts
   - tests/unit/gate.test.js
   - tests/unit/red-check.test.js
   - tests/unit/qa-facts.test.js
@@ -166,8 +168,11 @@ spend by model, a log, and a link to the run in the Workflows tab.
 - **The gate is a command, never an opinion.** No agent relays its output; the
   script reads `gate.mjs`'s JSON (`readGate`), and anything unparseable is red.
   A gate that finds no unit totals is red too (`unitTotals`).
-- **Fail closed.** A dead auditor is retried once, then hands back; a dead
-  skeptic refutes nothing; a dead builder or fixer hands back.
+- **Fail closed on work, open on claims.** A dead auditor is retried once, then hands back; a dead
+  builder or fixer hands back. A claim stands only if its own skeptic demonstrates it: a dead or
+  unsure skeptic leaves nothing raised (`code-review-playbook.md` §2, `factory/lib/review-policy.ts`).
+- **A test gap is never a blocker**, in ship or review: the fixer tightens it as polish when it is
+  fixing anyway, and it never hands a ticket back or labels a pull request `harness-escape`.
 - Only a confirmed blocker or a red gate costs a fix round. The skeptic judges
   against the spec *as first committed*.
 - **Agents do judgement only.** Branching, merging the base, pushing, opening

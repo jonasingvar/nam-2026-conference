@@ -1,5 +1,6 @@
 import { getWritable } from 'workflow';
 import { ALLOWED_REPO, APP_PROJECT } from './constants';
+import { dismissNumbers, type Dismissed } from './review-policy';
 
 /**
  * The factory's own GitHub calls — the progress comment and the spend line —
@@ -213,6 +214,53 @@ export async function readMarker(n: number, marker: string): Promise<any | null>
     if (m) { try { return JSON.parse(m[1]); } catch { return null; } }
   }
   return null;
+}
+
+/**
+ * What people have told review it got wrong, across the repository: a 👎 on a
+ * review comment dismisses its blockers (or, with none, everything it listed);
+ * `/dismiss 2` under a review dismisses its finding 2. The comments are the
+ * record — nothing else to keep in sync — and every review reads them back
+ * so the same false positive is not raised twice.
+ */
+export async function pastDismissals(days = 90) {
+  'use step';
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const all: any[] = [];
+  for (let page = 1; page <= 5; page++) {
+    const batch = await gh(`/issues/comments?since=${since}&per_page=100&page=${page}`);
+    all.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return dismissalsFrom(all);
+}
+pastDismissals.maxRetries = 2;
+
+/** Pure: the comments → what was dismissed (exported for its test). */
+export function dismissalsFrom(comments: any[]): Dismissed[] {
+  const prOf = (c: any) => Number(String(c.issue_url || '').split('/').pop());
+  const reviews = comments.map((c) => {
+    const m = /<!-- factory-verdict:review (\{.*?\}) -->/s.exec(c.body || '');
+    if (!m) return null;
+    try { return { c, marker: JSON.parse(m[1]) }; } catch { return null; }
+  }).filter(Boolean) as { c: any; marker: any }[];
+  const out: Dismissed[] = [];
+  const add = (pr: number, f: any) => f && out.push({ pr, file: f.file, line: f.line, category: f.category, claim: f.claim });
+  for (const { c, marker } of reviews) {
+    if ((c.reactions?.['-1'] ?? 0) > 0) {
+      const listed: any[] = marker.listed ?? [];
+      const blocking = listed.filter((x) => x.blocker);
+      for (const f of (blocking.length ? blocking : listed.length ? listed : marker.blockers ?? [])) add(prOf(c), f);
+    }
+  }
+  for (const c of comments) {
+    const ns = dismissNumbers(c.body || '');
+    if (!ns.length || (c.body || '').includes('<!-- factory')) continue;
+    // The review it answers: the latest one on the same pull request before it.
+    const r = reviews.filter((x) => x.c.issue_url === c.issue_url && x.c.created_at <= c.created_at).pop();
+    for (const n of ns) add(prOf(c), (r?.marker.listed ?? []).find((x: any) => x.n === n));
+  }
+  return out;
 }
 
 /** A commit status — the verdict's colour on the pull request, beside Vercel's own. */
