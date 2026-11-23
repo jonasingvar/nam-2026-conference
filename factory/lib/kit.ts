@@ -82,7 +82,7 @@ export function checkoutPr(pr: number, head: string, base: string) {
   return [
     `git fetch -q --prune origin`,
     `git checkout -q -B "${head}" "origin/${head}"`,
-    `npm ci --no-audit --no-fund >/dev/null 2>&1 || npm install --no-audit --no-fund >/dev/null 2>&1`,
+    `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat /vercel/.factory/prepared)" ] || { npm ci --no-audit --no-fund >/dev/null 2>&1 && sha256sum package-lock.json | cut -c1-16 > /vercel/.factory/prepared; }; }`,
     `echo "{\\"head\\":\\"$(git rev-parse HEAD)\\",\\"base\\":\\"$(git rev-parse origin/${base})\\"}" > "$JOB/result.json"`,
   ].join(' && ');
 }

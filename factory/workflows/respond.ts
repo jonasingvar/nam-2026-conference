@@ -22,7 +22,7 @@ export async function respond(input: RespondInput) {
   const k = kit(box, `answering a request on pull request #${pr.number}`);
   await comment(pr.number, `👀 On it, @${input.author} — [run](${runUrl})`);
 
-  await prepareSandbox(box, pr.base);
+  await prepareSandbox(box, pr.headSha);
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await comment(pr.number, `Could not check out ${pr.head}. [run](${runUrl})`); return { outcome: 'failed' }; }
 

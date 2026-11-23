@@ -9,7 +9,7 @@ import { startChecks, startRespond, startShip, startVerify, startWarm } from '@/
  *   - an issue labelled `ready-for-ai`, or `@claude …` / `/ship …` on an issue → ship it
  *   - a pull request opened, reopened or marked ready  → review and QA it
  *     (not one ship opened: ship runs its own, and waits for them)
- *   - `/review` on a pull request                      → review and QA it again
+ *   - `/review` on a pull request                      → verify, review and QA it again
  *   - `@claude …` on a pull request                    → respond: make the change asked for
  *   - a pull request closed (merged or not)            → wake the ship run waiting on it, tidy its issue
  *   - a push to a pull request                         → verify: the gate, as CI
@@ -77,7 +77,9 @@ export async function POST(req: Request) {
     if (body.includes('<!-- factory') || body.includes('<!-- ship-on-vercel')) return Response.json({ ignored: 'the factory\'s own comment' });
     if (/(^|\s)(\/review|@claude\s+review)\b/i.test(body)) {
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
-      return Response.json(await startChecks(p.issue.number, pr.head.sha));
+      const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
+      const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast }), startChecks(p.issue.number, pr.head.sha)]);
+      return Response.json({ verify: v, checks });
     }
     if (/(^|\s)@claude\b/i.test(body)) {
       return Response.json(await startRespond({ pr: p.issue.number, ask: body.replace(/(^|\s)@claude\b/gi, ' ').trim(), author: p.comment.user.login }, p.comment.id));

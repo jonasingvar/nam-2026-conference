@@ -46,7 +46,7 @@ export async function review(input: ReviewInput) {
   const issue = pr.issue ? await readIssue(pr.issue).catch(() => null) : null;
   const previous = await readMarker(pr.number, 'factory-verdict:review');
 
-  await prepareSandbox(box, pr.base);
+  await prepareSandbox(box, pr.headSha);
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await setStatus(pr.headSha, 'factory/review', 'error', 'Could not check out the pull request', runUrl); return { verdict: 'none', reason: 'checkout failed' }; }
 

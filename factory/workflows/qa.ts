@@ -77,7 +77,7 @@ export async function qa(input: QaInput) {
   const issue = pr.issue ? await readIssue(pr.issue).catch(() => null) : null;
   const previous = await readMarker(pr.number, 'factory-verdict:qa');
 
-  await prepareSandbox(box, pr.base);
+  await prepareSandbox(box, pr.headSha);
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await setStatus(pr.headSha, 'factory/qa', 'error', 'Could not check out the pull request', runUrl); return { verdict: 'none' }; }
   const baseDeploy = (await findDeployment(co.base, 'Preview')).url ?? (pr.base === 'main' ? PRODUCTION_URL : null);

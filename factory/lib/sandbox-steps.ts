@@ -101,11 +101,13 @@ refreshWarm.maxRetries = 1;
 
 /**
  * The run's own sandbox: a fork of the warm one (its disk, installed and
- * ready, in seconds), brought to origin/<base>. Falls back to a fresh install
- * when there is no warm sandbox yet. Resumes it if it already exists — a step
- * retried after the fork, or a run replayed.
+ * ready, in seconds), brought to `ref` — the branch a ship run starts from, or
+ * the exact commit a review, QA or verify run checks (a branch name or a sha).
+ * It installs what *that* commit locks, and only if it differs from what is
+ * installed. Falls back to a fresh install when there is no warm sandbox yet,
+ * and resumes the sandbox if it already exists (a retried step, a replay).
  */
-export async function prepareSandbox(name: string, base: string) {
+export async function prepareSandbox(name: string, ref: string) {
   'use step';
   const t0 = Date.now();
   let sb: Sandbox;
@@ -119,7 +121,7 @@ export async function prepareSandbox(name: string, base: string) {
     } catch {
       sb = await Sandbox.create({
         name,
-        source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: base },
+        source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: /^[0-9a-f]{40}$/.test(ref) ? undefined : ref },
         resources: { vcpus: 4 },
         timeout: 45 * 60_000,
       });
@@ -128,11 +130,13 @@ export async function prepareSandbox(name: string, base: string) {
   }
   const prepared = await sh(sb, `test -f ${ROOT}/prepared && echo yes || echo no`);
   await sb.updateNetworkPolicy('allow-all');
+  const target = /^[0-9a-f]{40}$/.test(ref) ? ref : `origin/${ref}`;
   const r = prepared.out === 'yes'
     // Warm: only what changed since the warm sandbox was made.
-    ? await sh(sb, `set -e; cd ${REPO_DIR}; git fetch --prune --quiet origin; git checkout -q --detach origin/${base}; ` +
-        `if [ "$(sha256sum package-lock.json | cut -c1-16)" != "$(cat ${ROOT}/prepared)" ]; then npm ci --no-audit --no-fund; fi`)
-    : await sh(sb, INSTALL);
+    ? await sh(sb, `set -e; cd ${REPO_DIR}; git fetch --prune --quiet origin; git fetch --quiet origin ${ref} 2>/dev/null || true; git checkout -q --detach ${target}; ` +
+        `if [ "$(sha256sum package-lock.json | cut -c1-16)" != "$(cat ${ROOT}/prepared)" ]; then npm ci --no-audit --no-fund; sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; fi`)
+    : await sh(sb, `${INSTALL} && cd ${REPO_DIR} && git checkout -q --detach ${target} && ` +
+        `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat ${ROOT}/prepared)" ] || { npm ci --no-audit --no-fund && sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; }; }`);
   if (r.code !== 0) throw new Error(`preparing the sandbox failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
   await sb.updateNetworkPolicy(await policyFor(sb));
   return { name: sb.name, how, seconds: Math.round((Date.now() - t0) / 1000) };
