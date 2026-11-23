@@ -87,12 +87,25 @@ const marked = (body: string) => (body.includes('<!-- factory') ? body : body + 
 /** Create the issue's progress comment, or edit it in place. Returns its id. */
 export async function upsertComment(issue: number, id: number | null, body: string): Promise<number> {
   'use step';
+  return editOrPost(issue, id, body);
+}
+
+/**
+ * Edit the comment in place — or, when a person has deleted it, post a fresh
+ * one and hand back its id. A deleted progress comment used to fail the edit
+ * three times and crash the run (#16, in the middle of its review round).
+ */
+export async function editOrPost(issue: number, id: number | null, body: string): Promise<number> {
   if (id) {
-    await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
-    return id;
+    try {
+      await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
+      return id;
+    } catch (e: any) {
+      if (!/→ 404/.test(String(e?.message))) throw e;
+    }
   }
   const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
-  return c.id;
+  return c.id as number;
 }
 upsertComment.maxRetries = 3;
 
@@ -160,17 +173,20 @@ export async function previewForPr(n: number) {
   'use step';
   const commits = await gh(`/pulls/${n}/commits?per_page=100`);
   const newestFirst = [...commits].reverse();
+  let ignored = false;
   for (const [i, c] of newestFirst.entries()) {
     const combined = await gh(`/commits/${c.sha}/status`);
     const vercel = (combined.statuses || []).find((x: any) => x.context === `Vercel – ${APP_PROJECT}`);
     // Vercel reports only the last commit of each push: a head without a status is
     // not seen yet; an earlier commit without one was mid-push, and never will be.
     if (!vercel) { if (i === 0) return { state: 'pending' as const, url: null, sha: c.sha }; continue; }
-    if (/ignored build step/i.test(vercel.description || '')) continue;
+    if (/ignored build step/i.test(vercel.description || '')) { ignored = true; continue; }
     const d = await deploymentFor(c.sha, 'Preview');
     return d.state === 'none' ? { state: 'pending' as const, url: null, sha: c.sha } : d;
   }
-  return { state: 'none' as const, url: null, sha: null };
+  // Every push skipped the app's build (it changed only factory/, docs…): there is no preview, and there
+  // will not be one — `skipped`, so QA and screenshots stop at once instead of waiting fifteen minutes.
+  return { state: ignored ? ('skipped' as const) : ('none' as const), url: null, sha: null };
 }
 
 /** The production app, asked directly: is it up, and how many sessions does it serve? */
@@ -291,12 +307,7 @@ export async function progress(issue: number, commentId: number | null, body: st
     const w = getWritable<string>({ namespace: 'progress' }).getWriter();
     try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
   }
-  if (commentId) {
-    await gh(`/issues/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
-    return commentId;
-  }
-  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
-  return c.id as number;
+  return editOrPost(issue, commentId, body);
 }
 progress.maxRetries = 3;
 

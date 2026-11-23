@@ -136,6 +136,10 @@ async function qaRun(input: QaInput) {
   // The preview of this head, and the deployment of the base to compare against.
   let preview = await previewForPr(pr.number);
   for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await previewForPr(pr.number); }
+  if (preview.state === 'skipped') {
+    await setStatus(pr.headSha, 'factory/qa', 'success', 'Skipped — no app change, so no preview to test', runUrl);
+    return outcome({ verdict: 'pass', confidence: 'high', skipped: 'no app change' });
+  }
   if (preview.state !== 'ready') {
     await setStatus(pr.headSha, 'factory/qa', 'error', `No preview to test (${preview.state})`, runUrl);
     return { verdict: 'none', reason: `preview ${preview.state}` };
