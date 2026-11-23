@@ -160,7 +160,17 @@ export async function qa(input: QaInput) {
     if (!reproduced) { questions.push({ ...p, note: 'did not fail a second time' }); continue; }
     const onBase = baseDeploy ? await k.command(`base:${p.title.slice(0, 30)}`, probeRun(baseDeploy, [p.title])) : null;
     const failsOnBase = (onBase?.results ?? []).some((r: any) => !r.ok);
-    if (failsOnBase) { preExisting.push(p); continue; }
+    if (failsOnBase) {
+      // Failing on the base too means pre-existing only if the base does the same
+      // thing — a probe of something this PR adds fails there simply because the
+      // feature is not there yet. Ask, rather than assume.
+      const same = await k.agent('skeptic:base',
+        `A QA probe failed on pull request #${pr.number}'s preview and also on ${pr.base}'s deployment:\n"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\n` +
+        `Read the probe (tests/qa-probe.spec.js) and \`git diff origin/${pr.base}...HEAD\`. Does ${pr.base} fail it for the same reason (pre-existing), or only because what it probes does not exist there yet (new: a gap in this change)?`,
+        S.BASE_SAME, 'sonnet', 'low');
+      if (same?.preExisting) preExisting.push(p); else questions.push({ ...p, note: same ? `a gap in what this adds, not on ${pr.base}: ${same.why}` : 'fails on the base too' });
+      continue;
+    }
     const v = await k.agent('skeptic:probe',
       `${ticket}\nA QA probe on pull request #${pr.number} failed twice on its preview and passed on the base's deployment:\n` +
       `"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\nRead the probe in tests/qa-probe.spec.js and the code it exercises. Try to REFUTE it as a bug in this change: ` +

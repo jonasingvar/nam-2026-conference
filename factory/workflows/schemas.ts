@@ -174,3 +174,8 @@ export const RESPONSE = {
     reply: { type: 'string', description: 'the reply to post: what you changed and why, or the answer — short, in plain words' },
   },
 };
+
+export const BASE_SAME = {
+  type: 'object', required: ['preExisting', 'why'],
+  properties: { preExisting: { type: 'boolean', description: 'true only if the base fails it for the same reason' }, why: str },
+};
