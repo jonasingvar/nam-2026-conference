@@ -86,12 +86,25 @@ const marked = (body: string) => (body.includes('<!-- factory') ? body : body + 
 /** Create the issue's progress comment, or edit it in place. Returns its id. */
 export async function upsertComment(issue: number, id: number | null, body: string): Promise<number> {
   'use step';
+  return editOrPost(issue, id, body);
+}
+
+/**
+ * Edit the comment in place — or, when a person has deleted it, post a fresh
+ * one and hand back its id. A deleted progress comment used to fail the edit
+ * three times and crash the run (#16, in the middle of its review round).
+ */
+async function editOrPost(issue: number, id: number | null, body: string): Promise<number> {
   if (id) {
-    await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
-    return id;
+    try {
+      await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
+      return id;
+    } catch (e: any) {
+      if (!/→ 404/.test(String(e?.message))) throw e;
+    }
   }
   const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
-  return c.id;
+  return c.id as number;
 }
 upsertComment.maxRetries = 3;
 
@@ -243,12 +256,7 @@ export async function progress(issue: number, commentId: number | null, body: st
     const w = getWritable<string>({ namespace: 'progress' }).getWriter();
     try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
   }
-  if (commentId) {
-    await gh(`/issues/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
-    return commentId;
-  }
-  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
-  return c.id as number;
+  return editOrPost(issue, commentId, body);
 }
 progress.maxRetries = 3;
 
