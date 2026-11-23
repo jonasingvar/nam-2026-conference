@@ -1,7 +1,7 @@
 import { getWorkflowMetadata } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, fileIssue, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
+import { comment, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import * as S from './schemas';
 
@@ -11,7 +11,8 @@ import * as S from './schemas';
  * Lenses are picked by what the diff touches (app code: criteria, rules,
  * logic, tests; workflows; docs; the factory itself). Every blocker must name
  * how a person reaches it and what they lose, and survive a skeptic; anything
- * less is a follow-up, filed as an issue, never a red check. A re-review
+ * less is a follow-up: listed in the review comment, never a red check and
+ * never an issue of its own (a person decides what is worth a ticket). A re-review
  * rechecks the last pass's blockers and hunts only in what was pushed since —
  * so a round that fixed what it was told ends green.
  *
@@ -139,24 +140,19 @@ export async function review(input: ReviewInput) {
   // One per place: two lenses that flag the same line under different categories are one follow-up.
   const byPlace = new Map<string, any>();
   for (const x of followUps) { if (!byPlace.has(fkey(x))) byPlace.set(fkey(x), x); }
-  const toFile = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x))).slice(0, 3);
-  const filed: string[] = [];
-  for (const x of toFile) {
-    const i = await fileIssue(`Follow-up from #${pr.number}: ${x.claim}`.slice(0, 120),
-      `Raised by the factory's review of #${pr.number}, not a blocker.\n\n\`${x.file}${x.line ? ':' + x.line : ''}\` — ${x.claim}\n\n${x.evidence ? `Evidence: ${x.evidence}\n` : ''}${x.how ? `How: ${x.how}\n` : ''}`, ['follow-up']).catch(() => null);
-    if (i) filed.push(`#${i.number}`);
-  }
+  // Listed in the comment only — once per place, and not again on a re-review that already listed it.
+  const toList = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x))).slice(0, 5);
   const callout = pass ? (confidence === 'high' ? '> [!TIP]' : confidence === 'medium' ? '> [!NOTE]' : '> [!WARNING]') : '> [!CAUTION]';
   const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence as 'high'];
   const summary = reports.filter(Boolean).map((r: any) => r.covered).join(' · ');
-  const marker = { pass: 'review', commit: co.head, blockers: blockers.map((b) => ({ category: b.category, file: b.file, line: b.line, claim: b.claim })), followUps: [...filedBefore, ...toFile.map(fkey)] };
+  const marker = { pass: 'review', commit: co.head, blockers: blockers.map((b) => ({ category: b.category, file: b.file, line: b.line, claim: b.claim })), followUps: [...filedBefore, ...toList.map(fkey)] };
   await comment(pr.number, [
     callout,
     `> ### Code review · ${pass ? `${confidence} confidence${confidence === 'low' ? ' — unproven' : ''} &nbsp; \`${meter}\`` : 'blocker'}`,
     `> ${summary || 'Nothing to report.'}`,
     '',
     ...blockers.map((b) => `**${b.category}** \`${b.file}${b.line ? ':' + b.line : ''}\` — ${b.claim}\n${b.how ? `*How:* ${b.how} · ` : ''}${b.harm ? `*Harm:* ${b.harm}` : b.evidence ? `*Evidence:* ${b.evidence}` : ''}\n`),
-    followUps.length ? `#### Follow-ups\nNot blockers, so they do not colour the check${filed.length ? ` — filed as ${filed.join(', ')}` : ''}.\n\n${followUps.slice(0, 5).map((x) => `- \`${x.file}${x.line ? ':' + x.line : ''}\` ${x.claim}`).join('\n')}` : '',
+    toList.length ? `<details><summary>Worth a look — not blockers (${toList.length})</summary>\n\n${toList.map((x) => `- \`${x.file}${x.line ? ':' + x.line : ''}\` ${x.claim}`).join('\n')}\n</details>` : '',
     '',
     `<sub>🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${model} · ${k.spendLine()} · [run](${runUrl})</sub>`,
     `<!-- factory-verdict:review ${JSON.stringify(marker)} -->`,
@@ -165,5 +161,5 @@ export async function review(input: ReviewInput) {
   // A blocker on a pull request ship built is something ship's own loop let through.
   if (!pass && /^issue-\d+-/.test(pr.head)) await setLabels(pr.number, ['harness-escape'], []);
   await disposeSandbox(box);
-  return { verdict: pass ? 'pass' : 'fail', confidence, blockers, followUps: filed, spend: k.spend.total };
+  return { verdict: pass ? 'pass' : 'fail', confidence, blockers, followUps: toList.length, spend: k.spend.total };
 }

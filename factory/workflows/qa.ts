@@ -61,7 +61,7 @@ export async function qa(input: QaInput) {
     const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence];
     await comment(pr.number, [callout, `> ### QA · ${pass ? `${confidence} confidence${confidence === 'low' ? ' — unproven' : ''} &nbsp; \`${meter}\`` : 'bug'}`, `> ${headline}`, '', ...body,
       '', `<sub>🏭 Factory QA · ${k.spendLine()} · [run](${runUrl})</sub>`, `<!-- factory-verdict:qa ${JSON.stringify(marker)} -->`].filter((l) => l !== '').join('\n'));
-    if (pr.issue) await comment(pr.issue, `${callout}\n> ### QA · ${pass ? `${confidence} confidence` : 'bug'}\n> ${headline} → #${pr.number}`);
+    // The verdict lives on the pull request; ship's one progress comment on the issue reports it.
     await setStatus(pr.headSha, 'factory/qa', pass ? 'success' : 'failure', pass ? `${confidence} confidence${confidence === 'low' ? ' (unproven)' : ''}` : headline, runUrl);
   };
 

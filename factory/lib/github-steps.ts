@@ -219,13 +219,6 @@ export async function setStatus(sha: string, context: string, state: 'pending' |
   return true;
 }
 
-/** File a follow-up: real, but not bad enough to stop a merge. */
-export async function fileIssue(title: string, body: string, labels: string[]) {
-  'use step';
-  const i = await gh('/issues', { method: 'POST', body: JSON.stringify({ title: title.slice(0, 200), body, labels }) });
-  return { number: i.number as number, url: i.html_url as string };
-}
-
 export async function setLabels(issue: number, add: string[], remove: string[]) {
   'use step';
   if (add.length) await gh(`/issues/${issue}/labels`, { method: 'POST', body: JSON.stringify({ labels: add }) });

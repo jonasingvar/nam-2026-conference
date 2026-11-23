@@ -128,7 +128,7 @@ change.
 **A blocker is something someone will hit.** A failure that reproduces but
 only from an input nobody gives in normal use — a hand-edited URL or
 localStorage value, a forged request — is a **follow-up**: the skeptic says
-`contrived`, the check stays green, and it is filed as a `follow-up` issue
+`contrived`, the check stays green, and it is listed in the QA comment — never filed as an issue
 linking the pull request, on a pass or a fail. A previous bug whose probe
 fails again is a bug without a second skeptic; it survived one already.
 
@@ -161,18 +161,7 @@ node scripts/pr-media.mjs <issue> /tmp/<name>.png
 gh pr comment <pr> --body "<the callout, then what you found>"
 ```
 
-Then **one line back on the issue** — the ticket asked for something, and
-whether it works is the ticket's business. Somebody following the board should
-not have to open the pull request to learn it:
-
-```bash
-gh issue comment <issue> --body "> [!TIP]
-> ### QA · high confidence &nbsp; \`●●●\`
-> Both viewports, empty and full agendas, days 1 and 4. → <pr url>"
-```
-
-The callout and one sentence. The findings stay on the pull request, beside
-the diff they are about — repeating them here makes both harder to scan.
+The verdict stays on the pull request. Ship's progress comment on the issue reports it, so QA does not comment on the issue itself.
 
 **"I tried these five things and found nothing" is a good report.** Name
 them, a few words each. A reviewer learns more from knowing what was probed

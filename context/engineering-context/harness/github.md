@@ -43,8 +43,9 @@ which run already has it.
 ## Labels and statuses
 
 Labels: `ready-for-ai` (start), `ai-working`, `needs-human`, `ready-for-human`,
-`ship:fast` / `ship:full` (a person's sizing, read before Jev's), `follow-up`
-(filed by review), `harness-escape`. Statuses on a commit, beside Vercel's
+`ship:fast` / `ship:full` (a person's sizing, read before Jev's),
+`harness-escape`. The factory never opens an issue of its own: follow-ups stay
+in the review comment. Statuses on a commit, beside Vercel's
 own: `factory/verify`, `factory/review`, `factory/qa` — each links to its run.
 Machines gate, agents advise: none of them is a required check.
 
