@@ -96,7 +96,8 @@ test('the book records every attempt and climb, and says it per job for the run\
   assert.equal(book.totals().climbs, 1);
   assert.ok(Math.abs(book.totals().cost - 0.06) < 1e-9);
   assert.equal(book.attempts[1].climbedBecause, 'its probes did not compile or run');
-  assert.match(book.table(), /climbed: its probes did not compile or run/);
+  assert.match(book.table(), /↑ <sub>its probes did not compile or run<\/sub>/);
+  assert.match(book.table(), /\| QA probe writer \|/, 'jobs read as names, not ids');
   assert.equal(book.raise('qaWrite', 1, 'x'), null, 'already above: nothing changes');
   // A job the choice did not name still gets a model: its fallback.
   assert.equal(book.pick('implement').how, 'fallback');

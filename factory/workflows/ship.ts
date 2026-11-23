@@ -109,9 +109,10 @@ async function shipRun(input: ShipInput) {
   const render = (headline: string) => [
     `### 🏭 Ship on Vercel · ${headline}`,
     '',
-    PHASES.map((p) => `${{ todo: '◻️', running: '⏳', done: '✅', skipped: '⏭️', failed: '❌' }[status[p]]} ${p}`).join(' · '),
+    // Done and current phases marked; the ones still to come in plain text, so the line reads as a path, not a grid.
+    PHASES.map((p) => ({ todo: p, running: `**⏳ ${p}**`, done: `✅ ${p}`, skipped: `<s>${p}</s>`, failed: `❌ **${p}**` }[status[p]])).join(' → '),
     '',
-    profile ? `**Run:** ${profile.size}${profile.escalated ? ' (escalated on its diff)' : ''} — ${profile.why}` : '',
+    profile ? `**Size:** ${profile.size}${profile.escalated ? ' (escalated on its diff)' : ''} — ${profile.why.replace(/^Jev: \w+ \((\d+% sure)\)$/, 'Jev, $1')}` : '',
     branch ? `**Branch:** \`${branch}\`${specPath ? ` · 📄 [Spec](https://github.com/${ALLOWED_REPO}/blob/${branch}/${specPath})` : ''}` : '',
     prUrl ? `**Pull request:** ${prUrl}${previewUrl ? ` · 🔎 [Preview](${previewUrl})` : ''}` : '',
     rounds.length ? `\n| Round | Gate | Audit |\n| --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed |`).join('\n')}` : '',
@@ -119,10 +120,11 @@ async function shipRun(input: ShipInput) {
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
       (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m} ${dollars(c)}`).join(', ')})` : '') +
       (models && models.attempts.length ? ` · expected ${dollars(models.totals().est)}${models.climbs.length ? ` · ${models.climbs.length} climb${models.climbs.length === 1 ? '' : 's'}` : ''}` : ''),
-    models && models.attempts.length ? `\n<details><summary>Models — which job ran on what, and why</summary>\n\n${models.table()}\n\nPicked per job by Jev from AI Gateway's live catalog, cheapest tier that is likely enough; a failure climbs one tier.\n</details>` : '',
+    models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
-    `<sub>Durable run [${workflowRunId}](${runUrl}) · resumes from its last finished step if anything dies</sub>`,
+    // An HTML link: GitHub does not render markdown links inside a <sub> line.
+    `<sub>Durable run <a href="${runUrl}">${workflowRunId}</a> · resumes from its last finished step if anything dies</sub>`,
     '<!-- ship-on-vercel -->',
   ].filter((l) => l !== '').join('\n');
 
@@ -186,8 +188,8 @@ async function shipRun(input: ShipInput) {
   const chooseFor = async (size: Size, jobs: Job[]) => {
     const choice = await chooseModels(`GitHub issue #${n}: ${issueTitle}\n\n${issue.body}` + (input.notes ? `\n\nThe person who asked wrote: ${input.notes}` : ''), size, jobs);
     if (models) models.adopt(choice); else models = modelBook(choice, size);
-    log(`models for a ${size} run (Jev, ${choice.ms} ms${choice.live ? '' : ', last known prices'}${choice.why ? `; ${choice.why}` : ''}): ` +
-      jobs.map((j) => `${j} ${describe(models!.pick(j))}`).join(' · '));
+    // The per-job choice is the Models table; the log keeps one line, and the stream the detail.
+    log(`models chosen for a ${size} run by Jev in ${choice.ms} ms${choice.live ? '' : ' (last known prices)'}${choice.why ? ` — ${choice.why}` : ''}`);
   };
 
   /** A shell job whose script writes $JOB/result.json; returns it parsed, or null. */

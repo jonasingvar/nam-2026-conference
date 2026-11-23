@@ -337,6 +337,13 @@ export type Choice = { picks: Picks; catalog: Catalog; live?: boolean; why?: str
  * Held by a workflow (no Node API, no clock: it is replayed): the current pick
  * per job, the climbs, and what each attempt cost against what was expected.
  */
+/** What a person reads for each job in the progress comment. */
+export const JOB_LABEL: Partial<Record<Job, string>> = {
+  spec: 'Spec', planAudit: 'Plan audit', reviseSpec: 'Revise spec', implement: 'Implement', fix: 'Fix', audit: 'Audit',
+  browserAudit: 'Browser audit', skeptic: 'Skeptic', learn: 'Learn', reviewLens: 'Review lens', recheck: 'Recheck',
+  qaTriage: 'QA triage', qaPlan: 'QA plan', qaWrite: 'QA probe writer', qaSkeptic: 'QA skeptic', baseSame: 'Base comparison', respond: 'Respond',
+};
+
 export function modelBook(choice: Choice, size: Size) {
   let catalog = choice.catalog;
   const picks: Picks = { ...choice.picks };
@@ -392,18 +399,29 @@ export function modelBook(choice: Choice, size: Size) {
       return [...byJob.entries()].map(([j, ms]) => `${j}=${ms.join('↑')}`).join(' ');
     },
     totals: () => ({ est: attempts.reduce((s, a) => s + a.est, 0), cost: attempts.reduce((s, a) => s + a.cost, 0), climbs: climbs.length }),
-    /** A markdown table for a comment: per job, the model(s), why, expected and actual cost. */
+    /**
+     * A markdown table for a comment: every job the run planned, from the moment
+     * the models are chosen — the model, its tier and how sure Jev was, the
+     * expected cost, and once it has run what it cost and how often.
+     */
     table() {
-      const rows = new Map<Job, Attempt[]>();
-      for (const a of attempts) rows.set(a.job, [...(rows.get(a.job) ?? []), a]);
-      if (!rows.size) return '';
-      return `| Job | Model | Why | Est. | Actual | Runs |\n| --- | --- | --- | --- | --- | --- |\n` +
-        [...rows.entries()].map(([j, as]) => {
-          const models = as.map((a) => short(a.model)).filter((m, i, x) => x.indexOf(m) === i).join(' → ');
-          const climbed = as.find((a) => a.climbedBecause)?.climbedBecause;
+      const ran = new Map<Job, Attempt[]>();
+      for (const a of attempts) ran.set(a.job, [...(ran.get(a.job) ?? []), a]);
+      const jobs = [...new Set<Job>([...(Object.keys(picks) as Job[]), ...ran.keys()])];
+      if (!jobs.length) return '';
+      const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
+      return `| Job | Model | Tier | Jev | Est. | Actual |\n| --- | --- | --- | ---: | ---: | ---: |\n` +
+        jobs.map((j) => {
+          const as = ran.get(j) ?? [];
           const p = picks[j];
-          return `| ${j} | ${models} | ${p ? whyOf(p) : ''}${climbed ? `; climbed: ${climbed}` : ''} | $${as.reduce((s, a) => s + a.est, 0).toFixed(3)} | ` +
-            `$${as.reduce((s, a) => s + a.cost, 0).toFixed(3)} | ${as.length}${as.some((a) => !a.ok) ? ` (${as.filter((a) => !a.ok).length} failed)` : ''} |`;
+          const models = as.length ? as.map((a) => short(a.model)).filter((m, i, x) => x.indexOf(m) === i).join(' → ') : p ? short(p.model) : '';
+          const climbed = as.find((a) => a.climbedBecause)?.climbedBecause;
+          const failed = as.filter((a) => !a.ok).length;
+          const tier = p ? TIERS[p.tier] : '';
+          const jev = p?.how === 'jev' && p.sure !== null ? `${Math.round(p.sure * 100)}%` : p?.how === 'fallback' ? 'default' : '';
+          const est = as.length ? as.reduce((s, a) => s + a.est, 0) : p?.est ?? 0;
+          const actual = as.length ? `${usd(as.reduce((s, a) => s + a.cost, 0))}${as.length > 1 ? ` · ${as.length} runs` : ''}${failed ? ` · ${failed} failed` : ''}` : '—';
+          return `| ${JOB_LABEL[j] ?? j} | \`${models}\`${climbed ? ` ↑ <sub>${climbed}</sub>` : ''} | ${tier} | ${jev} | ${usd(est)} | ${actual} |`;
         }).join('\n');
     },
   };
