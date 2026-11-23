@@ -3,23 +3,23 @@ import { Sandbox } from '@vercel/sandbox';
 import { ALLOWED_REPO } from './constants';
 
 /**
- * Copy the screenshots out of the sandbox into the public Blob store
+ * Copy the screenshots (each viewport shot and its full-page one) out of the sandbox into the public Blob store
  * (orbit-pr-media) — the sandbox holds no Blob token — under
  * `pr-<n>/<sha>/`, so each push keeps its own set and a comment never shows
  * images from a later commit.
  */
-export async function uploadShots(sandbox: string, dir: string, pr: number, sha: string, shots: { file?: string }[]) {
+export async function uploadShots(sandbox: string, dir: string, pr: number, sha: string, shots: { file?: string; full?: string }[]) {
   'use step';
   const sb = await Sandbox.get({ name: sandbox });
   const urls: Record<string, string> = {};
-  for (const s of shots) {
-    if (!s.file) continue;
-    const buf = await sb.readFileToBuffer({ path: `${dir}/${s.file}` });
+  for (const file of shots.flatMap((s) => [s.file, s.full])) {
+    if (!file) continue;
+    const buf = await sb.readFileToBuffer({ path: `${dir}/${file}` });
     if (!buf) continue;
-    const blob = await put(`pr-${pr}/${sha.slice(0, 12)}/${s.file}`, buf, {
+    const blob = await put(`pr-${pr}/${sha.slice(0, 12)}/${file}`, buf, {
       access: 'public', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true,
     });
-    urls[s.file] = blob.url;
+    urls[file] = blob.url;
   }
   return urls;
 }
