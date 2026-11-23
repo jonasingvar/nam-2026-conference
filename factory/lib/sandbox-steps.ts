@@ -1,4 +1,4 @@
-import { Sandbox } from '@vercel/sandbox';
+import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
@@ -267,7 +267,17 @@ export async function sweepSandboxes(maxIdleHours = 3) {
     if (!name || name === WARM || last > cutoff) continue;
     try { await (await Sandbox.get({ name })).delete(); swept.push(name); } catch { /* gone, or busy: next sweep */ }
   }
-  return { swept, kept: all.length - swept.length };
+  // Deleting a sandbox leaves its snapshots behind (each kept for 30 days),
+  // and they are what fills the storage quota. A snapshot no live sandbox
+  // resumes from is an orphan; the hour's grace spares one being taken now.
+  const live = new Set((await (await (Sandbox as any).list({})).toArray()).map((s: any) => s.currentSnapshotId).filter(Boolean));
+  const snaps = await (await (Snapshot as any).list({})).toArray();
+  let orphans = 0;
+  for (const x of snaps) {
+    if (x.status === 'deleted' || live.has(x.id) || Number(x.createdAt) > Date.now() - 60 * 60_000) continue;
+    try { await (await (Snapshot as any).get({ snapshotId: x.id })).delete(); orphans += 1; } catch { /* next sweep */ }
+  }
+  return { swept, kept: all.length - swept.length, orphans };
 }
 sweepSandboxes.maxRetries = 1;
 

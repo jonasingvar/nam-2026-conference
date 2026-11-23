@@ -1,4 +1,5 @@
-// Delete every sandbox except the warm one; report snapshot storage before and after.
+// Delete every sandbox except the warm one, then every snapshot no remaining
+// sandbox resumes from; report snapshot storage before and after.
 //   cd factory && npx tsx --env-file=.env.local scripts/clean-sandboxes.ts
 import { Sandbox, Snapshot } from '@vercel/sandbox';
 
@@ -22,5 +23,11 @@ for (const s of sandboxes) {
   } catch (e: any) {
     console.log('  FAIL  ', name, String(e?.message || e).slice(0, 120));
   }
+}
+const live = new Set((await (await Sandbox.list({} as any) as any).toArray()).map((s: any) => s.currentSnapshotId).filter(Boolean));
+for (const x of await (await Snapshot.list({} as any) as any).toArray()) {
+  if (x.status === 'deleted' || live.has(x.id)) continue;
+  try { await (await Snapshot.get({ snapshotId: x.id } as any)).delete(); console.log('  delete', x.id); }
+  catch (e: any) { console.log('  FAIL  ', x.id, String(e?.message || e).slice(0, 120)); }
 }
 console.log('after: ', await storage());
