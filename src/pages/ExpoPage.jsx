@@ -1,7 +1,9 @@
+import { useSearchParams } from 'react-router-dom';
 import { useConference, useFetch } from '../lib/store.jsx';
 import * as api from '../lib/api.js';
-import { plural } from '../lib/format.js';
-import { Chip, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
+import { filterSponsors, plural } from '../lib/format.js';
+import { SearchInput } from '../components/FilterBar.jsx';
+import { Button, Chip, EmptyState, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
 import { GeneratedCover } from '../components/GeneratedCover.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
 
@@ -74,6 +76,16 @@ export function ExpoPage() {
   const sponsors = data ?? [];
   const hiring = sponsors.filter((s) => s.hiring).length;
 
+  const [params, setParams] = useSearchParams();
+  const q = params.get('q') ?? '';
+  const setQ = (value) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    setParams(next, { replace: true });
+  };
+  const shown = filterSponsors(sponsors, q);
+
   return (
     <div className="space-y-10">
       <SectionHeader
@@ -82,11 +94,28 @@ export function ExpoPage() {
         description={`${sponsors.length || '—'} companies, most of them with something you can actually try at the booth. ${hiring} are hiring.`}
       />
 
+      <SearchInput
+        value={q}
+        onChange={setQ}
+        placeholder="Search sponsors by name…"
+        aria-label="Search sponsors by name"
+        data-testid="expo-search"
+        className="w-full sm:max-w-sm"
+      />
+
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <div className="grid gap-4 sm:grid-cols-2">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-40" />)}</div>}
 
+      {!loading && !error && shown.length === 0 && (
+        <EmptyState
+          title={`No sponsors match “${q}”`}
+          description="Check the spelling, or clear the search to see every sponsor."
+          action={<Button size="sm" onClick={() => setQ('')}>Clear search</Button>}
+        />
+      )}
+
       {TIERS.map((tier) => {
-        const tierSponsors = sponsors.filter((s) => s.tier === tier);
+        const tierSponsors = shown.filter((s) => s.tier === tier);
         if (!tierSponsors.length) return null;
         const style = TIER_STYLE[tier];
         return (

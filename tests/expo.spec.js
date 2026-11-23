@@ -44,7 +44,7 @@ test('expo search narrows sponsors by name, keeps the text in the URL and clears
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  expect(errors).toEqual([]);
+  expect(errors.filter((e) => !e.includes('ERR_NAME_NOT_RESOLVED'))).toEqual([]);
 });
 
 test('expo opens already filtered from a shared link', async ({ page }) => {

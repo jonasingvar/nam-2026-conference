@@ -92,7 +92,9 @@ columns, "Top rated"). Cover art is `GeneratedCover variant="mesh"` coloured by
 **`ExpoPage`** — `TIERS` and `TIER_STYLE` drive grid columns, logo size, banner
 (`strata` cover, Diamond/Platinum only) and whether the blurb shows (not Silver
 or Bronze). Section testid `tier-{tier lowercase}`. Logos are `GeneratedCover
-variant="mark"`. Cards are divs, not links (no `website` shown).
+variant="mark"`. Cards are divs, not links (no `website` shown). A search box (`expo-search`, `SearchInput`)
+narrows cards by sponsor name via `filterSponsors` in `format.js`; the text lives in `?q=`,
+empty tiers drop out, and no match shows an `EmptyState` naming the text with a Clear search button.
 
 **`SponsorMarquee`** — on `HomePage`. Diamond/Platinum/Gold only, hidden if
 fewer than 4; renders the list twice for the `animate-marquee` loop (second copy
