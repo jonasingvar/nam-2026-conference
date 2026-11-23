@@ -35,14 +35,23 @@ export async function readIssue(n: number): Promise<Issue> {
   };
 }
 
+/**
+ * Every comment the factory writes carries this marker. They are posted with a
+ * person's token, so to the webhook they look like that person's — the marker
+ * is how it knows never to act on one (an agent's reply that mentions @claude
+ * must not start another run).
+ */
+const MARK = '\n<!-- factory -->';
+const marked = (body: string) => (body.includes('<!-- factory') ? body : body + MARK);
+
 /** Create the issue's progress comment, or edit it in place. Returns its id. */
 export async function upsertComment(issue: number, id: number | null, body: string): Promise<number> {
   'use step';
   if (id) {
-    await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) });
+    await gh(`/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
     return id;
   }
-  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
   return c.id;
 }
 upsertComment.maxRetries = 3;
@@ -50,7 +59,7 @@ upsertComment.maxRetries = 3;
 /** A one-off comment (the spend line on the pull request). */
 export async function comment(issueOrPr: number, body: string) {
   'use step';
-  await gh(`/issues/${issueOrPr}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+  await gh(`/issues/${issueOrPr}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
   return true;
 }
 

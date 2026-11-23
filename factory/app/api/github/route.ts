@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
   if (event === 'issue_comment' && p.action === 'created' && !p.issue?.pull_request) {
     const body: string = p.comment?.body || '';
-    const asked = /(^|\s)(@claude|\/ship)\b/i.test(body) && !body.includes('<!-- ship-on-vercel') && WRITERS.has(p.comment?.author_association);
+    const asked = /(^|\s)(@claude|\/ship)\b/i.test(body) && !body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel') && WRITERS.has(p.comment?.author_association);
     if (asked) {
       const size = (/--(fast|small|full)\b/.exec(body) || [])[1] as any;
       const notes = body.replace(/(^|\s)(@claude|\/ship)\b/gi, ' ').replace(/--(fast|small|full|sized)\b/g, '').trim();
