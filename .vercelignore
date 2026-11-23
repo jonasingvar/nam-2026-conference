@@ -4,4 +4,6 @@ playwright-report
 .screenshots
 .claude/worktrees
 .env*
-factory
+factory/node_modules
+factory/.next
+factory/.env*

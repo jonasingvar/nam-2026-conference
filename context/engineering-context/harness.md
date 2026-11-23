@@ -143,6 +143,15 @@ spend by model, a log, and a link to the run in the Workflows tab.
   is exercised deployed, not in `next dev`.
 - **A pull request's base is where its preview comes from.** Vercel builds the
   PR's head; a base without `vercel.json` and `api/` has no API on its preview.
+- **Two Vercel projects, one repository.** `nam-2026-conference` builds the root
+  (its ignore command skips commits that only touch `factory/`);
+  `nam-2026-factory` has Root Directory `factory` and skips commits that do not
+  touch it. Deploying the factory by hand therefore runs from the repo root with
+  its ids (`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` from `factory/.vercel/project.json`)
+  — from inside `factory/` the CLI cannot find the root directory.
+- **Every factory comment carries `<!-- factory -->`.** They are posted with a
+  person's token, so the webhook would otherwise read an agent's reply that
+  mentions `@claude` as a new request.
 - The progress comment and the PR are written by the factory's token from the
   function, never from the sandbox; the agents' `gh` calls go through the
   proxy.
