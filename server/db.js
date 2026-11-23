@@ -1,4 +1,5 @@
 import Database from 'libsql';
+import { openRemote } from './remote-db.js';
 import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,8 +28,10 @@ export const DB_PATH = IS_REMOTE
 
 if (!IS_REMOTE) mkdirSync(dirname(DB_PATH), { recursive: true });
 
+// Remote: a connection that reopens itself after Turso drops an idle stream
+// (server/remote-db.js). Local: the file, exactly as before.
 export const db = IS_REMOTE
-  ? new Database(DB_PATH, { authToken: process.env.TURSO_AUTH_TOKEN })
+  ? openRemote(DB_PATH, process.env.TURSO_AUTH_TOKEN)
   : new Database(DB_PATH);
 // WAL is a property of a local file; Turso manages its own journal.
 if (!IS_REMOTE) db.pragma('journal_mode = WAL');
