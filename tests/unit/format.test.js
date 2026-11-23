@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { time, timeRange, dayLabel, shortDay, relativeDate, plural, agendaSummary } from '../../src/lib/format.js';
+import { time, timeRange, dayLabel, shortDay, relativeDate, plural, agendaSummary, filterSponsors } from '../../src/lib/format.js';
 
 describe('Clock times read as people say them', () => {
   test('midnight and noon are twelve, not zero', () => {
@@ -118,5 +118,22 @@ describe('The schedule rail\'s agenda line pluralises on the total and names the
 
   test('a day other than the clock\'s is named instead of assumed to be today', () => {
     assert.equal(agendaSummary(3, 2, 'on Day 1'), 'sessions · 2 on Day 1');
+  });
+});
+
+describe('Searching sponsors by name', () => {
+  const list = [{ name: 'Acme Cloud' }, { name: 'Blackbird Systems' }, { name: 'Pacmed' }];
+
+  test('matches a fragment of the name whatever its case', () => {
+    assert.deepEqual(filterSponsors(list, ' ACM ').map((s) => s.name), ['Acme Cloud', 'Pacmed']);
+  });
+
+  test('a blank query returns everyone', () => {
+    assert.equal(filterSponsors(list, ''), list);
+    assert.equal(filterSponsors(list, '   '), list);
+  });
+
+  test('no match returns an empty list', () => {
+    assert.deepEqual(filterSponsors(list, 'zzqx'), []);
   });
 });
