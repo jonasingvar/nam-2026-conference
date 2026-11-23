@@ -250,6 +250,27 @@ async function pollJobImpl(name: string, id: string, waitMs: number): Promise<Jo
 }
 pollJob.maxRetries = 5;
 
+/**
+ * The safety net under every run's own cleanup: delete any run sandbox idle for
+ * longer than `maxIdleHours` (never the warm one). No live run keeps a sandbox
+ * that long — ship drops its own when the pull request opens, the others finish
+ * in minutes — so whatever is left is from a run that died without cleaning up.
+ */
+export async function sweepSandboxes(maxIdleHours = 3) {
+  'use step';
+  const cutoff = Date.now() - maxIdleHours * 60 * 60_000;
+  const all = await (await (Sandbox as any).list({})).toArray();
+  const swept: string[] = [];
+  for (const s of all) {
+    const name = String(s.name ?? '');
+    const last = Number(s.updatedAt ?? s.createdAt ?? 0);
+    if (!name || name === WARM || last > cutoff) continue;
+    try { await (await Sandbox.get({ name })).delete(); swept.push(name); } catch { /* gone, or busy: next sweep */ }
+  }
+  return { swept, kept: all.length - swept.length };
+}
+sweepSandboxes.maxRetries = 1;
+
 /** The end of a run: the branch is pushed, so the machine can go. */
 export async function disposeSandbox(name: string) {
   'use step';
