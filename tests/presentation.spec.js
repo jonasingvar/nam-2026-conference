@@ -125,6 +125,51 @@ test.describe('The harness presentation', () => {
     await expect(counter(page)).toHaveText(/^3 \//);
     await expect(caption.getByRole('heading', { level: 2 })).toBeVisible();
   });
+
+  test('every beat tells today’s story: the Vercel factory, Jev, and the app on Vercel', async ({ page }) => {
+    test.slow(); // walks every beat once to read the whole deck
+    const errors = failOnPageErrors(page);
+    await page.goto('/engineering-presentation');
+    const { total } = await readCounter(page);
+
+    // the talk it replaces is 29 beats; the ticket asks for a similar length
+    expect(total).toBeGreaterThanOrEqual(25);
+    expect(total).toBeLessThanOrEqual(33);
+
+    // the two chapters either side of the current one stay mounted, so reading
+    // every beat accumulates the whole deck's text, whatever step each scene is on
+    const stage = page.getByTestId('presentation');
+    let seen = '';
+    for (let at = 1; at <= total; at++) {
+      await expect(counter(page)).toHaveText(new RegExp(`^${at} /`));
+      seen += ` ${await stage.innerText()}`;
+      if (at < total) await page.keyboard.press('ArrowRight');
+    }
+    seen = seen.replace(/\s+/g, ' ');
+
+    // names the factory as it is now: ready-for-ai → a webhook → one durable
+    // Vercel Workflow → Claude Code in a Vercel Sandbox
+    expect(seen).toMatch(/ready-for-ai/);
+    expect(seen).toMatch(/webhook/i);
+    expect(seen).toMatch(/Vercel Workflow/i);
+    expect(seen).toMatch(/sandbox/i);
+
+    // and no beat still tells the old story
+    expect(seen).not.toMatch(/GitHub Actions/i);
+    expect(seen).not.toMatch(/GitHub runner/i);
+    expect(seen).not.toMatch(/ship\.js/);
+    expect(seen).not.toMatch(/agent-qa\.yml/);
+
+    // Jev sizes the ticket and picks each job's model tier from AI Gateway's live prices
+    expect(seen).toMatch(/Jev/);
+    expect(seen).toMatch(/AI Gateway/);
+
+    // two Vercel projects, branch previews, a production health check
+    expect(seen).toMatch(/preview/i);
+    expect(seen).toMatch(/health/i);
+
+    expect(errors).toEqual([]);
+  });
 });
 
 /**
