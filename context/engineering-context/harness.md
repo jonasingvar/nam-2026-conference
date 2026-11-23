@@ -31,6 +31,7 @@ files:
   - factory/workflows/verify.ts
   - factory/workflows/warm.ts
   - factory/lib/kit.ts
+  - factory/lib/models.ts
   - factory/app/api/cron/warm/route.ts
   - .claude/settings.json
   - context/engineering-context/index.md
@@ -39,6 +40,8 @@ tests:
   - factory/test/policy.test.ts
   - factory/test/phases.test.ts
   - factory/test/agent.test.ts
+  - factory/test/models.test.ts
+  - factory/test/qa.test.ts
   - tests/unit/gate.test.js
   - tests/unit/red-check.test.js
   - tests/unit/qa-facts.test.js
@@ -84,12 +87,34 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 
-**Profiles.** `fast` (Sonnet, one combined audit, `GATE_SCOPE=branch`, a fix
-re-gated not re-audited), `small` (Sonnet, combined + a browser audit only
-when something visible changed without a browser test), `full` (Opus, plan
-audit, criteria + rules + browser, four rounds). A small run whose diff touches
-a risky path or passes 300 app lines escalates to the full auditors on Opus; a
-gate red twice moves the fixer to Opus.
+**Profiles.** `fast` (one combined audit, `GATE_SCOPE=branch`, a fix
+re-gated not re-audited), `small` (combined + a browser audit only when
+something visible changed without a browser test), `full` (plan audit,
+criteria + rules + browser, four rounds). A small run whose diff touches a
+risky path or passes 300 app lines escalates to the full auditors, judged on
+the strong tier at least. A profile says how much loop; which model runs each
+job is chosen separately (*Models*).
+
+**Models** (`lib/models.ts`). Claude Code reaches models through AI Gateway's
+`/claude-code` surface, which routes any gateway model that makes tool calls,
+so a job's model is a gateway id, not just opus/sonnet/haiku. Four tiers —
+lite, standard, strong, frontier — each a short list of models vetted to drive
+Claude Code (`LADDER`; standard is empty: the mid-priced models measured were
+slower than Sonnet and barely cheaper, so a climb goes lite → strong). Per run, one `chooseModels` step asks Jev, in one call,
+for each job (`JOBS`: spec, implement, fix, audit, skeptic, review lens, QA
+plan, QA write…) the least tier that does it right first time, as a
+distribution; the script then starts each job at the tier with the least
+*expected* cost from AI Gateway's live prices (`/v1/models`): trying it, plus —
+weighted by Jev's odds that it is not enough — a climb for a job whose failure
+shows (no result, a red gate, probes that do not run), or the job's `miss`
+cost for one whose failure is silent (an auditor missing a blocker). Within a
+tier the cheapest model for the job's token profile wins, cache reads priced in.
+Jev unavailable: each job's fallback tier for the size. A failure climbs one
+tier, once (`routedAgent`): no result re-runs the job a tier up; a red gate
+sends the fixer above whatever wrote the code; QA probes that do not run send
+the writer up; a review lens with low confidence reads again a tier up. Every
+attempt is priced from its token counts and the catalog — Claude Code prices a
+model it does not know with a guess (`costBasis: unknown`).
 
 **Jobs.** Everything long runs detached in the sandbox
 (`lib/sandbox-steps.ts:startJob`), each in `/vercel/.factory/<seq>-<label>/`
@@ -153,13 +178,25 @@ factory's Workflows tab): each phase is its own durable step — `spec`,
 to its step; an unknown label falls back to `job`) — each starting its job if
 needed and waiting up to two minutes, with a durable `sleep` between waits.
 **Attributes** on the run: `issue`, `phase`, `size`, `pr`, so runs can be
-filtered by ticket or phase. **The `progress` stream** (the run's Streams
-tab): every phase change, and after every agent its model, turns, seconds,
-cost and its own final answer.
+filtered by ticket or phase, and `models` (`job=model` per job, `↑` a climb),
+`est_usd`, `spend_usd` and `climbs`. **The `progress` stream** (the run's
+Streams tab): every phase change, after every command its seconds, and after
+every agent its model, the tier and Jev's odds behind it, turns, seconds, its
+cost priced from the catalog against the estimate, and its own final answer.
 
 **Progress.** One issue comment (`<!-- ship-on-vercel -->`), edited at every
 phase: the phases, the profile and why, the branch and spec, each round, the
-spend by model, a log, and a link to the run in the Workflows tab.
+spend by model against what was expected, a *Models* table (per job: the
+model, why, expected and actual cost, climbs), a log, and a link to the run in
+the Workflows tab. Review and QA put the same table in their verdict comments.
+
+**QA** (`workflows/qa.ts`) splits thinking from typing: a planner (`qaPlan`)
+writes an exact probe plan — route, attendee, pinned clock, steps by test id,
+expected results — a cheap writer (`qaWrite`) turns it into
+`tests/qa-probe.spec.js` and runs it once on desktop to fix its selectors, and
+the factory runs the file itself, desktop and mobile in parallel
+(`run:desktop`, `run:mobile`). While triage reads the diff, `warm` hits the
+preview's pages and API so its function instances seed their SQLite first.
 
 ## Invariants
 
@@ -210,4 +247,5 @@ spend by model, a log, and a link to the run in the Workflows tab.
 - What an agent returns → `factory/workflows/schemas.ts`.
 - What the agents may reach → `factory/lib/policy.ts`.
 - How a ticket is sized → `factory/lib/triage.ts` (`SIZES`, Jev's criteria).
+- Which models a job may use, what it costs and when it climbs → `factory/lib/models.ts` (`LADDER`, `JOBS`, `TIER_RUBRIC`).
 - What review and QA flag → the two playbooks in `harness/`.
