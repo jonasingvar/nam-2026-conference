@@ -614,6 +614,7 @@ async function shipRun(input: ShipInput) {
     preview = await previewForPr(pr.number);
   }
   if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null); }
+  else if (preview.state === 'skipped') log('preview skipped — this change builds nothing of the app');
   else { status.Preview = 'failed'; log(`preview ${preview.state}${preview.url ? `: ${preview.url}` : ''}`); }
 
   // ════════════════════════════════════════════════════════════════════════

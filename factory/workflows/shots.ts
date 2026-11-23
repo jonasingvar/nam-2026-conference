@@ -45,6 +45,10 @@ async function shotsRun(input: ShotsInput, box: string, workflowRunId: string): 
 
   let preview = await previewForPr(pr.number);
   for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await previewForPr(pr.number); }
+  if (preview.state === 'skipped') {
+    await setStatus(pr.headSha, 'factory/screenshots', 'success', 'No UI change — nothing to show', runUrl);
+    return { outcome: 'no-ui-change' };
+  }
   if (preview.state !== 'ready') {
     await setStatus(pr.headSha, 'factory/screenshots', 'error', `No preview to shoot (${preview.state})`, runUrl);
     return { outcome: 'no-preview', reason: preview.state };
