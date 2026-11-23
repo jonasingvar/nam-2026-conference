@@ -4,7 +4,7 @@ import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-st
 import { findDeployment, previewForPr, readPullRequest, setStatus } from '../lib/github-steps';
 import { FACTORY_DASHBOARD, PRODUCTION_URL } from '../lib/constants';
 import { captureScript, choosePages, pagesScript, shotsComment, type Uploaded } from '../lib/shots';
-import { postShots, uploadShots } from '../lib/shots-steps';
+import { pinPreview, postShots, uploadShots } from '../lib/shots-steps';
 
 /**
  * shots — screenshots of what a pull request changes, on its real preview.
@@ -50,6 +50,7 @@ async function shotsRun(input: ShotsInput, box: string, workflowRunId: string): 
     return { outcome: 'no-preview', reason: preview.state };
   }
   const previewUrl = preview.url!;
+  await pinPreview(pr.number, previewUrl, preview.sha ?? pr.headSha).catch(() => null);
   await setStatus(pr.headSha, 'factory/screenshots', 'pending', 'Taking screenshots…', runUrl);
 
   const k = kit(box, `Screenshots of pull request #${pr.number}`, 'read'); // the mode is only an agent preamble; shots runs no agent, in a 'none' sandbox

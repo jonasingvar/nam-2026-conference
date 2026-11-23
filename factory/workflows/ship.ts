@@ -3,6 +3,7 @@ import { start } from 'workflow/api';
 import { review } from './review';
 import { qa } from './qa';
 import { shots } from './shots';
+import { pinPreview } from '../lib/shots-steps';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
@@ -575,7 +576,7 @@ async function shipRun(input: ShipInput) {
     await sleep('20s');
     preview = await previewForPr(pr.number);
   }
-  if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); }
+  if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null); }
   else { status.Preview = 'failed'; log(`preview ${preview.state}${preview.url ? `: ${preview.url}` : ''}`); }
 
   // ════════════════════════════════════════════════════════════════════════

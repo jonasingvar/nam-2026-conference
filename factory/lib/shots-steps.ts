@@ -46,3 +46,19 @@ export async function postShots(pr: number, body: string) {
   return (await gh(`/issues/${pr}/comments`, { method: 'POST', body: JSON.stringify({ body }) })).html_url as string;
 }
 postShots.maxRetries = 3;
+
+/**
+ * Put "try it" at the top of the pull request's description: its preview, for
+ * this commit. A marked block, replaced in place, so ship rewriting the body
+ * or the next push re-pinning it never stacks two.
+ */
+export async function pinPreview(pr: number, url: string, sha: string) {
+  'use step';
+  const p = await gh(`/pulls/${pr}`);
+  const block = `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — this pull request's Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->`;
+  const rest = String(p.body ?? '').replace(/<!-- factory-preview -->[\s\S]*?<!-- \/factory-preview -->\n*/g, '');
+  const body = `${block}\n\n${rest}`;
+  if (body !== p.body) await gh(`/pulls/${pr}`, { method: 'PATCH', body: JSON.stringify({ body }) });
+  return true;
+}
+pinPreview.maxRetries = 3;
