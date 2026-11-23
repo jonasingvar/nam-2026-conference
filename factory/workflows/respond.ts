@@ -14,6 +14,17 @@ export type RespondInput = { pr: number; ask: string; author: string };
 
 export async function respond(input: RespondInput) {
   'use workflow';
+  try {
+    return await respondRun(input);
+  } catch (e: any) {
+    const { workflowRunId } = getWorkflowMetadata();
+    await disposeSandbox(`respond-${input.pr}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
+    await comment(input.pr, `I could not finish that: \`${String(e?.message || e).slice(0, 200)}\``).catch(() => null);
+    return { outcome: 'failed', reason: String(e?.message || e).slice(0, 200) };
+  }
+}
+
+async function respondRun(input: RespondInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);

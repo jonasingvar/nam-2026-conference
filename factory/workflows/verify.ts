@@ -15,6 +15,18 @@ export type VerifyInput = { sha: string; ref: string; base?: string; fast?: bool
 
 export async function verify(input: VerifyInput) {
   'use workflow';
+  try {
+    return await verifyRun(input);
+  } catch (e: any) {
+    const { workflowRunId } = getWorkflowMetadata();
+    await disposeSandbox(`verify-${input.sha.slice(0, 8)}-${workflowRunId.slice(-6).toLowerCase()}`).catch(() => null);
+    const why = String(e?.message || e).slice(0, 140);
+    await setStatus(input.sha, 'factory/verify', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
+    return { ok: false, reason: why };
+  }
+}
+
+async function verifyRun(input: VerifyInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const issue = /^issue-(\d+)-/.exec(input.ref)?.[1];
   await setAttributes({ sha: input.sha.slice(0, 12), ref: input.ref.slice(0, 200), ...(input.pr ? { pr: String(input.pr) } : {}), ...(issue ? { issue } : {}) });

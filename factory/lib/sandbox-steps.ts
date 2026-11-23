@@ -54,6 +54,15 @@ async function sh(sb: Sandbox, cmd: string, env: Record<string, string> = {}) {
 
 const q = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 
+/**
+ * Snapshot storage is limited (Hobby: it ran out after one afternoon of runs that
+ * crashed before cleaning up). A run's sandbox keeps one snapshot — enough to
+ * resume — and it expires in a day, so a forgotten sandbox stops costing storage.
+ * The warm one keeps one, with no expiry: every run forks it.
+ */
+const RUN_SNAPSHOTS = { snapshotExpiration: 24 * 60 * 60_000, keepLastSnapshots: { count: 1, expiration: 24 * 60 * 60_000 } };
+const WARM_SNAPSHOTS = { keepLastSnapshots: { count: 1, expiration: 0 } };
+
 /** The warm sandbox every run forks: the repository checked out, installed, with Chromium. */
 export const WARM = 'orbit-warm';
 
@@ -88,6 +97,7 @@ export async function refreshWarm(ref = 'main') {
     source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: ref },
     resources: { vcpus: 4 },
     timeout: 20 * 60_000,
+    ...WARM_SNAPSHOTS,
   });
   await sb.updateNetworkPolicy('allow-all');
   const ready = await sh(sb, `test -f ${ROOT}/prepared && echo yes || echo no`);
@@ -120,7 +130,7 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
     sb = await Sandbox.get({ name });
   } catch {
     try {
-      sb = await Sandbox.fork({ sourceSandbox: WARM, name, resources: { vcpus: 4 }, timeout: 45 * 60_000 });
+      sb = await Sandbox.fork({ sourceSandbox: WARM, name, resources: { vcpus: 4 }, timeout: 45 * 60_000, ...RUN_SNAPSHOTS });
       how = 'forked';
     } catch {
       sb = await Sandbox.create({
@@ -128,6 +138,7 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
         source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: /^[0-9a-f]{40}$/.test(ref) ? undefined : ref },
         resources: { vcpus: 4 },
         timeout: 45 * 60_000,
+        ...RUN_SNAPSHOTS,
       });
       how = 'created';
     }

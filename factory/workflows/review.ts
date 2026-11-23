@@ -47,6 +47,8 @@ export async function review(input: ReviewInput) {
     // Never leave a pull request's check at "pending": say what stopped it.
     const why = String(e?.message || e).slice(0, 140);
     const { workflowRunId } = getWorkflowMetadata();
+    // Never leave a sandbox (and its snapshot) behind.
+    await disposeSandbox(`review-${input.pr}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
     const pr = await readPullRequest(input.pr).catch(() => null);
     if (pr) await setStatus(pr.headSha, 'factory/review', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
     return { verdict: 'none', reason: why };
