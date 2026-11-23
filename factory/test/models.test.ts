@@ -26,12 +26,12 @@ test('the catalog keeps only vetted, priced, tool-using language models — and 
 });
 
 test('within a tier the cheapest offered model wins; a tier the catalog no longer offers is skipped', () => {
-  const cheap: Catalog = { [LADDER.lite[0]]: { input: 1e-6, output: 1e-6, cacheRead: 1e-6, cacheWrite: 1e-6 }, [LADDER.lite[1]]: { input: 1e-8, output: 1e-8, cacheRead: 1e-8, cacheWrite: 1e-8 } };
-  assert.equal(modelFor(0, 'qaWrite', cheap)?.model, LADDER.lite[1], 'the cheaper for this job, not the first listed');
-  assert.ok(Math.abs(modelFor(0, 'qaWrite', cheap)!.est - estimate(cheap[LADDER.lite[1]], JOBS.qaWrite.tokens)) < 1e-12);
+  const cheap: Catalog = { [LADDER.standard[0]]: { input: 1e-6, output: 1e-6, cacheRead: 1e-6, cacheWrite: 1e-6 }, [LADDER.standard[1]]: { input: 1e-8, output: 1e-8, cacheRead: 1e-8, cacheWrite: 1e-8 } };
+  assert.equal(modelFor(1, 'qaWrite', cheap)?.model, LADDER.standard[1], 'the cheaper for this job, not the first listed');
+  assert.ok(Math.abs(modelFor(1, 'qaWrite', cheap)!.est - estimate(cheap[LADDER.standard[1]], JOBS.qaWrite.tokens)) < 1e-12);
   const noStrong: Catalog = Object.fromEntries(Object.entries(KNOWN_PRICES).filter(([m]) => !LADDER.strong.includes(m)));
-  assert.deepEqual(usableTiers('implement', noStrong), [0, 3]);
-  assert.deepEqual(usableTiers('qaWrite', KNOWN_PRICES), [0, 2], 'within the job\'s own range, the empty standard tier skipped');
+  assert.deepEqual(usableTiers('implement', noStrong), [0, 1, 3]);
+  assert.deepEqual(usableTiers('qaWrite', KNOWN_PRICES), [0, 1, 2], 'within the job\'s own range');
 });
 
 test('cost first: when Jev is sure a cheap tier is enough, the cheap tier starts', () => {
@@ -43,10 +43,10 @@ test('cost first: when Jev is sure a cheap tier is enough, the cheap tier starts
 
 test('a visible failure is cheap to try: a job that fails loudly starts low even when Jev is unsure', () => {
   // implement fails at the gate, so trying the cheap tier first costs only the climb…
-  const dist = [0.6, 0.3, 0.1, 0];
+  const dist = [0.9, 0.08, 0.02, 0];
   assert.equal(pickFrom('implement', dist, 'small', KNOWN_PRICES)!.tier, 0);
-  // …while an auditor with the same odds would miss silently, so it starts higher.
-  assert.ok(pickFrom('audit', dist, 'small', KNOWN_PRICES)!.tier > 0);
+  // …while a skeptic with worse odds would miss silently, so it starts higher.
+  assert.ok(pickFrom('skeptic', [0.6, 0.3, 0.1, 0], 'small', KNOWN_PRICES)!.tier > 0);
 });
 
 test('a silent failure is expensive: judgement starts where Jev thinks a miss is unlikely', () => {
@@ -73,7 +73,7 @@ test('a floor holds whatever Jev says, and climbing stops at the job\'s ceiling'
   let p = fallbackPick('qaWrite', 'small', KNOWN_PRICES)!;
   const seen = [p.tier];
   for (let up = climb(p, KNOWN_PRICES); up; up = climb(p, KNOWN_PRICES)) { p = up; seen.push(p.tier); }
-  assert.deepEqual(seen, [0, 2], `qaWrite tops out at ${TIERS[JOBS.qaWrite.max]}`);
+  assert.deepEqual(seen, [0, 1, 2], `qaWrite tops out at ${TIERS[JOBS.qaWrite.max]}`);
 });
 
 test('a run is priced from the catalog, not from Claude Code\'s guess for a model it does not know', () => {

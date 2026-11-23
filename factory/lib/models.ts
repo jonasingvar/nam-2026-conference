@@ -43,7 +43,7 @@ export type Effort = 'low' | 'medium' | 'high';
 /** What each tier can be trusted with — Jev's rubric, lowest first. */
 export const TIER_RUBRIC: string[] = [
   'lite — a small, fast model: does a job that is fully spelled out — a well-specified change with its unit tests in one or two files, an exact plan turned into Playwright tests, a narrow question about cited lines — but misses what nobody wrote down',
-  'standard — a mid-size coding model: reads a diff and the code around it, writes a straightforward change or test in one area of the app',
+  'standard — a fast, cheap open-weights coding model (DeepSeek V4.1 Flash, GLM 5.3 Flash class): reads a diff and the code around it, finds logic errors against stated criteria, writes a straightforward change or test in one area of the app',
   'strong — a strong coding model: judgement across several files, finds subtle bugs, designs the tests for a business rule',
   'frontier — the strongest model: an ambiguous ticket, business rules with many interacting states, changes to the harness itself, a review that must not miss anything',
 ];
@@ -53,17 +53,24 @@ export const TIER_RUBRIC: string[] = [
  * (tool calls and the --json-schema result). The live catalog decides which are
  * still offered and what they cost; the cheapest for the job wins its tier.
  *
- * Standard is empty on purpose. Measured on a specified implement job through
- * Claude Code (2026-11-23): DeepSeek V4 Pro 63 s / $0.10, GPT-6.1 Terra 222 s /
- * $0.12, GLM 5.3 121 s / $0.15, Kimi K2.7 Code 250 s / $0.18 — against Sonnet 5.5's 32 s / $0.13 and
- * Haiku 5.5's 66 s / $0.013. A mid-priced model re-reads Claude Code's context
- * at cache prices no lower than Sonnet's, so it was slower and barely cheaper:
- * a climb goes straight from lite to strong. Jev still answers on four tiers;
- * the mass on an empty tier counts as needing the next one up.
+ * Measured through Claude Code on this repository (2026-11-23; factory/.scratch
+ * evals, not committed), three jobs: implement a specified function test-first,
+ * write two planned Playwright probes, audit a diff with two planted bugs.
+ *   Haiku 5.5            66 s $0.013 ✓ · 33 s $0.009 4/4 · 29 s $0.006 1 of 2 bugs
+ *   DeepSeek V4.1 Flash  39 s $0.035 ✓ · 58 s $0.028 4/4 · 30 s $0.014 2 of 2
+ *   GLM 5.3 Flash        42 s $0.013 ✓ · 57 s $0.022 4/4 · 28 s $0.009 2 of 2
+ *   Sonnet 5.5           32 s $0.126 ✓ · 28 s $0.123 4/4 · 13 s $0.050 2 of 2
+ * So lite is Haiku (fastest at mechanical work), and standard is the open-weights
+ * flash models, which audited as well as Sonnet at a fifth of the price.
+ * Left out: DeepSeek V4 Pro (63 s $0.10, 1 of 2 bugs), GLM 5.3 (121 s $0.15),
+ * GPT-6.1 Terra (222 s $0.12), Kimi K2.7 Code (250 s $0.18) — mid-priced models
+ * re-read Claude Code's context at cache prices no lower than Sonnet's, so they
+ * were slower and barely cheaper; GPT-6 Luna misreported its probe titles;
+ * Gemini 3.6 Flash did not finish the audit in 70 s.
  */
 export const LADDER: Record<TierName, string[]> = {
-  lite: ['anthropic/claude-haiku-5.5', 'zai/glm-5.3-flash'],
-  standard: [],
+  lite: ['anthropic/claude-haiku-5.5'],
+  standard: ['deepseek/deepseek-v4.1-flash', 'zai/glm-5.3-flash'],
   strong: ['anthropic/claude-sonnet-5.5'],
   frontier: ['anthropic/claude-opus-5.5'],
 };
@@ -99,13 +106,13 @@ export const JOBS: Record<Job, JobSpec> = {
   spec: { does: 'reads the ticket and the code it touches, writes a half-page spec: where to change, how each criterion is proved, decisions the ticket left open', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 1, effort: 'medium' },
   planAudit: { does: 'audits a spec it did not write: does every criterion map to a check that fails today, does it contradict a recorded rule', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 0.8, effort: 'medium' },
   reviseSpec: { does: 'revises a spec to resolve confirmed problems', tokens: LIGHT, min: 0, max: 3, fallback: { fast: 1, small: 1, full: 2 } },
-  implement: { does: 'implements the spec: a failing test first, then the change, docs kept true — the main coding job', tokens: EDIT, min: 0, max: 3, fallback: { fast: 1, small: 2, full: 3 }, climb: 0.15, seen: 'lite models (Haiku 5.5, GLM 5.3 Flash, DeepSeek V4 Flash) each implemented a fully specified function with its unit tests, test first, all hidden checks passing, for about $0.01; what is not specified they guess' },
+  implement: { does: 'implements the spec: a failing test first, then the change, docs kept true — the main coding job', tokens: EDIT, min: 0, max: 3, fallback: { fast: 1, small: 2, full: 3 }, climb: 0.15, seen: 'a lite (Haiku 5.5) and two standard models (DeepSeek V4.1 Flash, GLM 5.3 Flash) each implemented a fully specified function with its unit tests, test first, all hidden checks passing, for $0.01–0.04; a strong one for $0.13; what is not specified they guess' },
   fix: { does: 'fixes confirmed findings or a red gate at their cause, without weakening tests', tokens: EDIT, min: 0, max: 3, fallback: { fast: 1, small: 2, full: 3 }, climb: 0.15 },
-  audit: { does: 'an independent auditor reading the diff against the ticket, the spec and the recorded rules for blockers', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 1.5 },
+  audit: { does: 'an independent auditor reading the diff against the ticket, the spec and the recorded rules for blockers', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 1.5, seen: 'auditing a diff with two planted logic bugs, standard models (DeepSeek V4.1 Flash, GLM 5.3 Flash) found both for about $0.01, as did a strong one for $0.05; a lite one (Haiku 5.5) found one' },
   browserAudit: { does: 'drives the change in a real browser and tries to break it, both viewports', tokens: READ, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 2 }, miss: 0.5 },
   skeptic: { does: 'tries to refute one claimed blocker by opening the cited file and line', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 2 }, miss: 0.4, effort: 'medium' },
   learn: { does: 'turns what the audits caught into at most two lines of context docs', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 1 } },
-  reviewLens: { does: 'a code reviewer with one lens (criteria, rules, logic, tests, docs) reading the diff of a pull request', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 1 },
+  reviewLens: { does: 'a code reviewer with one lens (criteria, rules, logic, tests, docs) reading the diff of a pull request', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 3 }, miss: 1, seen: 'auditing a diff with two planted logic bugs, standard models found both for about $0.01, as did a strong one for $0.05; a lite one found one' },
   recheck: { does: 'checks whether one earlier blocker is resolved at the new head by reading the cited lines', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 1 }, effort: 'low' },
   qaTriage: { does: 'decides whether the tests a pull request adds pin every criterion, or which gaps a browser probe should cover', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 1 }, effort: 'low' },
   qaPlan: { does: 'plans browser probes of a deployed preview: for each gap, the route, the attendee, the pinned clock, the actions and the expected result', tokens: READ, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 2 }, miss: 0.5, effort: 'medium' },
@@ -128,6 +135,7 @@ export type Catalog = Record<string, Price>;
  */
 export const KNOWN_PRICES: Catalog = {
   'anthropic/claude-haiku-5.5': { input: 1e-7, output: 5e-7, cacheRead: 1e-8, cacheWrite: 1.25e-7 },
+  'deepseek/deepseek-v4.1-flash': { input: 3e-7, output: 1.2e-6, cacheRead: 6e-9, cacheWrite: 3e-7 },
   'zai/glm-5.3-flash': { input: 1.5e-7, output: 5e-7, cacheRead: 3e-8, cacheWrite: 1.5e-7 },
   'anthropic/claude-sonnet-5.5': { input: 2e-6, output: 1e-5, cacheRead: 1e-7, cacheWrite: 2.5e-6 },
   'anthropic/claude-opus-5.5': { input: 4e-6, output: 2e-5, cacheRead: 2e-7, cacheWrite: 5e-6 },

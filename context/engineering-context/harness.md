@@ -99,8 +99,8 @@ job is chosen separately (*Models*).
 `/claude-code` surface, which routes any gateway model that makes tool calls,
 so a job's model is a gateway id, not just opus/sonnet/haiku. Four tiers —
 lite, standard, strong, frontier — each a short list of models vetted to drive
-Claude Code (`LADDER`; standard is empty: the mid-priced models measured were
-slower than Sonnet and barely cheaper, so a climb goes lite → strong). Per run, one `chooseModels` step asks Jev, in one call,
+Claude Code (`LADDER`: lite Haiku 5.5; standard the open-weights flash models,
+which audited as well as Sonnet at a fifth of the price; strong Sonnet 5.5; frontier Opus 5.5). Per run, one `chooseModels` step asks Jev, in one call,
 for each job (`JOBS`: spec, implement, fix, audit, skeptic, review lens, QA
 plan, QA write…) the least tier that does it right first time, as a
 distribution; the script then starts each job at the tier with the least
