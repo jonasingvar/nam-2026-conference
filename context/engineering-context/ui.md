@@ -44,7 +44,10 @@ related: [architecture, speakers, venues, schedule, testing]
 `overlay` (the elevation ladder, see CLAUDE.md), `hairline` (borders), `ink`,
 `muted`, `faint` (text, strongest → weakest). Fonts: `font-sans` (Inter),
 `font-display` (Space Grotesk; `.font-display` also sets weight 700 and tight
-tracking), `font-mono`. `--radius-card`. Custom utilities: `card` (surface +
+tracking), `font-mono` (JetBrains Mono). The fonts are self-hosted from the
+`@fontsource-variable/*` packages imported in `src/main.jsx` — never a font CDN
+link, which logs a console error wherever it is unreachable and fails the smoke
+specs. `--radius-card`. Custom utilities: `card` (surface +
 hairline border + card radius — the module panel), `glass` (blurred translucent,
 used by the header, toasts, menus), `hide-scrollbar`. Dark only
 (`color-scheme: dark`). In SVG use `var(--color-ground)` etc.
