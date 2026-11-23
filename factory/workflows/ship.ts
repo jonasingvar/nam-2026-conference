@@ -344,6 +344,8 @@ async function shipRun(input: ShipInput) {
     `Write the check first and confirm it fails for the reason you expect — commit it on its own, red, as "test(…)", before any fix: ` +
     `that commit is the evidence the check proves something. Then implement, \`npm test\` after every edit; Conventional Commits; push. ` +
     `Keep the docs true in the same push: \`node scripts/context.mjs for <changed files>\` names the context/engineering-context/ docs that own them — update what the change made wrong, and list a new file in its area doc's \`files\`. ` +
+    `Then search every doc an agent reads instead of the code — \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route, function and the words your change makes untrue ` +
+    `(a feature you built that a doc calls a placeholder, "coming soon", "not built yet" or "no UI calls it") — and fix each one. ` +
     `Prove each criterion at the cheapest layer (a rule, payload or 400 in a unit/API test; a browser test only for what only a page shows, ` +
     `the variants of one criterion in one test, never mode: 'serial'). Every state the change adds gets its own assertion; when a state depends on the clock, ` +
     `also a moment before it applies (Day 1 08:00 — the seed's morning is already attended). A browser test you added runs once, alone, before you hand over ` +
@@ -363,7 +365,9 @@ async function shipRun(input: ShipInput) {
       `For each Done-when criterion find what satisfies it and the test that proves it — nothing satisfying it is a blocker, and so is a test that would pass before the change, ` +
       `or an existing test weakened the ticket did not ask to change (test-weakened). Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
       `A change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs — is a blocker (category unasked), however well meant. ` +
-      `Last, \`node scripts/context.mjs for <changed files>\`: a doc that now describes the code wrongly is docs-stale. context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
+      `Last, the docs: \`node scripts/context.mjs for <changed files>\`, and \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route and functions the diff touches — ` +
+      `a doc that now describes the code wrongly is docs-stale, a blocker when an agent following it would build the wrong thing (a doc still calling a built page a placeholder is one). ` +
+      `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
     criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it and the test that proves it. ` +
       `Nothing satisfying it is a blocker; so is a test that would pass before the change, asserts the implementation against itself, or weakens an existing test the ticket did not ask to change (test-weakened); ` +
       `and so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked).`,

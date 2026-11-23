@@ -64,7 +64,7 @@ lenses when the diff touches it:
   reaching a `run:` script or an agent with a token, a permission or token
   broader than the step needs. `context/engineering-context/harness/github.md` is what this repo
   already learned; contradicting it is a finding.
-- **A doc that is false.** CLAUDE.md, `context/engineering-context/` and the playbooks are
+- **A doc that is false** — the workflow does not let it block working code: on a branch of this repository it asks respond to fix the doc on the pull request (docs only) and says so in the comment; on a fork's it is listed for the author. CLAUDE.md, `context/engineering-context/` and the playbooks are
   read *instead of* the code. A claim the code does not bear out, two docs that
   now disagree, or an instruction an agent would follow into a wrong action.
 - **An orchestration defect.** A workflow path where a dead agent reads as a

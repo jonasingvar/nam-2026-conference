@@ -80,7 +80,7 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Audit | lenses in parallel (browser alone, after), a skeptic per blocker, a fixer, back to Gate; stuck or out of rounds → hand back | agents |
 | Pull request | merge the base once more, refuse if code changed after the gate, push, screenshots, compose the body from what the run knows, open it | command + GitHub API |
 | Preview | wait for Vercel's preview of the PR's head (a GitHub Deployment "Preview – …") | step |
-| Review | a fresh reviewer that never saw the build; verdict and the run's spend as a PR comment; the sandbox is deleted | agent + API |
+| Review & QA | two child workflows; a stale doc review finds is fixed on the branch by respond, never a blocker | workflows |
 | Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 

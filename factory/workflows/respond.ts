@@ -21,14 +21,15 @@ export async function respond(input: RespondInput) {
   if (pr.state !== 'open') return { outcome: 'skipped', reason: 'not open' };
   const box = `respond-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `answering a request on pull request #${pr.number}`);
-  await comment(pr.number, `👀 On it, @${input.author} — [run](${runUrl})`);
+  // No @-mention: the reply should not notify anyone twice.
+  await comment(pr.number, `👀 On it — asked by ${input.author} · [run](${runUrl})`);
 
   await prepareSandbox(box, pr.headSha, 'push');
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await comment(pr.number, `Could not check out ${pr.head}. [run](${runUrl})`); return { outcome: 'failed' }; }
 
   const change = await k.agent('change',
-    `@${input.author} asked, on pull request #${pr.number} "${pr.title}" (branch ${pr.head}):\n\n"${input.ask}"\n\n` +
+    `${input.author} asked, on pull request #${pr.number} "${pr.title}" (branch ${pr.head}):\n\n"${input.ask}"\n\n` +
     `Make the change asked for, and nothing else. Read the conversation for context first (\`gh pr view ${pr.number} --comments\`). If a spec in specs/ for this branch ` +
     `records a decision this changes, update the spec too. Keep the context docs true (\`node scripts/context.mjs for <changed files>\`). \`npm test\` after every edit; ` +
     `a browser test you add or change runs alone by title. Never edit an existing test to make it pass. Commit in Conventional Commits and push. ` +

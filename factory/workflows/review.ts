@@ -1,4 +1,6 @@
 import { getWorkflowMetadata, setAttributes } from 'workflow';
+import { start } from 'workflow/api';
+import { respond } from './respond';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
@@ -131,7 +133,22 @@ export async function review(input: ReviewInput) {
   });
 
   // 4. The verdict, composed by the script — no model shapes its own verdict.
-  const blockers = [...stillOpen, ...confirmed].slice(0, 3);
+  // A doc that the change made false is real (agents read docs instead of code), but it is not a
+  // reason to hold back working code: on a branch of this repository the factory fixes it on the
+  // pull request (respond, docs only) and says so; on a fork's, it is listed for the author.
+  const isDocs = (b: any) => b.category === 'docs';
+  const staleDocs = [...stillOpen, ...confirmed].filter(isDocs);
+  const blockers = [...stillOpen, ...confirmed].filter((b) => !isDocs(b)).slice(0, 3);
+  let docsRun: string | null = null;
+  if (staleDocs.length && pr.sameRepo) {
+    const run = await start(respond, [{ pr: pr.number, author: 'the review', ask:
+      `Bring these docs back in line with the code on this branch, and change nothing else (no code, no tests):\n` +
+      staleDocs.map((d) => `- ${d.file}${d.line ? `:${d.line}` : ''} — ${d.claim}`).join('\n') +
+      `\nThen \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere and fix those too.` }]);
+    docsRun = run.runId;
+  } else if (staleDocs.length) {
+    followUps.push(...staleDocs.map((d) => ({ ...d, severity: 'follow-up' })));
+  }
   const missing = reports.some((r) => !r);
   const confidences = reports.filter(Boolean).map((r: any) => r.confidence);
   const confidence = missing ? 'low' : confidences.includes('low') ? 'low' : confidences.includes('medium') ? 'medium' : 'high';
@@ -143,7 +160,9 @@ export async function review(input: ReviewInput) {
   const byPlace = new Map<string, any>();
   for (const x of followUps) { if (!byPlace.has(fkey(x))) byPlace.set(fkey(x), x); }
   // Listed in the comment only — once per place, and not again on a re-review that already listed it.
-  const toList = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x))).slice(0, 5);
+  // …and never a place already raised above, as a blocker or a doc being fixed.
+  const raisedAbove = new Set([...blockers, ...(docsRun ? staleDocs : [])].map(fkey));
+  const toList = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x)) && !raisedAbove.has(fkey(x))).slice(0, 5);
   const callout = pass ? (confidence === 'high' ? '> [!TIP]' : confidence === 'medium' ? '> [!NOTE]' : '> [!WARNING]') : '> [!CAUTION]';
   const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence as 'high'];
   const summary = reports.filter(Boolean).map((r: any) => r.covered).join(' · ');
@@ -154,6 +173,7 @@ export async function review(input: ReviewInput) {
     `> ${summary || 'Nothing to report.'}`,
     '',
     ...blockers.map((b) => `**${b.category}** \`${b.file}${b.line ? ':' + b.line : ''}\` — ${b.claim}\n${b.how ? `*How:* ${b.how} · ` : ''}${b.harm ? `*Harm:* ${b.harm}` : b.evidence ? `*Evidence:* ${b.evidence}` : ''}\n`),
+    docsRun ? `📝 **Stale docs — being fixed on this branch now**, so the next agent does not build on them ([run](${FACTORY_DASHBOARD}/workflows/runs/${docsRun})):\n${staleDocs.map((d) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`).join('\n')}\n` : '',
     toList.length ? `<details><summary>Worth a look — not blockers (${toList.length})</summary>\n\n${toList.map((x) => `- \`${x.file}${x.line ? ':' + x.line : ''}\` ${x.claim}`).join('\n')}\n</details>` : '',
     '',
     `<sub>🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${model} · ${k.spendLine()} · [run](${runUrl})</sub>`,

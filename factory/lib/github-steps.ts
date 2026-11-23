@@ -187,6 +187,8 @@ export async function productionHealth(url: string) {
 export type PullRequest = {
   number: number; title: string; body: string; draft: boolean; state: string; merged: boolean;
   head: string; headSha: string; base: string; labels: string[]; issue: number | null; author: string;
+  /** The branch lives in this repository (not a fork), so the factory may push to it. */
+  sameRepo: boolean;
 };
 
 /** A pull request, and the issue it closes (`Closes #n` / `Refs #n`, else an `issue-<n>-` branch). */
@@ -198,6 +200,7 @@ export async function readPullRequest(n: number): Promise<PullRequest> {
     number: p.number, title: p.title, body: p.body || '', draft: p.draft, state: p.state, merged: Boolean(p.merged),
     head: p.head.ref, headSha: p.head.sha, base: p.base.ref,
     labels: (p.labels || []).map((l: any) => l.name), issue: linked ? Number(linked) : null, author: p.user?.login ?? '',
+    sameRepo: p.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO,
   };
 }
 
