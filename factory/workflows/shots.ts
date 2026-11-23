@@ -68,7 +68,7 @@ async function shotsRun(input: ShotsInput, box: string, workflowRunId: string): 
   k.log(`pages: ${pages.map((p) => `${p.path} (${p.label})`).join(', ')}`);
 
   const before = (await findDeployment(co.base, 'Preview')).url ?? (pr.base === 'main' ? PRODUCTION_URL : null);
-  const beforeLabel = before ? (pr.base === 'main' ? 'production (main)' : pr.base) : null;
+  const beforeLabel = before ? (pr.base === 'main' ? 'production' : pr.base) : null;
   await allowPreviews(box, [previewUrl, ...(before ? [before] : [])]);
 
   const shot = await k.command('shoot', captureScript(pages, previewUrl, before));
@@ -76,7 +76,7 @@ async function shotsRun(input: ShotsInput, box: string, workflowRunId: string): 
   const urls = shot?.dir ? await uploadShots(box, shot.dir, pr.number, pr.headSha, taken) : {};
   await disposeSandbox(box);
 
-  const uploaded: Uploaded[] = taken.map((s) => ({ path: s.path, viewport: s.viewport, which: s.which, url: s.file ? urls[s.file] : undefined, error: s.error }));
+  const uploaded: Uploaded[] = taken.map((s) => ({ path: s.path, viewport: s.viewport, which: s.which, url: s.file ? urls[s.file] : undefined, full: s.full ? urls[s.full] : undefined, error: s.error }));
   const ok = uploaded.filter((s) => s.which === 'after' && s.url).length;
   if (!ok) {
     await setStatus(pr.headSha, 'factory/screenshots', 'error', shot?.error ? `Capture failed: ${shot.error}`.slice(0, 140) : 'No screenshot could be taken', runUrl);
