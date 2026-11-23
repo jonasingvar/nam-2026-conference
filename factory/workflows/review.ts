@@ -135,7 +135,10 @@ export async function review(input: ReviewInput) {
   const pass = blockers.length === 0;
   const filedBefore = new Set<string>(previous?.followUps || []);
   const fkey = (x: any) => `${x.category}|${x.file}|${x.line ? Math.floor(x.line / 10) : ''}`;
-  const toFile = followUps.filter((x) => !filedBefore.has(fkey(x))).slice(0, 3);
+  // One per place: two lenses that flag the same line under different categories are one follow-up.
+  const byPlace = new Map<string, any>();
+  for (const x of followUps) { const at = `${x.file}|${x.line ? Math.floor(x.line / 10) : x.claim.slice(0, 40)}`; if (!byPlace.has(at)) byPlace.set(at, x); }
+  const toFile = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x))).slice(0, 3);
   const filed: string[] = [];
   for (const x of toFile) {
     const i = await fileIssue(`Follow-up from #${pr.number}: ${x.claim}`.slice(0, 120),
