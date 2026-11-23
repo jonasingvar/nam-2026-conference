@@ -60,7 +60,9 @@ data at the end of the script, or draw from a separate generator.
 7. `USERS` — six attendees (below). Ticket tier `Speaker` sets `speaker_id` by name and
    reuses the speaker portrait; the others get `attendee-00N.jpg`.
 8. Plans. Jonas's cross-town pairs are booked first (Day 1 Aurora 10:15 → Foundry 11:30;
-   Day 4 Aurora 09:00 → Foundry 10:15). Then `PLAN_SHAPE[i]` gives each attendee days
+   Day 4 Aurora 09:00 → Foundry 10:15); on a fresh seed neither trips the hop rule (Day 1's
+   Foundry slot does not exist, Day 4's 30 min gap covers 18 min rideshare + 9 min walk), so
+   they are not traps. Then `PLAN_SHAPE[i]` gives each attendee days
    attended, talks per day and keynote probability; `bookSeat` takes a seat or waitlists,
    and only one per slot.
 9. Full rooms: the top ~12% of `popular` (workshops, then rooms under 250) get
@@ -83,7 +85,7 @@ pins it. Only dates change between machines; the PRNG output does not.
 
 | id | name | tier | notes |
 | --- | --- | --- | --- |
-| 1 | Jonas Claesson | VIP | all 4 days, cross-town traps, holds the promotion fixture seat |
+| 1 | Jonas Claesson | VIP | all 4 days, cross-town pairs that fit, holds the promotion fixture seat |
 | 2 | Andy Vays | Speaker | `speaker_id` 1, presents 3 sessions, 3 days |
 | 3 | Kenji Nakamura | Standard | 2 days, always the keynote |
 | 4 | Sofia Almeida | VIP | 4 days, the biggest plan |
