@@ -11,7 +11,11 @@ import { expect } from '@playwright/test';
  * The API the suite talks to. PORT lets a second checkout run its own server
  * (with its own ORBIT_DB) without the two suites writing to each other's data.
  */
-export const API = `http://localhost:${process.env.PORT ?? 3001}/api`;
+// QA_BASE_URL points every helper at a deployed app (a Vercel preview) instead
+// of the local dev server — the factory's QA probes previews this way.
+export const API = process.env.QA_BASE_URL
+  ? `${process.env.QA_BASE_URL.replace(/\/$/, '')}/api`
+  : `http://localhost:${process.env.PORT ?? 3001}/api`;
 
 export const ATTENDEES = {
   jonas: 1,      // VIP, big plan, has cross-town clashes
