@@ -3,6 +3,8 @@
  *
  *   node scripts/gate.mjs        # npm test, then the Playwright suite; prints one JSON line
  *   GATE_SCOPE=branch node scripts/gate.mjs   # …only the browser specs the change reaches (ship --fast)
+ *   GATE_SPECS="tests/a.spec.js tests/b.spec.js:12" GATE_PROJECT=desktop GATE_UNIT=skip node scripts/gate.mjs
+ *       # …exactly these (verify's selection, one shard per project), without npm test
  *
  * The decks' spec (`tests/presentation.spec.js`) runs only when the branch
  * touches a deck: the presentations ride along in the fork so attendees can
@@ -279,7 +281,7 @@ export function fastFallback(changed) {
 }
 
 /** The repo, read for affectedSpecs. */
-function readRepo() {
+export function readRepo() {
   const graph = new Map();
   const sources = new Map();
   const walk = (dir) => {
@@ -416,8 +418,10 @@ function main() {
   const pinned = (process.env.GATE_PINNED || '').split(',').filter(Boolean);
   const dirty = isDirty(git('status', '--porcelain', '--untracked-files=all'), pinned);
 
-  const unit = spawnSync('npm', ['test', '--silent'], { cwd: ROOT, encoding: 'utf8' });
-  const unitCounts = unitTotals(unit.stdout);
+  // GATE_UNIT=skip: another shard runs npm test (verify runs it once, beside desktop).
+  const skipUnit = process.env.GATE_UNIT === 'skip';
+  const unit = skipUnit ? { status: 0, stdout: '' } : spawnSync('npm', ['test', '--silent'], { cwd: ROOT, encoding: 'utf8' });
+  const unitCounts = skipUnit ? ['', '0', '0'] : unitTotals(unit.stdout);
 
   // GATE_BASE: what the branch is judged against — main, unless it stacks on
   // another pull request.
@@ -429,7 +433,11 @@ function main() {
   // be told. A change no page renders — docs, a route the API tests cover —
   // runs no browser spec at all.
   let scope = 'full';
-  if (process.env.GATE_SCOPE === 'branch') {
+  // GATE_SPECS: exactly these Playwright arguments (spec files, or file:line) —
+  // the factory chose them; GATE_SPECS=none runs no browser test at all.
+  const chosen = process.env.GATE_SPECS?.trim();
+  if (chosen) { scope = 'selected'; specs = chosen === 'none' ? [] : chosen.split(/\s+/); }
+  else if (process.env.GATE_SCOPE === 'branch') {
     const files = changed.split('\n').filter(Boolean);
     const reached = affectedSpecs(files, readRepo()) || fastFallback(files);
     if (reached) { scope = 'branch'; specs = reached; }
@@ -443,8 +451,9 @@ function main() {
   spawnSync('npm', ['run', 'db:seed', '--silent'], { cwd: ROOT, stdio: 'ignore' });
   // A report left by an earlier run must never be read as this one's.
   rmSync(json, { force: true });
-  const none = scope === 'branch' && !specs.length;
-  const pw = none ? { status: 0 } : spawnSync('npx', ['playwright', 'test', ...specs, '--retries=1', '--forbid-only', '--reporter=json'], {
+  const none = scope !== 'full' && !specs.length;
+  const project = process.env.GATE_PROJECT ? [`--project=${process.env.GATE_PROJECT}`] : [];
+  const pw = none ? { status: 0 } : spawnSync('npx', ['playwright', 'test', ...specs, ...project, '--retries=1', '--forbid-only', '--reporter=json'], {
     cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024,
     env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: json, PLAYWRIGHT_JSON_OUTPUT_FILE: json },
   });
@@ -460,7 +469,7 @@ function main() {
     const rerunJson = join(OUT, 'gate-alone.json');
     rmSync(rerunJson, { force: true });
     spawnSync('npm', ['run', 'db:seed', '--silent'], { cwd: ROOT, stdio: 'ignore' });
-    spawnSync('npx', ['playwright', 'test', ...new Set(alone.map(f => `tests/${f.at}`)), '--workers=1', '--retries=0', '--reporter=json'], {
+    spawnSync('npx', ['playwright', 'test', ...new Set(alone.map(f => `tests/${f.at}`)), ...project, '--workers=1', '--retries=0', '--reporter=json'], {
       cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024,
       env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: rerunJson, PLAYWRIGHT_JSON_OUTPUT_FILE: rerunJson },
     });
@@ -491,7 +500,9 @@ function main() {
     browser,
     // What the browser count covers: `full`, or the specs the change reaches.
     scope,
-    ...(scope === 'branch' ? { specs } : {}),
+    ...(scope !== 'full' ? { specs } : {}),
+    ...(skipUnit ? { unitSkipped: true } : {}),
+    ...(process.env.GATE_PROJECT ? { project: process.env.GATE_PROJECT } : {}),
     ...(excluded.length ? { excluded } : {}),
     tampered: tampered(diff),
   };

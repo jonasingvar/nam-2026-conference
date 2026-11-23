@@ -72,7 +72,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: `http://localhost:${process.env.WEB_PORT ?? 5173}`,
-    reuseExistingServer: !process.env.CI && !process.env.ORBIT_LANE,
+    // ORBIT_REUSE_SERVER: scripts/test-map.mjs starts the app itself, with a
+    // coverage agent in the API, and the suite must test that one.
+    reuseExistingServer: !!process.env.ORBIT_REUSE_SERVER || (!process.env.CI && !process.env.ORBIT_LANE),
     timeout: 90_000,
     stdout: 'ignore',
     stderr: 'pipe',

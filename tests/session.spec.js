@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { API, ATTENDEES, visit, momentOn, laneFor, bookableFor, conferenceDays, shotForPR } from './helpers.js';
 
 test.describe('Session detail', () => {
