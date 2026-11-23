@@ -1,4 +1,4 @@
-import { Sandbox } from '@vercel/sandbox';
+import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
@@ -54,6 +54,15 @@ async function sh(sb: Sandbox, cmd: string, env: Record<string, string> = {}) {
 
 const q = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 
+/**
+ * Snapshot storage is limited (Hobby: it ran out after one afternoon of runs that
+ * crashed before cleaning up). A run's sandbox keeps one snapshot — enough to
+ * resume — and it expires in a day, so a forgotten sandbox stops costing storage.
+ * The warm one keeps one, with no expiry: every run forks it.
+ */
+const RUN_SNAPSHOTS = { snapshotExpiration: 24 * 60 * 60_000, keepLastSnapshots: { count: 1, expiration: 24 * 60 * 60_000 } };
+const WARM_SNAPSHOTS = { keepLastSnapshots: { count: 1, expiration: 0 } };
+
 /** The warm sandbox every run forks: the repository checked out, installed, with Chromium. */
 export const WARM = 'orbit-warm';
 
@@ -88,6 +97,7 @@ export async function refreshWarm(ref = 'main') {
     source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: ref },
     resources: { vcpus: 4 },
     timeout: 20 * 60_000,
+    ...WARM_SNAPSHOTS,
   });
   await sb.updateNetworkPolicy('allow-all');
   const ready = await sh(sb, `test -f ${ROOT}/prepared && echo yes || echo no`);
@@ -120,7 +130,7 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
     sb = await Sandbox.get({ name });
   } catch {
     try {
-      sb = await Sandbox.fork({ sourceSandbox: WARM, name, resources: { vcpus: 4 }, timeout: 45 * 60_000 });
+      sb = await Sandbox.fork({ sourceSandbox: WARM, name, resources: { vcpus: 4 }, timeout: 45 * 60_000, ...RUN_SNAPSHOTS });
       how = 'forked';
     } catch {
       sb = await Sandbox.create({
@@ -128,6 +138,7 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
         source: { type: 'git', url: `https://github.com/${ALLOWED_REPO}.git`, revision: /^[0-9a-f]{40}$/.test(ref) ? undefined : ref },
         resources: { vcpus: 4 },
         timeout: 45 * 60_000,
+        ...RUN_SNAPSHOTS,
       });
       how = 'created';
     }
@@ -238,6 +249,37 @@ async function pollJobImpl(name: string, id: string, waitMs: number): Promise<Jo
   }
 }
 pollJob.maxRetries = 5;
+
+/**
+ * The safety net under every run's own cleanup: delete any run sandbox idle for
+ * longer than `maxIdleHours` (never the warm one). No live run keeps a sandbox
+ * that long — ship drops its own when the pull request opens, the others finish
+ * in minutes — so whatever is left is from a run that died without cleaning up.
+ */
+export async function sweepSandboxes(maxIdleHours = 3) {
+  'use step';
+  const cutoff = Date.now() - maxIdleHours * 60 * 60_000;
+  const all = await (await (Sandbox as any).list({})).toArray();
+  const swept: string[] = [];
+  for (const s of all) {
+    const name = String(s.name ?? '');
+    const last = Number(s.updatedAt ?? s.createdAt ?? 0);
+    if (!name || name === WARM || last > cutoff) continue;
+    try { await (await Sandbox.get({ name })).delete(); swept.push(name); } catch { /* gone, or busy: next sweep */ }
+  }
+  // Deleting a sandbox leaves its snapshots behind (each kept for 30 days),
+  // and they are what fills the storage quota. A snapshot no live sandbox
+  // resumes from is an orphan; the hour's grace spares one being taken now.
+  const live = new Set((await (await (Sandbox as any).list({})).toArray()).map((s: any) => s.currentSnapshotId).filter(Boolean));
+  const snaps = await (await (Snapshot as any).list({})).toArray();
+  let orphans = 0;
+  for (const x of snaps) {
+    if (x.status === 'deleted' || live.has(x.id) || Number(x.createdAt) > Date.now() - 60 * 60_000) continue;
+    try { await (await (Snapshot as any).get({ snapshotId: x.id })).delete(); orphans += 1; } catch { /* next sweep */ }
+  }
+  return { swept, kept: all.length - swept.length, orphans };
+}
+sweepSandboxes.maxRetries = 1;
 
 /** The end of a run: the branch is pushed, so the machine can go. */
 export async function disposeSandbox(name: string) {

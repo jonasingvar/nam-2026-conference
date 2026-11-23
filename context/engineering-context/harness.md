@@ -117,6 +117,13 @@ record each answer as a Decision, the builder keeps what still holds, and the
 draft becomes the pull request. Every agent sees what people said as amendments
 to the ticket.
 
+**Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
+or crashes. A run's sandbox keeps one snapshot that expires in a day. Under
+that, the `warm` workflow (daily, and on each push to main) sweeps any run
+sandbox idle for over three hours, and any snapshot no live sandbox resumes
+from — deleting a sandbox does not delete its snapshots (`sweepSandboxes`): Hobby's snapshot
+storage filled in one afternoon of crashed runs.
+
 **Out of credit.** A 402 from AI Gateway is not a dead agent: `readAgent`
 throws `OUT_OF_CREDIT`, ship's crash guard says so on the issue, and review
 and QA set an `error` status with it — never a low-confidence pass.

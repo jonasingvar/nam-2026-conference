@@ -56,6 +56,8 @@ export async function qa(input: QaInput) {
     // Never leave a pull request's check at "pending": say what stopped it.
     const why = String(e?.message || e).slice(0, 140);
     const { workflowRunId } = getWorkflowMetadata();
+    // Never leave a sandbox (and its snapshot) behind.
+    await disposeSandbox(`qa-${input.pr}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
     const pr = await readPullRequest(input.pr).catch(() => null);
     if (pr) await setStatus(pr.headSha, 'factory/qa', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
     return { verdict: 'none', reason: why };
