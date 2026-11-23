@@ -72,5 +72,6 @@ test('with no base deployment, one larger this-PR column; later pages fold away'
   assert.doesNotMatch(body, /Before/);
   assert.match(body, /<a href="https:\/\/b\/m\.png"><img src="https:\/\/b\/m\.png" width="300"><\/a>/);
   assert.equal(body.match(/<details>/g)?.length, 1);
-  assert.match(body, /<details><summary><code>\/schedule<\/code>[\s\S]*#### \[`\/schedule`\][\s\S]*<\/details>/);
+  assert.match(body, /<details><summary><a href="[^"]*\/schedule"><code>\/schedule<\/code><\/a>[\s\S]*<\/details>/);
+  assert.doesNotMatch(body, /#### \[`\/schedule`\]/); // the summary is its title: no second heading
 });

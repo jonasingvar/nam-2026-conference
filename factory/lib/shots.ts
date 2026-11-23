@@ -133,8 +133,9 @@ export function shotsComment(pr: number, sha: string, pages: Shot[], shots: Uplo
       `|---|${cols.map(() => '---').join('|')}|`,
       ...['desktop', 'mobile'].map((v) => `| **${v === 'desktop' ? 'Desktop' : 'Mobile'}** | ${cols.map((c) => img(find(p.path, v, c), width[v])).join(' | ')} |`),
     ];
-    const section = [`#### [\`${p.path}\`](${previewUrl}${p.path}) <sub>${p.label}</sub>`, '', ...rows].join('\n');
-    return i === 0 ? section : [`<details><summary><code>${p.path}</code> <sub>${p.label}</sub></summary>`, '', section, '', '</details>'].join('\n');
+    // A folded page's summary is its title, so it gets no heading of its own (it showed twice).
+    if (i === 0) return [`#### [\`${p.path}\`](${previewUrl}${p.path}) <sub>${p.label}</sub>`, '', ...rows].join('\n');
+    return [`<details><summary><a href="${previewUrl}${p.path}"><code>${p.path}</code></a> <sub>${p.label}</sub></summary>`, '', ...rows, '', '</details>'].join('\n');
   });
   return [
     `### 📸 Screenshots`,
