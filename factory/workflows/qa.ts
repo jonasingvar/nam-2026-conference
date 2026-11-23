@@ -24,12 +24,18 @@ import * as S from './schemas';
  * diff, a command warms the preview: every function instance seeds its own
  * SQLite on first request, and a cold one made the first probes slow.
  *
- * A probe that fails is run again on the preview and once on the base's own
- * deployment: only a failure that reproduces here and not there, and survives
- * a skeptic, is a bug in this change. One that fails on both is pre-existing.
+ * A probe that writes state (books, checks in, rates) runs on the branch's own
+ * app in the sandbox instead: a preview's function instances each keep their
+ * own database, so a seat booked on one is missing on the next (#36).
  *
- * Confidence is coverage: the share of the plan that ran on both viewports.
- * A low one publishes as unproven, not green.
+ * A probe that fails is run again where it ran and once on the base (its
+ * deployment, or its own app): only a failure that reproduces here and not
+ * there, and survives a skeptic, is a bug in this change. One that fails on
+ * both is pre-existing; one the base comparison or the skeptic puts down to
+ * where it ran is the environment's, listed apart, and never fails the pass.
+ *
+ * Confidence is coverage: the share of the plan that ran meaningfully on both
+ * viewports. A low one publishes as unproven, not green.
  */
 export type QaInput = { pr: number };
 
@@ -52,15 +58,68 @@ export default {
 };
 `;
 
+/** Playwright's -g for exactly these titles; none means every probe in the file. */
+const grep = (titles: string[]) => (titles.length ? ` -g '${titles.map((t) => t.replace(/[.*+?^${}()|[\]\\']/g, '.')).join('|')}'` : '');
+
+/** Playwright's JSON report → $JOB/result.json: which titles passed where, and any load errors — colour codes stripped before anything is cut. */
+const collect =
+  `node -e 'const fs=require("fs");const plain=s=>String(s||"").replace(/\\u001b\\[[0-9;?]*[A-Za-z]/g,"");let r;try{r=JSON.parse(fs.readFileSync(process.env.JOB+"/report.json","utf8"))}catch{r={errors:[{message:fs.readFileSync(process.env.JOB+"/run.log","utf8").slice(-600)}]}}` +
+  `const out=[];const walk=s=>{for(const x of s.suites||[])walk(x);for(const sp of s.specs||[])for(const t of sp.tests||[])out.push({title:sp.title,project:t.projectName,ok:t.status==="expected"||t.status==="flaky",error:plain((t.results||[]).slice(-1)[0]?.error?.message).slice(0,400)})};walk(r);` +
+  `fs.writeFileSync(process.env.JOB+"/result.json",JSON.stringify({results:out,errors:(r.errors||[]).map(e=>plain(e.message||e).slice(0,400))}))' || echo '{"results":[],"errors":["no report"]}' > "$JOB/result.json"`;
+
 /** Run probes (all, or these titles) against one URL, on one project or both; which titles passed where, and any load errors. */
 export const probeRun = (url: string, titles: string[], project?: 'desktop' | 'mobile') => [
   `cat > ${CONFIG} <<'CFG'\n${remoteConfig()}\nCFG`,
-  `QA_BASE_URL='${url}' QA_REPORT="$JOB/report.json" QA_OUT="$JOB/out" npx playwright test --config=${CONFIG}${project ? ` --project=${project}` : ''} ` +
-    `${titles.length ? `-g '${titles.map((t) => t.replace(/[.*+?^${}()|[\]\\']/g, '.')).join('|')}'` : ''} >"$JOB/run.log" 2>&1`,
-  `node -e 'const fs=require("fs");let r;try{r=JSON.parse(fs.readFileSync(process.env.JOB+"/report.json","utf8"))}catch{r={errors:[{message:fs.readFileSync(process.env.JOB+"/run.log","utf8").slice(-600)}]}}` +
-    `const out=[];const walk=s=>{for(const x of s.suites||[])walk(x);for(const sp of s.specs||[])for(const t of sp.tests||[])out.push({title:sp.title,project:t.projectName,ok:t.status==="expected"||t.status==="flaky",error:((t.results||[]).slice(-1)[0]?.error?.message||"").slice(0,400)})};walk(r);` +
-    `fs.writeFileSync(process.env.JOB+"/result.json",JSON.stringify({results:out,errors:(r.errors||[]).map(e=>String(e.message||e).slice(0,400))}))' || echo '{"results":[],"errors":["no report"]}' > "$JOB/result.json"`,
+  `QA_BASE_URL='${url}' QA_REPORT="$JOB/report.json" QA_OUT="$JOB/out" npx playwright test --config=${CONFIG}${project ? ` --project=${project}` : ''}${grep(titles)} >"$JOB/run.log" 2>&1`,
+  collect,
 ].join('\n');
+
+/**
+ * Probes that write state run on the branch's own app, not on the preview:
+ * each preview function instance seeds its own SQLite, so a seat booked
+ * through the API on one is missing when another serves the page (#36: every
+ * probe that booked and then looked saw an empty agenda). Here the
+ * repository's own config boots one app — one process, one database — on a
+ * claimed lane, and the probes run one at a time, so desktop and mobile never
+ * book for the same attendee at once. Its webServer reseeds on every run.
+ */
+export const LOCAL_CONFIG = '/vercel/.factory/qa-local.config.mjs';
+const BASE_CONFIG = '/vercel/.factory/qa-base.config.mjs';
+export const BASE_DIR = '/vercel/.factory/qa-base';
+const localConfig = (dir: string) => `
+import base from '${dir}/playwright.config.js';
+export default {
+  ...base,
+  testDir: '${dir}/tests',
+  testMatch: 'qa-probe.spec.js',
+  retries: 0,
+  workers: 1,
+  webServer: { ...base.webServer, cwd: '${dir}' },
+  outputDir: process.env.QA_OUT || '${dir}/test-results/qa',
+  reporter: [['json', { outputFile: process.env.QA_REPORT }]],
+};
+`;
+const configFor = (dir: string) => (dir === REPO_DIR ? LOCAL_CONFIG : BASE_CONFIG);
+/** Write a checkout's local config; the writer needs the branch's before it starts. */
+export const writeLocalConfig = (dir: string) => `cat > ${configFor(dir)} <<'CFG'\n${localConfig(dir)}\nCFG`;
+/** Run these probes on the app a checkout boots itself (the branch's, or the base's worktree), both viewports. */
+export const localRun = (dir: string, titles: string[]) => [
+  writeLocalConfig(dir),
+  `(cd ${dir} && unset QA_BASE_URL && eval "$(node scripts/lane.mjs claim qa)" && ` +
+    `QA_REPORT="$JOB/report.json" QA_OUT="$JOB/out" npx playwright test --config=${configFor(dir)}${grep(titles)}) >"$JOB/run.log" 2>&1`,
+  collect,
+].join('\n');
+
+/** A worktree of the base with the probe file in it, so a stateful failure is tried on the base's own app too. */
+export const baseCheckout = (sha: string) =>
+  `{ [ -d ${BASE_DIR} ] || { git worktree add -q --detach ${BASE_DIR} ${sha} && ln -s ${REPO_DIR}/node_modules ${BASE_DIR}/node_modules; }; } && cp tests/qa-probe.spec.js ${BASE_DIR}/tests/`;
+
+/** What a probe writes, read from its plan: the planner's word, and a backstop for a plan that books but forgot to say so. */
+const WRITES = /\b(book|books|reserve|reserves|release|releases|remove|removes|check(?:s)? in|check-in|rate|rates|follow|follows|unfollow|swap|clearAgendaFor|request\.(?:post|put|delete))\b/i;
+export const isStateful = (p: { stateful?: boolean; steps?: string[] }) => p.stateful === true || WRITES.test((p.steps ?? []).join(' '));
+
+/** Terminal colour codes: Playwright puts them in its messages, and GitHub shows them as ^[[31m. */
+export const stripAnsi = (s: unknown) => String(s ?? '').replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '');
 
 /** Hit the preview's pages and API a few times over, in parallel, so its function instances seed their databases before a probe waits on one. */
 export const warmScript = (url: string) => [
@@ -71,8 +130,51 @@ export const warmScript = (url: string) => [
 ].join('\n');
 
 /** What a probe plan item looks like to the writer and to the report. */
-type Planned = { title: string; aim: string; route: string; as: string; at?: string; steps: string[]; expect: string[] };
+type Planned = { title: string; aim: string; route: string; as: string; at?: string; steps: string[]; expect: string[]; stateful?: boolean };
 type Ran = { title: string; project: string; ok: boolean; error: string };
+
+/** What a failing probe turned out to be. */
+export type Kind = 'bug' | 'preExisting' | 'environment' | 'question';
+type Judged = { verdict?: string; preExisting?: boolean; environment?: boolean; why?: string };
+
+/**
+ * A failing probe, settled from what is known so far — or null while it still
+ * needs the skeptic. The base comparison speaks first: the same failure there
+ * is pre-existing, and a failure it puts down to where the probe ran (a
+ * preview instance without the state another wrote, a host the sandbox cannot
+ * reach) is the environment's. A base that fails only because the feature is
+ * not there yet says nothing about this change, so the skeptic decides, as it
+ * does for a failure the base passes. A skeptic that cannot be reached leaves
+ * a reproduced failure standing as a bug.
+ */
+export function classify(f: { reproduced: boolean; base?: Judged | null; skeptic?: Judged | null }): { kind: Kind; note: string } | null {
+  if (!f.reproduced) return { kind: 'question', note: 'did not fail a second time' };
+  if (f.base?.environment) return { kind: 'environment', note: stripAnsi(f.base.why) };
+  if (f.base?.preExisting) return { kind: 'preExisting', note: stripAnsi(f.base.why) };
+  if (f.skeptic === undefined) return null;
+  const verdict = f.skeptic?.verdict ?? 'confirmed';
+  if (verdict === 'confirmed') return { kind: 'bug', note: '' };
+  if (f.skeptic?.environment) return { kind: 'environment', note: stripAnsi(f.skeptic.why) };
+  return { kind: 'question', note: `${verdict}: ${stripAnsi(f.skeptic?.why)}` };
+}
+
+/**
+ * Confidence is coverage, counting only probes that ran meaningfully: on both
+ * viewports, and not failed by the environment — a probe the sandbox or the
+ * preview stopped exercised nothing.
+ */
+export function coverage(plan: number, probes: { title: string; passedDesktop?: boolean; passedMobile?: boolean }[], kinds: Map<string, Kind>, large: boolean) {
+  const meaningful = probes.filter((p) => p.passedDesktop !== undefined && p.passedMobile !== undefined && kinds.get(p.title) !== 'environment').length;
+  const share = plan ? meaningful / plan : 0;
+  return { meaningful, confidence: (share >= 0.99 && !large ? 'high' : share >= 0.5 ? 'medium' : 'low') as 'high' | 'medium' | 'low' };
+}
+
+/** A probe's line in "Probed": passed, its finding's kind, or did not run. */
+export function mark(p: { passedDesktop?: boolean; passedMobile?: boolean }, kind?: Kind) {
+  if (p.passedDesktop === undefined || p.passedMobile === undefined) return '⚪';
+  if (p.passedDesktop && p.passedMobile) return '✅';
+  return { bug: '❌', preExisting: '🟠', environment: '⚪', question: '❔' }[kind ?? 'bug'];
+}
 
 /** Which plan items ran on which project, from the factory's own runs; titles the writer did not write did not run. */
 export function tally(plan: Planned[], runs: Ran[]) {
@@ -80,7 +182,7 @@ export function tally(plan: Planned[], runs: Ran[]) {
     const on = (project: string) => runs.find((r) => r.title === p.title && r.project === project);
     const d = on('desktop');
     const m = on('mobile');
-    return { ...p, passedDesktop: d ? d.ok : undefined, passedMobile: m ? m.ok : undefined, error: [d && !d.ok ? `desktop: ${d.error}` : '', m && !m.ok ? `mobile: ${m.error}` : ''].filter(Boolean).join(' · ') };
+    return { ...p, passedDesktop: d ? d.ok : undefined, passedMobile: m ? m.ok : undefined, error: stripAnsi([d && !d.ok ? `desktop: ${d.error}` : '', m && !m.ok ? `mobile: ${m.error}` : ''].filter(Boolean).join(' · ')) };
   });
 }
 
@@ -223,9 +325,15 @@ async function qaRun(input: QaInput) {
     `\nFor each probe give: the route; the seeded attendee (tests/helpers.js ATTENDEES); the pinned clock as "<dayIndex> HH:MM" when the outcome depends on the time, else ""; ` +
     `the steps, naming each control by its test id or role and accessible name as the source under src/ has it (grep data-testid; quote it exactly); and every expected result, ` +
     `observable and specific (a test id and the text or count it must show). Each probe stands alone: its own attendee and day, releasing anything it books (CLAUDE.md, *Writing tests against this*). ` +
+    `Mark a probe stateful when it writes anything — books or releases a seat, checks in, rates, follows — and reads it back: the preview's function instances each keep their own database, ` +
+    `so those run on the branch's own app in the sandbox instead; plan the rest read-only, on the seed as it is, so they meet the real preview. ` +
     `Change no file.`,
     S.QA_PLAN, 'qaPlan');
   const plan: Planned[] = (planned?.probes ?? []).map((p: any) => ({ ...p, title: String(p.title).startsWith('qa: ') ? p.title : `qa: ${p.title}` }));
+  // Where each probe runs: read-only on the preview, anything that writes on the branch's own app.
+  const local = plan.filter(isStateful).map((p) => p.title);
+  const remote = plan.filter((p) => !isStateful(p)).map((p) => p.title);
+  const onApp = (title: string) => local.includes(title);
   if (!plan.length) {
     await warming;
     await publish(true, 'low', 'The probes were not planned — nothing here was exercised.', [], marker([]));
@@ -239,21 +347,27 @@ async function qaRun(input: QaInput) {
     `You turn a QA plan into Playwright probes. The plan is decided — do not add, drop or reinterpret probes, and do not explore beyond what a selector needs.\n\n` +
     `The plan (JSON):\n${JSON.stringify(plan, null, 2)}\n\n` +
     `Write every probe into tests/qa-probe.spec.js, one test() per plan item, titled exactly as its "title". Use tests/helpers.js: \`visit(page, path, { as: ATTENDEES.<name>, at })\` ` +
-    `(at is \`await momentOn(dayIndex, 'HH:MM')\` from the plan's "at", or omitted when it is ""), \`conferenceDays()\`, \`waitForResults(page)\`; API helpers already point at the preview. ` +
+    `(at is \`await momentOn(dayIndex, 'HH:MM')\` from the plan's "at", or omitted when it is ""), \`conferenceDays()\`, \`waitForResults(page)\`; API helpers already point at whichever app the probe runs on. ` +
     `Assert on roles and test ids, read from the source under src/ — never CSS classes. Each "expect" item is one expect().\n` +
-    `Never start the app. Check it compiles with \`npx playwright test --config=${CONFIG} --list\`, then run it ONCE, desktop only:\n` +
-    `  QA_BASE_URL=${previewUrl} QA_REPORT=/tmp/qa.json npx playwright test --config=${CONFIG} --project=desktop\n` +
+    `Never start the app yourself. Check it compiles with \`npx playwright test --config=${CONFIG} --list\`, then run it ONCE, desktop only:\n` +
+    (remote.length ? `  QA_BASE_URL=${previewUrl} QA_REPORT=/tmp/qa.json npx playwright test --config=${CONFIG} --project=desktop${grep(remote)}   # read-only probes, on the preview\n` : '') +
+    (local.length ? `  (unset QA_BASE_URL; eval "$(node scripts/lane.mjs claim qa)"; QA_REPORT=/tmp/qa-local.json npx playwright test --config=${LOCAL_CONFIG} --project=desktop${grep(local)})   # probes that write, on the branch's own app (the config boots it)\n` : '') +
     `If a probe fails because of your selector or your code, fix that and stop — do not run it again, and never weaken an expectation to make it pass: ` +
     `a failure the plan's expectation explains is a finding, and the factory runs the file itself, on both viewports. Change no other file.` +
     (fix ? `\n\nThe file as written did not run for the factory:\n${fix}\nFix tests/qa-probe.spec.js so every planned probe loads and runs.` : ''),
     S.QA_WRITTEN, 'qaWrite');
+  // Read-only probes on the preview, each viewport its own job; the ones that write on the branch's app, both viewports in one.
   const runBoth = async (tag: string) => {
-    const [d, m] = await Promise.all([k.command(`run:desktop${tag}`, probeRun(previewUrl, [], 'desktop')), k.command(`run:mobile${tag}`, probeRun(previewUrl, [], 'mobile'))]);
-    return { results: [...(d?.results ?? []), ...(m?.results ?? [])] as Ran[], errors: [...(d?.errors ?? []), ...(m?.errors ?? [])] as string[] };
+    const only = local.length ? remote : [];
+    const runs = await Promise.all([
+      ...(remote.length ? [k.command(`run:desktop${tag}`, probeRun(previewUrl, only, 'desktop')), k.command(`run:mobile${tag}`, probeRun(previewUrl, only, 'mobile'))] : []),
+      ...(local.length ? [k.command(`run:app${tag}`, localRun(REPO_DIR, local))] : []),
+    ]);
+    return { results: runs.flatMap((r) => r?.results ?? []) as Ran[], errors: runs.flatMap((r) => r?.errors ?? []) as string[] };
   };
-  // The writer checks and runs its file with the factory's preview config, so it must exist before the writer starts
-  // (probeRun writes it too, but only after the writer is done).
-  await k.command('config', `cat > ${CONFIG} <<'CFG'\n${remoteConfig()}\nCFG\necho '{"ok":true}' > "$JOB/result.json"`);
+  // The writer checks and runs its file with the factory's configs, so they must exist before the writer starts
+  // (the runs write them too, but only after the writer is done).
+  await k.command('config', `cat > ${CONFIG} <<'CFG'\n${remoteConfig()}\nCFG\n${writeLocalConfig(REPO_DIR)}\necho '{"ok":true}' > "$JOB/result.json"`);
   const [, firstWrite] = await Promise.all([warming.then((w) => w && k.log(`warm: ${w.ok}/${w.requests} ok, slowest ${Number(w.slowest).toFixed(1)}s`)), write()]);
   let written = firstWrite;
   let ran = await runBoth('');
@@ -276,57 +390,69 @@ async function qaRun(input: QaInput) {
     return outcome({ verdict: 'pass', confidence: 'low' });
   }
 
-  // 4. Reproduce each failure: again on the preview, then on the base's deployment.
+  // 4. Reproduce each failure where it ran — the preview, or the branch's own app — then on the base:
+  // its deployment for a read-only probe, its own app (a worktree of it) for one that writes.
   k.setPhase('reproduce');
   const failing = probes.filter((p) => p.passedDesktop === false || p.passedMobile === false)
     .map((p) => ({ ...p, expected: p.expect.join('; '), actual: p.error }));
-  const bugs: any[] = [];
-  const preExisting: any[] = [];
-  const questions: any[] = [];
+  const found: Record<Kind, any[]> = { bug: [], preExisting: [], environment: [], question: [] };
+  const kinds = new Map<string, Kind>();
   for (const p of failing) {
-    const again = await k.command(`again:${p.title.slice(0, 30)}`, probeRun(previewUrl, [p.title]));
+    const app = onApp(p.title);
+    const where = app ? 'the branch\'s own app in the sandbox' : 'its preview';
+    const again = await k.command(`again:${p.title.slice(0, 30)}`, app ? localRun(REPO_DIR, [p.title]) : probeRun(previewUrl, [p.title]));
     const reproduced = (again?.results ?? []).some((r: any) => !r.ok);
-    if (!reproduced) { questions.push({ ...p, note: 'did not fail a second time' }); continue; }
-    const onBase = baseDeploy ? await k.command(`base:${p.title.slice(0, 30)}`, probeRun(baseDeploy, [p.title])) : null;
-    const failsOnBase = (onBase?.results ?? []).some((r: any) => !r.ok);
-    if (failsOnBase) {
-      // Failing on the base too means pre-existing only if the base does the same
-      // thing — a probe of something this PR adds fails there simply because the
-      // feature is not there yet. Ask, rather than assume.
-      const same = await k.agent('skeptic:base',
-        `A QA probe failed on pull request #${pr.number}'s preview and also on ${pr.base}'s deployment:\n"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\n` +
-        `Read the probe (tests/qa-probe.spec.js) and \`git diff origin/${pr.base}...HEAD\`. Does ${pr.base} fail it for the same reason (pre-existing), or only because what it probes does not exist there yet (new: a gap in this change)?`,
-        S.BASE_SAME, 'baseSame');
-      if (same?.preExisting) preExisting.push(p); else questions.push({ ...p, note: same ? `a gap in what this adds, not on ${pr.base}: ${same.why}` : 'fails on the base too' });
-      continue;
+    let base: Judged | null | undefined;
+    if (reproduced) {
+      const onBase = app ? await k.command(`base:${p.title.slice(0, 30)}`, `${baseCheckout(co.base)}\n${localRun(BASE_DIR, [p.title])}`)
+        : baseDeploy ? await k.command(`base:${p.title.slice(0, 30)}`, probeRun(baseDeploy, [p.title])) : null;
+      if ((onBase?.results ?? []).some((r: any) => !r.ok)) {
+        // Failing on the base too means pre-existing only if the base does the same
+        // thing — a probe of something this PR adds fails there simply because the
+        // feature is not there yet. Ask, rather than assume.
+        base = await k.agent('skeptic:base',
+          `A QA probe failed on pull request #${pr.number}, on ${where}, and also on ${pr.base}:\n"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\n` +
+          `Read the probe (tests/qa-probe.spec.js) and \`git diff origin/${pr.base}...HEAD\`. Does ${pr.base} fail it for the same reason (pre-existing), or only because what it probes does not exist there yet? ` +
+          `And is the failure the environment's rather than the code's — a preview function instance missing state another instance wrote (each seeds its own SQLite), ` +
+          `a resource the sandbox's network cannot reach (net::ERR_NAME_NOT_RESOLVED), a cold start?`,
+          S.BASE_SAME, 'baseSame') ?? { preExisting: true, why: `fails on ${pr.base} too` };
+      }
     }
-    const v = await k.agent('skeptic:probe',
-      `${ticket}\nA QA probe on pull request #${pr.number} failed twice on its preview and passed on the base's deployment:\n` +
-      `"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\nRead the probe in tests/qa-probe.spec.js and the code it exercises. Try to REFUTE it as a bug in this change: ` +
-      `refuted if the probe itself is wrong (a wrong selector, a wrong expectation, a clock not pinned); contrived if real but reachable only from an input nobody gives in normal use. If you cannot tell, confirmed.`,
-      S.SKEPTIC, 'qaSkeptic');
-    const verdict = v?.verdict ?? 'confirmed';
-    if (verdict === 'confirmed') bugs.push(p); else questions.push({ ...p, note: `${verdict}: ${v?.why ?? ''}` });
+    let settled = classify({ reproduced, base });
+    if (!settled) {
+      const v = await k.agent('skeptic:probe',
+        `${ticket}\nA QA probe on pull request #${pr.number} failed twice on ${where}` +
+        `${base ? `, and on ${pr.base} only because what it probes is not there yet (${base.why})` : ` and passed on ${pr.base}`}:\n` +
+        `"${p.title}" — ${p.aim}\nexpected: ${p.expected}\nactual: ${p.actual}\n\nRead the probe in tests/qa-probe.spec.js and the code it exercises. Try to REFUTE it as a bug in this change: ` +
+        `refuted if the probe itself is wrong (a wrong selector, a wrong expectation, a clock not pinned); contrived if real but reachable only from an input nobody gives in normal use. ` +
+        `Say environment if the failure comes from where it ran rather than the code — a preview instance missing state another wrote, a host the sandbox cannot reach. If you cannot tell, confirmed.`,
+        S.QA_SKEPTIC, 'qaSkeptic');
+      settled = classify({ reproduced, base, skeptic: v })!;
+    }
+    kinds.set(p.title, settled.kind);
+    found[settled.kind].push({ ...p, actual: stripAnsi(p.actual), note: settled.note });
   }
-  await k.command('clean', `rm -f tests/qa-probe.spec.js; git status --porcelain | grep -q . && git checkout -- . ; echo '{"ok":true}' > "$JOB/result.json"`);
+  await k.command('clean', `rm -f tests/qa-probe.spec.js; git worktree remove --force ${BASE_DIR} 2>/dev/null; git status --porcelain | grep -q . && git checkout -- . ; echo '{"ok":true}' > "$JOB/result.json"`);
 
-  // 5. The verdict: coverage, not feeling.
-  const ranBoth = probes.filter((p) => p.passedDesktop !== undefined && p.passedMobile !== undefined).length;
-  const share = plan.length ? ranBoth / plan.length : 0;
-  const confidence = share >= 0.99 && size !== 'large' ? 'high' : share >= 0.5 ? 'medium' : 'low';
+  // 5. The verdict: coverage of what ran meaningfully, not feeling. The environment never fails a pass.
+  const bugs = found.bug;
+  const { meaningful, confidence } = coverage(plan.length, probes, kinds, size === 'large');
   const pass = bugs.length === 0;
-  const lineFor = (p: any) => `- **${p.title}** — ${p.aim}${p.expected ? `\n  expected: ${p.expected}\n  actual: ${p.actual}` : ''}${p.note ? `\n  (${p.note})` : ''}`;
-  const mark = (p: (typeof probes)[number]) => (p.passedDesktop === undefined || p.passedMobile === undefined ? '⚪' : p.passedDesktop && p.passedMobile ? '✅' : '❌');
-  await publish(pass, confidence as any,
-    pass ? `${planned!.covered} — on the preview, desktop and mobile.` : `${bugs.length} bug${bugs.length === 1 ? '' : 's'} in this change, reproduced on the preview and not on ${pr.base}.`,
+  const lineFor = (p: any) => `- **${p.title}** — ${p.aim}${p.expected ? `\n  expected: ${p.expected}\n  actual: ${stripAnsi(p.actual)}` : ''}${p.note ? `\n  (${stripAnsi(p.note)})` : ''}`;
+  const envFor = (p: any) => `- ⚪ **${p.title}** — environment, not this change: ${stripAnsi(p.note) || 'it failed where it ran, not in the code'}`;
+  const scope = local.length ? `${remote.length ? 'on the preview, and ' : ''}probes that write on the branch's own app — desktop and mobile` : 'on the preview, desktop and mobile';
+  await publish(pass, confidence,
+    pass ? `${planned!.covered} — ${scope}.${found.environment.length ? ` ${found.environment.length} could not run meaningfully here (environment).` : ''}`
+      : `${bugs.length} bug${bugs.length === 1 ? '' : 's'} in this change, reproduced here and not on ${pr.base}.`,
     [
       bugs.length ? `#### Bugs in this change\n${bugs.map(lineFor).join('\n')}` : '',
-      preExisting.length ? `#### Pre-existing (also on ${pr.base})\n${preExisting.map(lineFor).join('\n')}` : '',
-      questions.length ? `#### Questions\n${questions.map(lineFor).join('\n')}` : '',
-      `#### Probed\n${probes.map((p) => `- ${mark(p)} ${p.title}`).join('\n')}`,
+      found.preExisting.length ? `#### Pre-existing (also on ${pr.base})\n${found.preExisting.map(lineFor).join('\n')}` : '',
+      found.question.length ? `#### Questions\n${found.question.map(lineFor).join('\n')}` : '',
+      found.environment.length ? `#### Environment, not this change\n${found.environment.map(envFor).join('\n')}` : '',
+      `#### Probed\n${probes.map((p) => `- ${mark(p, kinds.get(p.title))} ${p.title}${onApp(p.title) ? ' _(on the branch\'s own app: it writes state)_' : ''}`).join('\n')}`,
       `\n🔎 Preview: ${previewUrl}`,
     ],
-    marker(bugs.map((b) => ({ title: b.title, aim: b.aim })), ranBoth > 0));
+    marker(bugs.map((b) => ({ title: b.title, aim: b.aim })), meaningful > 0));
   await disposeSandbox(box);
   return outcome({ verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => ({ title: b.title, aim: b.aim, expected: b.expected, actual: b.actual })), preview: previewUrl });
 }
