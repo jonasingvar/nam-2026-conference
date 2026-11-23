@@ -83,8 +83,11 @@ export const listFindings = (fs: Finding[]) => fs.map((f, i) =>
 /** The checkout a review, QA or respond run works on: the pull request's head, with its base fetched. */
 export function checkoutPr(pr: number, head: string, base: string) {
   return [
-    `git fetch -q --prune origin`,
-    `git checkout -q -B "${head}" "origin/${head}"`,
+    // pull/<n>/head is the pull request's head on GitHub, whether its branch lives here or in a fork.
+    `git fetch -q --prune origin && git fetch -q origin "+refs/pull/${pr}/head:refs/remotes/origin/pr-${pr}"`,
+    `git checkout -q -B "${head}" "origin/pr-${pr}"`,
+    // A branch of this repository pushes back to itself (respond); a fork's has no upstream here.
+    `{ ! git rev-parse -q --verify "refs/remotes/origin/${head}" >/dev/null || git branch -q --set-upstream-to="origin/${head}"; }`,
     `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat /vercel/.factory/prepared)" ] || { npm ci --no-audit --no-fund >/dev/null 2>&1 && sha256sum package-lock.json | cut -c1-16 > /vercel/.factory/prepared; }; }`,
     `echo "{\\"head\\":\\"$(git rev-parse HEAD)\\",\\"base\\":\\"$(git rev-parse origin/${base})\\"}" > "$JOB/result.json"`,
   ].join(' && ');

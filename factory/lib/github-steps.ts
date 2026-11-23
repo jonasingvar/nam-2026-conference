@@ -108,15 +108,19 @@ export async function findDeployment(sha: string, kind: 'Preview' | 'Production'
  * a status, "Vercel – <project>": a commit that changes nothing in the app
  * (only factory/, say) reads "Canceled by Ignored Build Step", and the newest
  * earlier commit's preview is the same app — the one to test. A commit with no
- * status yet has not been seen by Vercel: pending, never an older preview.
+ * status yet — if it is the head — has not been seen by Vercel: pending, never
+ * an older preview. An earlier one without a status was in the middle of a push.
  */
 export async function previewForPr(n: number) {
   'use step';
   const commits = await gh(`/pulls/${n}/commits?per_page=100`);
-  for (const c of [...commits].reverse()) {
+  const newestFirst = [...commits].reverse();
+  for (const [i, c] of newestFirst.entries()) {
     const combined = await gh(`/commits/${c.sha}/status`);
     const vercel = (combined.statuses || []).find((x: any) => x.context === `Vercel – ${APP_PROJECT}`);
-    if (!vercel) return { state: 'pending' as const, url: null, sha: c.sha };
+    // Vercel reports only the last commit of each push: a head without a status is
+    // not seen yet; an earlier commit without one was mid-push, and never will be.
+    if (!vercel) { if (i === 0) return { state: 'pending' as const, url: null, sha: c.sha }; continue; }
     if (/ignored build step/i.test(vercel.description || '')) continue;
     const d = await deploymentFor(c.sha, 'Preview');
     return d.state === 'none' ? { state: 'pending' as const, url: null, sha: c.sha } : d;

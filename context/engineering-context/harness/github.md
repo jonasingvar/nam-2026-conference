@@ -17,7 +17,7 @@ comments carry `<!-- factory…` or `<!-- ship-on-vercel` markers).
 | issue labelled `ready-for-ai` · `/ship` or `@claude` on an issue | ship |
 | any pull request opened, reopened or pushed to | verify — no credential, so safe for anyone's |
 | …on a branch of this repository, by someone with write access, not a bot (and not one ship opened, which runs its own) | review + QA too |
-| `/review` on a pull request, by someone with write access | verify, review + QA — for a fork's pull request too, in read mode |
+| `/review` on a pull request, by someone with write access | verify, review + QA — a fork's pull request too: its head is fetched as `pull/<n>/head`, and review and QA hold no GitHub token |
 | `@claude …` on a pull request of a branch in this repository | respond |
 | pull request closed | wakes the ship run waiting on it; a merge clears its issue's labels |
 | push to `main` | verify, and warm |

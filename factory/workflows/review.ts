@@ -134,10 +134,11 @@ export async function review(input: ReviewInput) {
   const confidence = missing ? 'low' : confidences.includes('low') ? 'low' : confidences.includes('medium') ? 'medium' : 'high';
   const pass = blockers.length === 0;
   const filedBefore = new Set<string>(previous?.followUps || []);
-  const fkey = (x: any) => `${x.category}|${x.file}|${x.line ? Math.floor(x.line / 10) : ''}`;
+  // A place, not a category: the same line flagged under another category, by another lens or pass, is the same follow-up.
+  const fkey = (x: any) => `${x.file}|${x.line ? Math.floor(x.line / 10) : x.claim.slice(0, 40)}`;
   // One per place: two lenses that flag the same line under different categories are one follow-up.
   const byPlace = new Map<string, any>();
-  for (const x of followUps) { const at = `${x.file}|${x.line ? Math.floor(x.line / 10) : x.claim.slice(0, 40)}`; if (!byPlace.has(at)) byPlace.set(at, x); }
+  for (const x of followUps) { if (!byPlace.has(fkey(x))) byPlace.set(fkey(x), x); }
   const toFile = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x))).slice(0, 3);
   const filed: string[] = [];
   for (const x of toFile) {
