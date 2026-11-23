@@ -74,13 +74,15 @@ test('flags a hop that won\'t fit, and clears it on removal', async ({ page, req
   try {
     for (const s of pair) expect((await put(s.id)).ok()).toBe(true);
     await visit(page, '/my-agenda', { as: lane.user, at: `${lane.day}T08:00` });
-    const hop = page.getByTestId('agenda-hop');
+    // the attendee's seeded plan may carry hops of its own, so look at my pair's row
+    const row = page.locator(`[data-session-id="${pair[1].id}"]`);
+    const hop = row.getByTestId('agenda-hop');
     await expect(hop).toHaveCount(1);
     await expect(hop).toContainText(/takes \d+ min, you have \d+/);
     await shotForPR(page, 'a hop that will not fit');
     await noOverflow(page, testInfo);
-    await page.locator(`[data-session-id="${pair[1].id}"]`).getByRole('button', { name: /Remove/ }).click();
-    await expect(page.locator(`[data-session-id="${pair[1].id}"]`)).toHaveCount(0);
+    await row.getByRole('button', { name: /Remove/ }).click();
+    await expect(row).toHaveCount(0);
     await expect(hop).toHaveCount(0);
   } finally {
     for (const s of pair) await request.delete(`${API}/users/${lane.user}/reservations/${s.id}`);
