@@ -94,8 +94,10 @@ export function captureScript(pages: Shot[], after: string, before: string | nul
     `        const res = await page.goto(base + pg.path, { waitUntil: 'networkidle', timeout: 45000 });`,
     `        await page.getByRole('banner').waitFor({ timeout: 15000 }).catch(() => {});`,
     `        await page.waitForTimeout(600);`,
-    `        await page.screenshot({ path: process.env.JOB + '/shots/' + name, fullPage: true });`,
-    `        out.push({ path: pg.path, viewport: v.name, which, file: name, status: res ? res.status() : 0 });`,
+    `        const full = name.replace(/\\.png$/, '-full.png');`,
+    `        await page.screenshot({ path: process.env.JOB + '/shots/' + name });`,
+    `        await page.screenshot({ path: process.env.JOB + '/shots/' + full, fullPage: true });`,
+    `        out.push({ path: pg.path, viewport: v.name, which, file: name, full, status: res ? res.status() : 0 });`,
     `      } catch (e) { out.push({ path: pg.path, viewport: v.name, which, error: String(e && e.message || e).slice(0, 200) }); }`,
     `      await ctx.close();`,
     `    }`,
@@ -108,28 +110,37 @@ export function captureScript(pages: Shot[], after: string, before: string | nul
   ].join('\n');
 }
 
-export type Uploaded = { path: string; viewport: string; which: string; url?: string; error?: string };
+export type Uploaded = { path: string; viewport: string; which: string; url?: string; full?: string; error?: string };
 
-/** The pull request's screenshots comment: one section per page, before → after, desktop and mobile. */
+/**
+ * The pull request's screenshots comment. Per page, a table with a column for
+ * the base (when there is one) and one for this PR, and a Desktop row and a
+ * Mobile row. Every image is viewport-sized, so a row's images are the same
+ * height and line up; each links to its full-page shot. Widths fit GitHub's
+ * ~880px comment column: two desktop shots at 420 and two mobile at 220, or
+ * one larger column when there is nothing to compare with. Pages after the
+ * first fold into <details>.
+ */
 export function shotsComment(pr: number, sha: string, pages: Shot[], shots: Uploaded[], previewUrl: string, beforeLabel: string | null, footer: string) {
   const img = (s: Uploaded | undefined, width: number) =>
-    !s ? '—' : s.url ? `<a href="${s.url}"><img src="${s.url}" width="${width}"></a>` : `⚠️ ${s.error ?? 'not captured'}`;
+    !s ? '—' : s.url ? `<a href="${s.full ?? s.url}"><img src="${s.url}" width="${width}"></a>` : `⚠️ ${s.error ?? 'not captured'}`;
   const find = (path: string, viewport: string, which: string) => shots.find((s) => s.path === path && s.viewport === viewport && s.which === which);
-  const sections = pages.map((p) => {
+  const cols = beforeLabel ? ['before', 'after'] : ['after'];
+  const width: Record<string, number> = beforeLabel ? { desktop: 420, mobile: 220 } : { desktop: 640, mobile: 300 };
+  const sections = pages.map((p, i) => {
     const rows = [
-      `| | Desktop | Mobile |`,
-      `|---|---|---|`,
-      `| **This PR** | ${img(find(p.path, 'desktop', 'after'), 480)} | ${img(find(p.path, 'mobile', 'after'), 200)} |`,
-      ...(beforeLabel ? [`| **${beforeLabel}** | ${img(find(p.path, 'desktop', 'before'), 480)} | ${img(find(p.path, 'mobile', 'before'), 200)} |`] : []),
+      `| | ${cols.map((c) => (c === 'before' ? `Before (${beforeLabel})` : 'This PR')).join(' | ')} |`,
+      `|---|${cols.map(() => '---').join('|')}|`,
+      ...['desktop', 'mobile'].map((v) => `| **${v === 'desktop' ? 'Desktop' : 'Mobile'}** | ${cols.map((c) => img(find(p.path, v, c), width[v])).join(' | ')} |`),
     ];
-    return [`#### [\`${p.path}\`](${previewUrl}${p.path}) <sub>${p.label}</sub>`, '', ...rows].join('\n');
+    const section = [`#### [\`${p.path}\`](${previewUrl}${p.path}) <sub>${p.label}</sub>`, '', ...rows].join('\n');
+    return i === 0 ? section : [`<details><summary><code>${p.path}</code> <sub>${p.label}</sub></summary>`, '', section, '', '</details>'].join('\n');
   });
   return [
     `### 📸 Screenshots`,
-    `As attendee Jonas (a full agenda), clock pinned to Day 1 10:30, on [this PR's preview](${previewUrl})${beforeLabel ? ` and on ${beforeLabel}` : ''}. Click an image for full size.`,
+    `As attendee Jonas, clock pinned to Day 1 10:30, on [this PR's preview](${previewUrl})${beforeLabel ? ` and on ${beforeLabel}` : ''} — click an image for the full page.`,
     '',
-    ...sections,
-    '',
+    ...sections.flatMap((s) => [s, '']),
     `<sub>${footer} · commit ${sha.slice(0, 7)}</sub>`,
     `<!-- factory-shots ${JSON.stringify({ pr, sha })} -->`,
   ].join('\n');
