@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database from 'libsql';
 import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,14 +10,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * or a second agent working a second ticket — run against its own copy instead
  * of fighting over this one.
  */
-export const DB_PATH = process.env.ORBIT_DB
-  ? resolve(process.env.ORBIT_DB)
-  : join(__dirname, '..', 'data', 'orbit.db');
+/**
+ * Production on Vercel talks to Turso (hosted libSQL) instead: the Turso
+ * integration sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the
+ * production environment only. `ORBIT_DB` always wins, so a test suite, a
+ * preview or a sandbox can never write to the production database even when
+ * those variables are present.
+ */
+export const IS_REMOTE = Boolean(process.env.TURSO_DATABASE_URL) && !process.env.ORBIT_DB;
 
-mkdirSync(dirname(DB_PATH), { recursive: true });
+export const DB_PATH = IS_REMOTE
+  ? process.env.TURSO_DATABASE_URL
+  : process.env.ORBIT_DB
+    ? resolve(process.env.ORBIT_DB)
+    : join(__dirname, '..', 'data', 'orbit.db');
 
-export const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+if (!IS_REMOTE) mkdirSync(dirname(DB_PATH), { recursive: true });
+
+export const db = IS_REMOTE
+  ? new Database(DB_PATH, { authToken: process.env.TURSO_AUTH_TOKEN })
+  : new Database(DB_PATH);
+// WAL is a property of a local file; Turso manages its own journal.
+if (!IS_REMOTE) db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 export const SCHEMA = `

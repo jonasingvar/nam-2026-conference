@@ -3,7 +3,7 @@ import cors from 'cors';
 import { existsSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { db, DB_PATH } from './db.js';
+import { db, DB_PATH, IS_REMOTE } from './db.js';
 import { metaRouter } from './routes/meta.js';
 import { sessionsRouter } from './routes/sessions.js';
 import { speakersRouter } from './routes/speakers.js';
@@ -16,7 +16,7 @@ const DIST_DIR = process.env.ORBIT_DIST_DIR ?? resolve(dirname(fileURLToPath(imp
 
 const countSessions = db.prepare('SELECT COUNT(*) n FROM sessions');
 
-if (!existsSync(DB_PATH)) {
+if (!IS_REMOTE && !existsSync(DB_PATH)) {
   console.error('✗ No database found. Run `npm run db:seed` first.');
   process.exit(1);
 }

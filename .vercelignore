@@ -1,0 +1,7 @@
+data
+test-results
+playwright-report
+.screenshots
+.claude/worktrees
+.env*
+factory
