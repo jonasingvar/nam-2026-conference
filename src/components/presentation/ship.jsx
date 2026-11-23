@@ -103,8 +103,8 @@ function SetupDetail() {
       <div className="space-y-2.5">
         <Row icon="✅" title="Can it be built?" sub="a Done when a test can check" delay={300} />
         <Row icon="🏷️" title="Claim it" sub={<>label <Label name="ai-working" className="ml-1 text-[12px]" /></>} delay={650} />
-        <Row icon="🌳" title="Its own worktree" sub=".claude/worktrees/wt-140 — from origin/main" delay={1000} />
-        <Row icon="🔌" title="Its own lane" sub="api :4306 · web :4307 — boots the app beside yours" delay={1350} />
+        <Row icon="🖥️" title="Its own sandbox" sub="ship-140-&lt;run&gt; — a branch issue-140-… off origin/main" delay={1000} />
+        <Row icon="🔌" title="Its own app" sub="boots the app on its own ports — the gate drives a real browser" delay={1350} />
       </div>
       <div className="pz-appear flex flex-col justify-center rounded-2xl border-2 border-dashed border-amber-400/60 bg-amber-500/10 p-6" style={later(1800)}>
         <Label name="needs-human" className="self-start" />
@@ -453,7 +453,7 @@ function ShipScene({ step }) {
       <Show on={active < 0} delay={800} style={at(80, 220, 1440, 380)} className="grid grid-cols-3 gap-6">
         {[
           ['🧠', 'Every step a fresh agent', 'It never sees the reasoning of the step before. That is what makes an audit an audit.'],
-          ['📜', 'A script decides the flow', 'Round limits, who judges what, when to stop — code in ship.js, not a prompt’s good intentions.'],
+          ['📜', 'A script decides the flow', 'Round limits, who judges what, when to stop — code in the workflow, not a prompt’s good intentions.'],
           ['🧾', 'Every step leaves a trail', 'A spec, a failing test, every audit round and the cost — all in the pull request.'],
         ].map(([icon, title, body]) => (
           <div key={title} className={`${box} p-7`}>
@@ -475,52 +475,52 @@ function ShipScene({ step }) {
 
 const SHIP_BEATS = [
   {
-    kicker: '4 · Inside ship',
+    kicker: '5 · Inside ship',
     title: 'Ten steps, and a loop that does not stop until it is clean',
     body: 'Ticket in, pull request out. Each step is its own agent with a narrow job, and the script — not the agent — decides what happens next.',
   },
   {
-    kicker: '4.1 · Setup',
-    title: 'Read it, gate it, claim it, give it a workspace',
-    body: 'Setup checks the ticket can be built at all and hands it straight back if not. Then it claims it so no second run picks it up, and makes an isolated worktree on its own ports — which is what lets ten run side by side.',
+    kicker: '5.1 · Setup',
+    title: 'Read it, gate it, claim it, give it a sandbox',
+    body: 'Setup checks the ticket can be built at all and hands it straight back if not. Then it claims it so no second run picks it up, and forks a warm sandbox with a branch of its own — installed, Chromium in place — which is what lets ten run side by side.',
   },
   {
-    kicker: '4.2 · Size it',
-    title: 'Spend the frontier model where the decision is',
-    body: 'On GitHub, setup picks Small or Full. From a chat, Claude asks you, and today you pick Fast.',
+    kicker: '5.2 · Size it',
+    title: 'Jev sizes it, then picks each job’s model',
+    body: 'Jev reads the issue and picks Fast, Small or Full — then, for every job, the least model tier that gets it right first time, priced from AI Gateway’s live catalog. A label a person set still wins.',
   },
   {
-    kicker: '4.3 · Spec, then a spec audit',
+    kicker: '5.3 · Spec, then a spec audit',
     title: 'A plan before any code, judged while a mistake is still cheap',
     body: 'specs/<n>-<slug>.md is the first commit and maps each Done when line to its check. On full tickets, auditors that never saw it written judge it against the ticket — a misreading caught here costs a revision, not a rebuild.',
   },
   {
-    kicker: '4.4 · Implement',
+    kicker: '5.4 · Implement',
     title: 'The failing test first — then the change',
     body: 'The check is committed while it still fails, so the history proves it failed. Every state the change adds gets its own assertion, including the moment just before a time-dependent rule applies.',
   },
   {
-    kicker: '4.5 · The gate',
+    kicker: '5.5 · The gate',
     title: 'A gate agents cannot argue with',
     body: 'Not AI at all: a script runs the tests and reads the exit code. An agent saying it is done counts for nothing until the gate is green.',
   },
   {
-    kicker: '4.6 · The red-check',
+    kicker: '5.6 · The red-check',
     title: 'Proof the test can fail',
     body: 'Green alone proves little. The old code goes back and the new tests run again: if they still pass, they never tested the change.',
   },
   {
-    kicker: '4.7 · Code audit',
+    kicker: '5.7 · Code audit',
     title: 'Independent auditors, and a skeptic for every blocker',
     body: 'One lens each: the ticket’s criteria, the repo’s rules, a real browser. No layer is trusted alone — like slices of Swiss cheese, each has holes, but not in the same places, and the gate and red-check are not AI at all.',
   },
   {
-    kicker: '4.8 · Fix and loop',
+    kicker: '5.8 · Fix and loop',
     title: 'Fix, gate, audit — until a round comes back clean',
     body: 'Round limits are code, not a prompt’s good intentions: two rounds for a small ticket, four for a full one. Nothing spins all night on your token bill.',
   },
   {
-    kicker: '4.10 · Learn, then the pull request',
+    kicker: '5.10 · Learn, then the pull request',
     title: 'A pull request you can actually review',
     body: 'What the audits caught becomes context the next agent reads. Then the pull request opens — spec, proof, every audit round, the decisions for you to confirm, and the cost. Never before the gate is green.',
   },
@@ -554,6 +554,10 @@ const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku' };
 function SizeDetail() {
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3 text-[19px] text-muted">
+        <span className="text-[26px]">🧠</span>
+        <span>Jev sized the ticket, then picked each job’s model — cheapest-first from <b className="text-ink">AI Gateway’s live prices</b>.</span>
+      </div>
       <Lane at={200} title="⚡ Fast — the workshop" tone="text-emerald-300" foot="2 rounds"
         steps={[['setup', 'sonnet'], ['plan', 'sonnet'], ['implement', 'sonnet'], ['gate, tests it reaches', 'haiku'], ['one auditor', 'sonnet'], ['fix', 'sonnet'], ['PR', 'haiku']]} />
       <Lane at={450} title="🟢 Small — most tickets" tone="text-sky-300" foot="2 rounds"

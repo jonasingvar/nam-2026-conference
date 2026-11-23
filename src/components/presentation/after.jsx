@@ -108,19 +108,19 @@ function NeedsHumanScene({ step }) {
 
 const NEEDS_HUMAN_BEATS = [
   {
-    kicker: '4.9 · When it will not converge',
+    kicker: '5.9 · When it will not converge',
     title: 'The same finding, surviving two fixes',
     body: 'Some tickets cannot be finished by an agent — the ticket contradicts itself, or the fix needs a decision only a person can make. Ship notices it is going round in circles and stops.',
   },
   {
-    kicker: '4.9 · needs-human, then you',
+    kicker: '5.9 · needs-human, then you',
     title: 'It hands back everything it knows; you answer and ship it again',
     body: 'A draft pull request with the work so far, a comment saying exactly what is still open, and the needs-human label for the board. You make the call it could not, then ship it again — a fresh run starts from your answer.',
   },
 ];
 
 /* ------------------------------------------------------------------ *
- * Code review and QA — two runners, a confidence each.
+ * Code review and QA — two agents, a confidence each.
  * ------------------------------------------------------------------ */
 
 function Runner({ icon, name, file, lines, step, glow }) {
@@ -145,7 +145,7 @@ function ReviewScene({ step }) {
       <Show on={step === 0} style={at(80, 80, 380, 260)} className={`${box} p-6`}>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-[14px] font-semibold text-white"><PrIcon /> Open</span>
         <div className="mt-3 font-display text-[24px] leading-tight text-ink">#142 Keep sessions in view on mobile</div>
-        <div className="mt-2 text-[16px] text-muted">opened → two workflows start, side by side</div>
+        <div className="mt-2 text-[16px] text-muted">opened → the review and QA workflows start, side by side</div>
       </Show>
       <Show on={step === 0} delay={200} style={at(80, 370, 380, 230)} className={`${box} p-6`}>
         <Kicker>Sized from facts, not an agent’s word</Kicker>
@@ -153,14 +153,14 @@ function ReviewScene({ step }) {
         <div className="mt-3 space-y-1 text-[16px] text-muted">
           <div>tiny ≤30 lines · <b className="text-ink">small</b> ≤300 · large</div>
           <div>risky paths are never tiny</div>
-          <div>the team’s dial: <Code>REVIEW_DEPTH</Code></div>
+          <div>review lenses: picked by what the diff touches</div>
         </div>
       </Show>
       <Replay on={step === 0} from="right" delay={300} style={at(500, 80, 1020, 520)} className="grid grid-rows-2 gap-5">
-        <Runner icon="🔍" name="Code review" file="agent-code-review.yml" step={400}
-          lines={['size: small → one reviewer · Sonnet', 'reads the ticket first, then the diff', 'every blocker → a skeptic']} />
-        <Runner icon="🧪" name="QA" file="agent-qa.yml" step={600}
-          lines={['size: small → ≤3 probes · Sonnet', 'triage: are the PR’s own tests enough?', 'drives the app · desktop + mobile']} />
+        <Runner icon="🔍" name="Code review" file="factory/workflows/review.ts" step={400}
+          lines={['Jev climbed it to strong — a diff it never wrote', 'reads the ticket first, then the diff', 'every blocker → a skeptic']} />
+        <Runner icon="🧪" name="QA" file="factory/workflows/qa.ts" step={600}
+          lines={['a planner writes the probes · a cheap writer types them', 'triage: are the PR’s own tests enough?', 'drives the app on the preview · desktop + mobile']} />
       </Replay>
 
       {/* QA in detail */}
@@ -237,17 +237,17 @@ function ReviewScene({ step }) {
 
 const REVIEW_BEATS = [
   {
-    kicker: '5 · After the pull request opens',
-    title: 'Two more agents, on their own runners, in parallel',
-    body: 'Code review and QA start when the pull request opens — in a fork, when you ask Claude; a fast run skips QA. Each is sized from the diff, and every blocker must name a real path to harm and survive a skeptic.',
+    kicker: '6 · After the pull request opens',
+    title: 'Two more agents, in their own sandboxes, in parallel',
+    body: 'Code review and QA start when the pull request opens — the factory runs both on the pull request’s own Vercel preview; a fast run skips QA. Each is sized from the diff’s facts, and every blocker must name a real path to harm and survive a skeptic.',
   },
   {
-    kicker: '5 · QA',
+    kicker: '6 · QA',
     title: 'It tries to break the change in a real browser',
-    body: 'Not the tests again — it reads the tests the pull request added and probes the gaps they leave, on desktop and mobile. Every failure is reproduced on the branch and on main, so a bug that was already there is called pre-existing, not pinned on this change.',
+    body: 'Not the tests again — it reads the tests the pull request added and probes the gaps they leave, on desktop and mobile, on the preview. Every failure is reproduced on the branch and on the base as well, so a bug that was already there is called pre-existing, not pinned on this change.',
   },
   {
-    kicker: '5 · Confidence means coverage',
+    kicker: '6 · Confidence means coverage',
     title: 'The confidence tells you how to review it',
     body: 'High on both means the agents could judge all of it and found nothing — merge it. Low publishes as unproven, not green: that is the one a person should actually read. Machines gate, agents advise, people merge.',
   },
@@ -320,9 +320,9 @@ function MergeScene({ step }) {
 
 const MERGE_BEATS = [
   {
-    kicker: '6 · A person merges',
+    kicker: '7 · A person merges',
     title: 'The last step is always yours',
-    body: 'Two high-confidence passes and a green gate: read the description, check the decisions it made for you, press the button. Main is verified again, deployed only if green, and counted only once the new commit answers its health check.',
+    body: 'Two high-confidence passes and a green gate: read the description, check the decisions it made for you, press the button. Main is verified again, Vercel deploys it, and the run calls the new production’s health check before the issue is called done.',
   },
 ];
 
@@ -338,7 +338,7 @@ function ScaleScene({ step }) {
     <>
       <Replay on={step === 0} style={at(80, 70, 1440, 540)} className={`${box} overflow-hidden`}>
         <div className="grid grid-cols-[110px_250px_1fr_150px] border-b border-hairline bg-raised px-6 py-2.5 font-mono text-[13px] uppercase tracking-wider text-faint">
-          <span>ticket</span><span>worktree · lane</span><span>{STAGES.join(' → ')}</span><span className="text-right">result</span>
+          <span>ticket</span><span>sandbox · lane</span><span>{STAGES.join(' → ')}</span><span className="text-right">result</span>
         </div>
         {TICKETS.map((n, i) => {
           const human = n === 70;
@@ -346,7 +346,7 @@ function ScaleScene({ step }) {
           return (
             <div key={n} className="pz-appear grid grid-cols-[110px_250px_1fr_150px] items-center border-b border-hairline/50 px-6 py-[9px]" style={later(i * 90)}>
               <span className="font-mono text-[17px] text-ink">#{n}</span>
-              <span className="font-mono text-[14px] text-muted">wt-{n} · :{4300 + 2 * (i + 1)}</span>
+              <span className="font-mono text-[14px] text-muted">sb-{n} · :{4300 + 2 * (i + 1)}</span>
               <div className="h-2.5 overflow-hidden rounded-full bg-overlay">
                 <motion.div
                   className={`h-full rounded-full ${human ? 'bg-gradient-to-r from-violet-500 to-amber-400' : 'bg-gradient-to-r from-violet-500 to-cyan-300'}`}
@@ -380,9 +380,9 @@ function ScaleScene({ step }) {
 
 const SCALE_BEATS = [
   {
-    kicker: '7 · Don’t babysit one ticket — hand it ten',
+    kicker: '8 · Don’t babysit one ticket — hand it ten',
     title: '/ship 64 65 66 67 68 69 70 71 72 73',
-    body: 'Nothing about ship needs you watching, so start the next nine, each in its own worktree. One that depends on another stacks on it, and moves to main by itself once that merges. The limit is how many you can review well.',
+    body: 'Nothing about ship needs you watching, so start the next nine — each in its own sandbox and its own branch. The limit is how many you can review well.',
   },
 ];
 
@@ -479,12 +479,12 @@ function RoleScene({ step }) {
 
 const ROLE_BEATS = [
   {
-    kicker: '8 · Tuning it is your job',
+    kicker: '9 · Tuning it is your job',
     title: 'Every ticket says what it cost — so you can tune it',
     body: 'One AI spend comment per issue, split by run and by model: under a dollar for a small fix, eight for a bigger one. When a small ticket costs like a big one, this is how you notice — and the sizing rules are yours to change.',
   },
   {
-    kicker: '8 · Your role',
+    kicker: '9 · Your role',
     title: 'You are the tech lead of a team of agents',
     body: 'None of this replaces engineering judgement; it moves it to where it counts. And trust comes from what you can check — a spec, a failing test, every audit round, a confidence on every review — not from the model.',
   },
@@ -637,9 +637,9 @@ function LabScene({ step: beat }) {
                 </span>
               ))}
             </div>
-            {/* in a fork no runner reviews it: you ask, from the same Claude Desktop chat */}
+            {/* in a fork nothing reviews it: you ask, from the same Claude Desktop chat */}
             <div className="pz-appear mt-2.5 flex items-center gap-3" style={later(200)}>
-              <span className="text-[13px] leading-tight text-[#59636e]">Normally GitHub Actions runs these.<br />Your fork has no API key, so ask:</span>
+              <span className="text-[13px] leading-tight text-[#59636e]">On this repository a Vercel Workflow reviews it.<br />Your fork has no factory, so ask:</span>
               <span className="rounded-2xl bg-[#f0eee6] px-3 py-1.5 text-[14px]">Can you review and QA pull request #44?</span>
             </div>
             <div className="mt-2 space-y-2">
@@ -673,19 +673,19 @@ function LabScene({ step: beat }) {
 const LAB_BEATS = [
   null,
   {
-    kicker: '9 · Now you · step 1',
+    kicker: '10 · Now you · step 1',
     title: 'Pick a ticket from your fork',
     body: 'On GitHub, open your fork’s Issues tab. Use the one the product harness just raised, or any issue with a Done when list — and read it first: what it asks for, and what it leaves out.',
   },
   {
-    kicker: '9 · Now you · step 2',
+    kicker: '10 · Now you · step 2',
     title: 'Ask Claude to ship it — then let it run',
     body: 'In Claude Desktop, switch to Code, open your nam-2026-conference folder and ask: “can you ship issue #42?” Pick Fast when it asks. When it is done, it posts the pull request and offers to open it.',
   },
   {
-    kicker: '9 · Now you · step 3',
+    kicker: '10 · Now you · step 3',
     title: 'Review what comes back — and read the code',
-    body: 'There is no Actions key in a fork, so ask Claude to review the pull request; QA is optional on a fast run. Then open Files changed, read the code and click Squash and merge.',
+    body: 'No factory runs in a fork, so ask Claude to review the pull request; QA is optional on a fast run. Then open Files changed, read the code and click Squash and merge.',
   },
 ];
 

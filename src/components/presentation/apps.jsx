@@ -23,7 +23,7 @@ export function GhOpenIcon({ className = 'size-4' }) {
   );
 }
 
-const GH_TABS = [['‹›', 'Code'], ['◉', 'Issues', 2], ['⇅', 'Pull requests', 1], ['▷', 'Actions']];
+const GH_TABS = [['‹›', 'Code'], ['◉', 'Issues', 2], ['⇅', 'Pull requests', 1], ['▤', 'Insights']];
 
 export function GitHub({ tab, children, className = '' }) {
   return (

@@ -206,7 +206,17 @@ move them. The engineering talk tells each idea once, at the station where it
 happens: sizing is Setup's second beat, the Swiss cheese strip sits on the code
 audit, and the needs-human chapter (`after.jsx`) breaks into ship after the loop,
 before `SHIP_PR` — ship's last stop, the same `ShipScene` offset by `PR_BEAT`. It
-ends on *Your role* and a three-step *Now you* lab. `kit.jsx` has the primitives (`Show`, `Replay`, `Token` — the #140 ticket
+ends on *Your role* and a three-step *Now you* lab. `chapters.js` splices a
+chapter of its own, `presentation/vercel.jsx` (*The Vercel factory*), into the
+opening — after *Two ways in*, before *The whole flow*, because the map's last
+beat unpacks ship's stations and ship has to be the chapter that lands on them.
+It is where the talk says what the label actually starts: the repository webhook,
+one durable Vercel Workflow, every job Claude Code in a Vercel Sandbox; Jev
+sizing the ticket and picking each job's model tier from AI Gateway's live
+prices; and the app and the factory as two Vercel projects, with a preview per
+branch and a production health check after the merge. `tests/presentation.spec.js`
+walks every beat and fails if the deck's text stops naming any of that, or still
+claims a GitHub runner, GitHub Actions or `ship.js`. `kit.jsx` has the primitives (`Show`, `Replay`, `Token` — the #140 ticket
 that travels both talks, `Flip`, `Terminal`, `Verdict`…); `product/kit.jsx` the
 product talk's own (the hosts' faces, `Wave`, `Versus` — by hand against with the
 skill — `SkillHead`, a skill's name set large, and the three-step `StepRail`); `Backdrop.jsx` the starfield

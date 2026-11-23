@@ -151,9 +151,10 @@ function IssueScene() {
 
 const DOORS = ['M800 58 C 800 96, 420 72, 420 112', 'M800 58 C 800 96, 1180 72, 1180 112'];
 
-/* One beat, both doors at once: on GitHub the label lands and ship answers on
- * the issue; in Claude Desktop you ask, pick the run, and it starts; both
- * roads join at ship.js. The same two apps the lab shows at the end. */
+/* One beat, both doors at once: on GitHub the label lands, the webhook starts a
+ * Vercel Workflow and it answers on the issue; in Claude Desktop you ask, pick
+ * the run, and it works the ticket on your laptop. The same two apps the lab
+ * shows at the end. */
 const JOIN_AT = 3200;
 
 function TwoWaysScene() {
@@ -190,8 +191,8 @@ function TwoWaysScene() {
                 </div>
                 <div className={`pz-appear overflow-hidden rounded-md border ${GH.line}`} style={later(1500)}>
                   <div className={`flex items-center gap-2 border-b ${GH.line} bg-[#f6f8fa] px-3 py-1.5`}>
-                    <span className="grid size-5 place-items-center rounded-full bg-[#1f2328] text-[11px] text-white" aria-hidden="true">▷</span>
-                    <b>github-actions</b><span className={GH.muted}>bot · just now</span>
+                    <span className="grid size-5 place-items-center rounded-full bg-[#1f2328] text-[11px] text-white" aria-hidden="true">▲</span>
+                    <b>ship</b><span className={GH.muted}>· Vercel Workflow · just now</span>
                   </div>
                   <div className="space-y-1 px-3 py-2">
                     <div className="font-semibold">🚢 Ship · fast · 1m elapsed</div>
@@ -208,7 +209,7 @@ function TwoWaysScene() {
                 <div className="mt-1 flex flex-wrap gap-1">
                   <span className="pz-pop rounded-full bg-[#d8b4fe] px-2 text-[12px] font-semibold text-[#3b0764]" style={later(600)}>ready-for-ai</span>
                 </div>
-                <div className={`pz-appear mt-2 text-[12px] ${GH.muted}`} style={later(1500)}>A fresh GitHub runner picked it up.</div>
+                <div className={`pz-appear mt-2 text-[12px] ${GH.muted}`} style={later(1500)}>The webhook started a Vercel Workflow.</div>
               </div>
             </div>
           </div>
@@ -242,9 +243,9 @@ function TwoWaysScene() {
           </g>
         ))}
       </svg>
-      <Show from="pop" delay={JOIN_AT + 600} style={at(640, 548, 320, 58)}
+      <Show from="pop" delay={JOIN_AT + 600} style={at(620, 548, 360, 58)}
         className="pz-glow grid place-items-center rounded-full border border-violet-400/60 bg-raised font-display text-[22px] text-ink">
-        <span>🚢 ship.js <span className="text-muted">— one script</span></span>
+        <span>🚢 ship <span className="text-muted">— one job</span></span>
       </Show>
     </>
   );
@@ -258,8 +259,8 @@ const NODES = [
   { id: 'issue',  x: 70,   y: 250, w: 200, h: 120, icon: <IssueIcon className="size-7 text-emerald-400" />, label: 'Issue', sub: 'Done when…' },
   { id: 'ship',   x: 360,  y: 210, w: 300, h: 200, icon: <span className="text-[34px]">🚢</span>, label: 'Ship', sub: 'spec · build · gate · audit · loop' },
   { id: 'pr',     x: 760,  y: 250, w: 200, h: 120, icon: <PrIcon className="size-7 text-emerald-400" />, label: 'Pull request', sub: 'ready for review' },
-  { id: 'review', x: 1060, y: 140, w: 220, h: 110, icon: <span className="text-[26px]">🔍</span>, label: 'Code review', sub: 'a runner' },
-  { id: 'qa',     x: 1060, y: 370, w: 220, h: 110, icon: <span className="text-[26px]">🧪</span>, label: 'QA', sub: 'a runner, a browser' },
+  { id: 'review', x: 1060, y: 140, w: 220, h: 110, icon: <span className="text-[26px]">🔍</span>, label: 'Code review', sub: 'a sandbox' },
+  { id: 'qa',     x: 1060, y: 370, w: 220, h: 110, icon: <span className="text-[26px]">🧪</span>, label: 'QA', sub: 'a sandbox, a preview' },
   { id: 'merge',  x: 1360, y: 250, w: 190, h: 120, icon: <MergeIcon className="size-7 text-violet-300" />, label: 'A person merges', sub: 'always' },
 ];
 
@@ -361,7 +362,7 @@ function MapScene({ step }) {
 
       <Show on={!zoom} delay={AGENTS_AT + 1500} style={at(720, 520, 820, 80)} className="flex items-center gap-4 rounded-2xl border border-hairline bg-surface/80 px-6">
         <span className="text-[30px]">📜</span>
-        <span className="text-[20px] text-muted"><b className="text-ink">Scripts, not prompts.</b> The loops, round limits and who judges what are code in <Code>.claude/workflows/</Code></span>
+        <span className="text-[20px] text-muted"><b className="text-ink">Scripts, not prompts.</b> The loops, round limits and who judges what are code in <Code>factory/workflows/</Code></span>
       </Show>
     </motion.div>
     {zoom && <Unpack />}
@@ -391,8 +392,8 @@ export const INTRO = [
     beats: [
       {
         kicker: '2 · Starting it',
-        title: 'Label it on GitHub, or ask Claude — same script',
-        body: 'The label starts a fresh GitHub runner that claims the issue and posts progress there. Asking Claude runs it on your laptop, in its own workspace. Either way it is ship.js — where it runs only changes who pays.',
+        title: 'Label it on GitHub, or ask Claude',
+        body: 'On this repository the label reaches the webhook, which starts a durable Vercel Workflow and posts its progress on the issue. In your own fork there is no factory, so you ask Claude — the ticket is built on your laptop, where the key is yours.',
       },
     ],
     Scene: TwoWaysScene,
@@ -401,12 +402,12 @@ export const INTRO = [
     id: 'map', name: 'The whole flow', accent: 'text-violet-300', tone: 'violet',
     beats: [
       {
-        kicker: '3 · The whole flow',
+        kicker: '4 · The whole flow',
         title: 'Issue → ship → pull request → review and QA → you',
         body: 'Ship turns the ticket into a pull request; two more agents review it and try to break it; a person merges. Every step is a fresh agent, and the loops are a script, not a prompt.',
       },
       {
-        kicker: '3 · Zooming in',
+        kicker: '4 · Zooming in',
         title: 'Inside ship',
         body: 'Ten steps, one loop. Let’s walk through them with ticket #140.',
       },
