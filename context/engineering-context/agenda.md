@@ -1,13 +1,16 @@
 ---
 area: agenda
-summary: The attendee's own conference — the My Agenda placeholder page, and the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), none of which has a UI yet.
+summary: The attendee's own conference — the My Agenda page (upcoming sessions, clash and cross-town hop flags), and the endpoints a team builds on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports); only /schedule has a UI so far.
 read_when: touching My Agenda, an attendee's day or schedule, suggestions, clashes or booked-hours totals, a speaker's own sessions, or calendar export
 files:
   - server/lib/agenda.js
   - server/lib/ical.js
   - src/pages/MyAgendaPage.jsx
+  - src/lib/agenda.js
 tests:
   - tests/home.spec.js
+  - tests/agenda.spec.js
+  - tests/unit/agenda.test.js
   - tests/api/agenda.test.js
   - tests/api/calendar.test.js
   - tests/unit/ical.test.js
@@ -16,27 +19,21 @@ related: [seats, attendance, clock, venues, schedule, speakers, ui]
 
 # Agenda
 
-**My Agenda is a placeholder.** `/my-agenda` (`MyAgendaPage`, still in the nav,
-`/my-plan` redirects there) renders a `SectionHeader` and a "Coming soon" panel
-(`agenda-coming-soon`) with a `Browse the schedule` button — nothing else. Workshop
-teams design the page from scratch. Everything underneath it is built and tested:
+**My Agenda lists what you still hold.** `/my-agenda` (`MyAgendaPage`, in the nav,
+`/my-plan` redirects there) fetches `api.getSchedule`, flattens the days' sessions
+and runs them through `src/lib/agenda.js:upcomingAgenda({ sessions, reservationFor,
+clock, travel })` — pure, no React. It keeps sessions the store says you hold that
+`hasEnded` says are not over, grouped by day in start order, each with `status`,
+`clashesWith` (every overlapping session, either status) and `hop`
+(`{ mode, tripMinutes, gapMinutes }` when consecutive *confirmed* seats at different
+venues leave less than `assessTravel`'s fastest non-walk total). Flags come from the
+store, not the payload's `conflicts`, so Remove (`toggleSeat`) updates them with no
+refetch. Test ids: `agenda-day`, `agenda-item` (`data-session-id`), `agenda-status`,
+`agenda-clash`, `agenda-hop`, `agenda-empty`. Not built: hours totals, free-slot
+suggestions, the .ics button. Everything underneath is built and tested:
 adding a session takes a seat (seats doc), and the payloads below are served,
 with matching functions in `src/lib/api.js`. What a day is made of is decided in
 `server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
-
-## How it works
-
-**`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
-`agenda.js:scheduleFor` returns one entry per day that has any reservation:
-`{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
-waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)
-are this attendee's attendance on *every* day, not just today. The two minute totals split by status — `totalMinutes` counts
-**confirmed seats only**, `waitlistedMinutes` the queued time — because hours
-mean hours you hold a chair for.
-`clashesIn` is an O(n²) pairwise overlap test over that day's sessions (both
-statuses) → `{ type: 'overlap', sessionIds: [a, b] }`. `venuesVisited` is venue
-`shortName`s.
 
 **Building on it.** The store, not the fetched payload, is the source of truth for
 the attendee's own reservations (CLAUDE.md § There is exactly one action). A page
@@ -121,8 +118,8 @@ local `DTSTART`/`DTEND`, `UID:orbit-session-<id>@orbitconf.dev`, LOCATION
 
 ## Where to change…
 
-- The My Agenda page: `MyAgendaPage.jsx`; replace `tests/home.spec.js`'s
-  "My Agenda is a blank canvas" test when the placeholder goes.
+- The My Agenda page: `MyAgendaPage.jsx`; what it lists and flags is `src/lib/agenda.js:upcomingAgenda`
+  (unit-tested in `tests/unit/agenda.test.js`, page in `tests/agenda.spec.js`).
 - A new field on the day payload → `agenda.js:todayFor`; prove it in `tests/api/` with `startApi()`.
 - Suggestion ranking → `agenda.js:suggestionsFor` / `myTopics` / `openInSlot`.
 - Clash or total rules → `agenda.js:scheduleFor`/`clashesIn`, and any client
