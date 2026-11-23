@@ -1,7 +1,9 @@
+import { useSearchParams } from 'react-router-dom';
 import { useConference, useFetch } from '../lib/store.jsx';
 import * as api from '../lib/api.js';
-import { plural } from '../lib/format.js';
-import { Chip, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
+import { filterSponsors, plural } from '../lib/format.js';
+import { SearchInput } from '../components/FilterBar.jsx';
+import { Chip, EmptyState, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
 import { GeneratedCover } from '../components/GeneratedCover.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
 
@@ -73,6 +75,17 @@ export function ExpoPage() {
   const { data, loading, error, reload } = useFetch(api.getSponsors, []);
   const sponsors = data ?? [];
   const hiring = sponsors.filter((s) => s.hiring).length;
+  const [params, setParams] = useSearchParams();
+  const q = params.get('q') ?? '';
+  const shown = filterSponsors(sponsors, q);
+  const searching = q.trim() !== '';
+
+  const setQ = (value) => {
+    const next = new URLSearchParams(params);
+    if (!value) next.delete('q');
+    else next.set('q', value);
+    setParams(next, { replace: true });
+  };
 
   return (
     <div className="space-y-10">
@@ -82,11 +95,17 @@ export function ExpoPage() {
         description={`${sponsors.length || '—'} companies, most of them with something you can actually try at the booth. ${hiring} are hiring.`}
       />
 
+      <SearchInput value={q} onChange={setQ} placeholder="Search sponsors by name…" aria-label="Search sponsors" data-testid="expo-search" />
+
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <div className="grid gap-4 sm:grid-cols-2">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-40" />)}</div>}
 
+      {!loading && !error && searching && shown.length === 0 && (
+        <EmptyState icon="search" title={`No sponsors match “${q.trim()}”`} description="Check the spelling, or try a shorter part of the name." />
+      )}
+
       {TIERS.map((tier) => {
-        const tierSponsors = sponsors.filter((s) => s.tier === tier);
+        const tierSponsors = shown.filter((s) => s.tier === tier);
         if (!tierSponsors.length) return null;
         const style = TIER_STYLE[tier];
         return (

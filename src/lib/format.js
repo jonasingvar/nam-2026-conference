@@ -37,3 +37,10 @@ export const plural = (n, one, many = `${one}s`) => `${n.toLocaleString()} ${n =
 /** The schedule rail's "N sessions · M today"/"M on Day 1" line. `dayPhrase` is the caller's job. */
 export const agendaSummary = (total, bookedOnDay, dayPhrase) =>
   `${total === 1 ? 'session' : 'sessions'} · ${bookedOnDay} ${dayPhrase}`;
+
+/** Sponsors whose name contains `q` (trimmed, any case); a blank `q` returns the list as is. */
+export function filterSponsors(sponsors, q) {
+  const needle = (q ?? '').trim().toLowerCase();
+  if (!needle) return sponsors;
+  return sponsors.filter((s) => s.name.toLowerCase().includes(needle));
+}
