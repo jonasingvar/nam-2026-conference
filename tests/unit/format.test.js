@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { time, timeRange, dayLabel, shortDay, relativeDate, plural, agendaSummary } from '../../src/lib/format.js';
+import { time, timeRange, dayLabel, shortDay, relativeDate, plural, agendaSummary, filterSponsors } from '../../src/lib/format.js';
 
 describe('Clock times read as people say them', () => {
   test('midnight and noon are twelve, not zero', () => {
@@ -118,5 +118,27 @@ describe('The schedule rail\'s agenda line pluralises on the total and names the
 
   test('a day other than the clock\'s is named instead of assumed to be today', () => {
     assert.equal(agendaSummary(3, 2, 'on Day 1'), 'sessions · 2 on Day 1');
+  });
+});
+
+describe('Sponsor search', () => {
+  const sponsors = [
+    { id: 1, name: 'Acme Cloud', blurb: 'Hosting' },
+    { id: 2, name: 'Blackbird', blurb: 'We love acme' },
+    { id: 3, name: 'Nacmesoft', blurb: '' },
+  ];
+
+  test('matches part of a name, ignoring case and surrounding spaces', () => {
+    assert.deepEqual(filterSponsors(sponsors, '  ACME ').map((s) => s.id), [1, 3]);
+  });
+
+  test('matches the name only, not the blurb', () => {
+    assert.deepEqual(filterSponsors(sponsors, 'hosting'), []);
+  });
+
+  test('a blank search returns every sponsor', () => {
+    assert.equal(filterSponsors(sponsors, '').length, 3);
+    assert.equal(filterSponsors(sponsors, '   ').length, 3);
+    assert.equal(filterSponsors(sponsors, undefined).length, 3);
   });
 });
