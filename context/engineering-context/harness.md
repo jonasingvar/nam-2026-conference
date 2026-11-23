@@ -21,6 +21,10 @@ files:
   - context/engineering-context/harness/code-review-playbook.md
   - context/engineering-context/harness/qa-playbook.md
   - scripts/gate.mjs
+  - scripts/test-map.mjs
+  - scripts/coverage-agent.mjs
+  - factory/lib/select.ts
+  - factory/lib/testrun.ts
   - scripts/red-check.mjs
   - scripts/qa-facts.mjs
   - scripts/pr-media.mjs
@@ -44,7 +48,9 @@ tests:
   - factory/test/models.test.ts
   - factory/test/qa.test.ts
   - factory/test/review-policy.test.ts
+  - factory/test/select.test.ts
   - tests/unit/gate.test.js
+  - tests/unit/test-map.test.js
   - tests/unit/red-check.test.js
   - tests/unit/qa-facts.test.js
   - tests/unit/context.test.js
@@ -81,15 +87,16 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Plan | a sandbox `ship-<n>-<run>`, a branch `issue-<n>-<slug>` from `origin/<base>`, then the planner writes `specs/<n>-<slug>.md` as the first commit and reports facts; a `sized` run is sized from them (`profileFor`) | command + agent |
 | Plan audit | full, or ≥ 2 open questions: auditors, a skeptic per blocker, revise; only `scope` goes to a person | agents |
 | Build | the failing test committed red, then the change, docs kept true | agent |
-| Gate | merge `origin/<base>`, `scripts/gate.mjs`, `scripts/red-check.mjs` if green, `scripts/qa-facts.mjs` — one command job, its JSON read by the script | command |
-| Audit | lenses in parallel (browser alone, after), a skeptic per blocker, a fixer, back to Gate; stuck or out of rounds → hand back | agents |
+| Gate | `select`: merge `origin/<base>`, push the commit to `refs/factory/gate/<sha>` (not the branch), `scripts/qa-facts.mjs`, then the test selection (*Test selection*, never weaker than `GATE_SCOPE=branch`); then `runDesktop` ∥ `runMobile`: `scripts/gate.mjs` on each project in its own sandbox (`<box>-gd`, `<box>-gm`), npm test and `scripts/red-check.mjs` on desktop — their JSON merged by the script | command |
+| Audit | at the same time as the gate, in ship's own sandbox: lenses in parallel (browser alone, after), a skeptic per blocker. Green gate → the confirmed blockers go to the fixer; red gate → the failing tests and the confirmed blockers go to one fix round (only a green round counts toward the audit budget); back to Gate; stuck or out of rounds → hand back | agents |
 | Pull request | merge the base once more, refuse if code changed after the gate, push, screenshots, compose the body from what the run knows, open it | command + GitHub API |
 | Preview | wait for Vercel's preview of the PR's head (a GitHub Deployment "Preview – …") | step |
 | Review & QA | two child workflows, run as one more audit round: what they find (review's blockers, QA's reproduced bugs, stale docs) ship fixes itself — fresh forked sandbox, fixer, gate, push — and asks them again, two rounds at most; still open → `needs-human`, PR left open | workflows + agents |
 | Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 
-**Profiles.** `fast` (one combined audit, `GATE_SCOPE=branch`, a fix
+**Profiles.** Every profile gates on the selected tests; verify and main run
+more. `fast` (one combined audit, the red-check on unit tests only, a fix
 re-gated not re-audited), `small` (combined + a browser audit only when
 something visible changed without a browser test), `full` (plan audit,
 criteria + rules + browser, four rounds). A small run whose diff touches a
@@ -144,6 +151,48 @@ never ask — ship **continues the same branch**: the planner revises the spec t
 record each answer as a Decision, the builder keeps what still holds, and the
 draft becomes the pull request. Every agent sees what people said as amendments
 to the ticket.
+
+**Verify** (`workflows/verify.ts`, CI on every push to a pull request and to
+main, status `factory/verify`) runs what the change needs. `classify` sorts
+the changed paths (`lib/select.ts:classify`): factory only → the factory's
+`tsc` and tests (its dependencies are kept in the warm sandbox, `FACTORY_DEPS`),
+no app gate; docs only → `node scripts/context.mjs check` if `context/`
+changed, else nothing; anything else is the app; a mix runs both, side by side.
+For the app: `select` (*Test selection*), then `runDesktop` ∥ `runMobile`, each
+in its own fork of the warm sandbox, npm test with desktop. On a pull request
+ship opened, verify reads ship's gate record for that commit and runs only
+what its own selection adds. The status reads like *ran 9 of 184 browser
+tests · selected: these reach MyAgendaPage.jsx · unit/API all (330)*; the run's
+attributes keep `kind`, `selection`, `selected`, `of`, `reason`, `confidence`
+and `reused`. The `full-suite` label runs everything.
+
+**Test selection** (`lib/select.ts`, pure and tested). Candidates come from
+the **test map** — per source file, the unit/API test files and the browser
+tests (per project) that executed it — plus the specs the change's imports
+reach (`gate.mjs:affectedSpecs`), the branch's own specs and the smoke spec,
+which always runs. A cheap model (`testSelect`, called from the function
+through AI Gateway, so verify's sandbox keeps no credential) reads the diff,
+the candidates, every spec and recent escapes, and adds what a map cannot see
+(CSS, seed data, helpers, config, routes) or drops a candidate with a reason,
+with a confidence. Below 0.7, no map, a map more than 40 app commits behind,
+or a changed file the map has never seen: widen to the branch scope
+(`affectedSpecs || fastFallback`), or everything where that cannot be told.
+Ship's gate takes the branch scope as a floor. Main runs everything.
+
+**The test map** (`scripts/test-map.mjs build`) is built on every push to
+main that touches the app, in a third sandbox beside verify's shards so the
+status never waits: each unit/API file alone under `NODE_V8_COVERAGE`, then
+the browser suite one test at a time (`--workers=1`) against an API started
+with `scripts/coverage-agent.mjs`, which takes V8's precise coverage between
+tests; `tests/fixtures.js` records the browser side with Chromium's JS
+coverage. A file counts when one of its functions ran, not when it loaded
+(Vite loads every page on every test; its Fast Refresh code is ignored). About
+5 minutes for 212 browser tests; ~40 kB of JSON, in the public Blob store
+`orbit-pr-media` at `test-map/<sha>.json` with `test-map/latest.json` pointing
+at it. **Escapes:** each gate records what it ran at `test-select/<sha>.json`;
+when main's full run fails a test the merged pull request's record skipped,
+it is appended to `test-map/escapes.json` (last 50) and the run gets an
+`escapes` attribute, and the selector reads the recent ones.
 
 **Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
 or crashes. A run's sandbox keeps one snapshot that expires in a day. Under

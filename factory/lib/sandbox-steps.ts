@@ -1,7 +1,7 @@
 import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
-import { ALLOWED_REPO, REPO_DIR } from './constants';
+import { ALLOWED_REPO, FACTORY_DEPS, REPO_DIR } from './constants';
 import { priceUsage, short, type Catalog } from './models';
 
 /**
@@ -83,6 +83,7 @@ const INSTALL = [
   // Claude Code reads .claude/settings.json only in a trusted workspace.
   `node -e 'const f=process.env.HOME+"/.claude.json";const fs=require("fs");const j=fs.existsSync(f)?JSON.parse(fs.readFileSync(f,"utf8")):{};j.projects??={};j.projects["${REPO_DIR}"]={...(j.projects["${REPO_DIR}"]||{}),hasTrustDialogAccepted:true};fs.writeFileSync(f,JSON.stringify(j))'`,
   `sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared`,
+  FACTORY_DEPS,
 ].join(' && ');
 
 /**
@@ -105,6 +106,7 @@ export async function refreshWarm(ref = 'main') {
   const r = ready.out === 'yes'
     ? await sh(sb, `set -e; cd ${REPO_DIR}; git fetch --prune --quiet origin; git checkout -q -B warm origin/${ref}; ` +
         `if [ "$(sha256sum package-lock.json | cut -c1-16)" != "$(cat ${ROOT}/prepared)" ]; then npm ci --no-audit --no-fund; npx playwright install --with-deps chromium; sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; fi; ` +
+        `${FACTORY_DEPS}; ` +
         `rm -rf ${ROOT}/[0-9]* ${HOSTS} ${MODE}`)
     : await sh(sb, `${INSTALL} && cd ${REPO_DIR} && git checkout -q -B warm origin/${ref}`);
   if (r.code !== 0) throw new Error(`warming failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
