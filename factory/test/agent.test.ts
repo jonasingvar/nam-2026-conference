@@ -22,3 +22,10 @@ test('a dead agent never reads as a result: no job, no JSON, an error, or a miss
   assert.equal(partial.costUsd, 0.05, 'what it cost still counts');
   assert.match(partial.error!, /summary/);
 });
+
+test('an empty AI Gateway stops the run with a plain message, instead of reading as a dead agent', async () => {
+  const { OUT_OF_CREDIT } = await import('../lib/jobs.ts');
+  assert.throws(() => readAgent(done({ is_error: true, api_error_status: 402, result: 'API Error: 402' }), schema), new RegExp(OUT_OF_CREDIT.slice(0, 20)));
+  assert.throws(() => readAgent(done('', 1), schema) && readAgent({ ...done('', 1), tail: 'API Error: 402 Payment Required — insufficient funds' }, schema), /out of credit/);
+  assert.equal(readAgent(done({ is_error: true, result: 'tool failed' }), schema).value, null, 'other errors are still a dead agent');
+});

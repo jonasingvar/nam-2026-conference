@@ -12,6 +12,7 @@ files:
   - factory/lib/policy.ts
   - factory/lib/constants.ts
   - factory/lib/start.ts
+  - factory/lib/phases.ts
   - factory/app/api/github/route.ts
   - factory/app/api/ship/route.ts
   - context/engineering-context/harness/index.md
@@ -36,6 +37,7 @@ files:
   - specs/README.md
 tests:
   - factory/test/policy.test.ts
+  - factory/test/phases.test.ts
   - factory/test/agent.test.ts
   - tests/unit/gate.test.js
   - tests/unit/red-check.test.js
@@ -78,7 +80,7 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Audit | lenses in parallel (browser alone, after), a skeptic per blocker, a fixer, back to Gate; stuck or out of rounds → hand back | agents |
 | Pull request | merge the base once more, refuse if code changed after the gate, push, screenshots, compose the body from what the run knows, open it | command + GitHub API |
 | Preview | wait for Vercel's preview of the PR's head (a GitHub Deployment "Preview – …") | step |
-| Review | a fresh reviewer that never saw the build; verdict and the run's spend as a PR comment; the sandbox is deleted | agent + API |
+| Review & QA | two child workflows, run as one more audit round: what they find (review's blockers, QA's reproduced bugs, stale docs) ship fixes itself — fresh forked sandbox, fixer, gate, push — and asks them again, two rounds at most; still open → `needs-human`, PR left open | workflows + agents |
 | Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 
@@ -103,6 +105,22 @@ then reports the job `lost` and `runJob` starts that one job again (twice at
 most). Every finished step returns its recorded result on replay — a redeploy,
 a crashed function or a dead sandbox costs only the job that was running.
 
+**Hand-back and resume.** A run that stops opens a **draft** pull request on
+its branch with what is open, and labels the issue `needs-human`. A person's
+comment on the issue or the draft starts ship with `answer: true`: it finds the
+earlier attempt (`findEarlierAttempt`), collects everything people said
+(`peopleSaid`), and asks Jev (`judgeAnswers`, P(yes) ≥ 0.6) whether the replies
+settle what the draft's *Why this stopped* asked. No: one comment saying what is
+still open, and nothing else changes. Yes — or `ready-for-ai` / `/ship`, which
+never ask — ship **continues the same branch**: the planner revises the spec to
+record each answer as a Decision, the builder keeps what still holds, and the
+draft becomes the pull request. Every agent sees what people said as amendments
+to the ticket.
+
+**Out of credit.** A 402 from AI Gateway is not a dead agent: `readAgent`
+throws `OUT_OF_CREDIT`, ship's crash guard says so on the issue, and review
+and QA set an `error` status with it — never a low-confidence pass.
+
 **Trust and modes.** A sandbox gets only what its workflow needs
 (`lib/policy.ts:Mode`, kept on the sandbox's disk and re-applied on every job
 start): **none** for verify — no credential at all, so it runs for anyone's
@@ -120,6 +138,17 @@ token and Gateway key on the way out, so no credential exists inside the
 sandbox. Anything under `EqualExperts/` on github.com or api.github.com is
 answered 403 by the proxy itself. Claude Code reaches models through
 `https://ai-gateway.vercel.sh/claude-code`.
+
+**Observability.** Three views of every run. **The trace** (the run in the
+factory's Workflows tab): each phase is its own durable step — `spec`,
+`planAudit`, `implement`, `gate`, `codeAudit`, `skeptic`, `fix`, `learn`,
+`pushBranch`, `openPullRequest`, … (`lib/phases.ts:phaseFor` maps a job's label
+to its step; an unknown label falls back to `job`) — each starting its job if
+needed and waiting up to two minutes, with a durable `sleep` between waits.
+**Attributes** on the run: `issue`, `phase`, `size`, `pr`, so runs can be
+filtered by ticket or phase. **The `progress` stream** (the run's Streams
+tab): every phase change, and after every agent its model, turns, seconds,
+cost and its own final answer.
 
 **Progress.** One issue comment (`<!-- ship-on-vercel -->`), edited at every
 phase: the phases, the profile and why, the branch and spec, each round, the

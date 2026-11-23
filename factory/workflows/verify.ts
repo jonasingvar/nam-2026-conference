@@ -1,4 +1,4 @@
-import { getWorkflowMetadata } from 'workflow';
+import { getWorkflowMetadata, setAttributes } from 'workflow';
 import { kit } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { setStatus } from '../lib/github-steps';
@@ -11,11 +11,13 @@ import { FACTORY_DASHBOARD } from '../lib/constants';
  * `factory/verify`. A `ship:fast` pull request runs only the browser specs its
  * change reaches; main always runs everything.
  */
-export type VerifyInput = { sha: string; ref: string; base?: string; fast?: boolean };
+export type VerifyInput = { sha: string; ref: string; base?: string; fast?: boolean; pr?: number };
 
 export async function verify(input: VerifyInput) {
   'use workflow';
   const { workflowRunId } = getWorkflowMetadata();
+  const issue = /^issue-(\d+)-/.exec(input.ref)?.[1];
+  await setAttributes({ sha: input.sha.slice(0, 12), ref: input.ref.slice(0, 200), ...(input.pr ? { pr: String(input.pr) } : {}), ...(issue ? { issue } : {}) });
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const box = `verify-${input.sha.slice(0, 8)}-${workflowRunId.slice(-6).toLowerCase()}`;
   const k = kit(box, `verifying ${input.ref} at ${input.sha.slice(0, 7)}`, 'read');
@@ -40,5 +42,6 @@ export async function verify(input: VerifyInput) {
   if (ran.factory === 'failed') { g.ok = false; g.browser.failed.unshift({ test: 'factory: typecheck or tests' }); }
   const line = `unit ${g.unit.passed}${g.unit.failed ? ` (${g.unit.failed} failed)` : ''} · browser ${g.browser.passed}${g.browser.failed.length ? ` (${g.browser.failed.length} failed)` : ''}${g.scope === 'branch' ? ' · specs this change reaches' : ''}${ran.factory === 'ok' ? ' · factory ok' : ''}`;
   await setStatus(input.sha, 'factory/verify', g.ok ? 'success' : 'failure', g.ok ? line : `${g.browser.failed[0]?.test || 'npm test'} — ${line}`, runUrl);
+  await setAttributes({ verdict: g.ok ? 'pass' : 'fail' });
   return { ok: g.ok, line, failed: g.browser.failed.map((f: any) => f.test) };
 }

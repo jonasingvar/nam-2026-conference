@@ -50,3 +50,37 @@ export async function triageIssue(issue: Issue): Promise<Triage> {
   }
 }
 triageIssue.maxRetries = 1;
+
+/**
+ * Has a person answered what a hand-back left open? Jev reads the open
+ * questions and everything people have said since, and estimates P(yes) that
+ * the replies settle every one of them — so "thanks, looking" or an answer to
+ * one of two questions does not restart a run. Unavailable: assume answered
+ * (a person did reply, and the run can hand back again).
+ */
+export async function judgeAnswers(open: string, said: { who: string; where: string; text: string }[]) {
+  'use step';
+  const t0 = Date.now();
+  try {
+    const d = await decide({
+      model: 'typesafe-ai/jev',
+      ...(process.env.JEV_API_KEY && {
+        providerOptions: { gateway: { byok: { 'typesafe-ai': [{ apiKey: process.env.JEV_API_KEY }] } } },
+      }),
+      state: `What the automated build stopped on and asked a person:\n${open}\n\nWhat people have replied since, newest last:\n` +
+        said.map((c) => `- ${c.who} on ${c.where}: ${c.text}`).join('\n'),
+      questions: {
+        answered: {
+          type: 'boolean',
+          instructions: 'Do the replies settle every open question, so the build can continue without asking again?',
+          criteria: { true: 'Every open question has a decision or the information it needed.', false: 'At least one open question has no answer yet, or the replies only acknowledge it.' },
+        },
+      },
+    } as any);
+    const p: number = (d as any).answers.answered.probability ?? ((d as any).answers.answered.value ? 1 : 0);
+    return { answered: p >= 0.6, probability: p, ms: Date.now() - t0 };
+  } catch (e: any) {
+    return { answered: true, probability: null as number | null, ms: Date.now() - t0, error: String(e?.message || e).slice(0, 160) };
+  }
+}
+judgeAnswers.maxRetries = 1;

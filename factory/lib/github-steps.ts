@@ -1,3 +1,4 @@
+import { getWritable } from 'workflow';
 import { ALLOWED_REPO, APP_PROJECT } from './constants';
 
 /**
@@ -18,6 +19,44 @@ async function gh(path: string, init: RequestInit = {}) {
   });
   if (!res.ok) throw new Error(`GitHub ${init.method || 'GET'} ${path} → ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return res.status === 204 ? null : res.json();
+}
+
+async function graphql(query: string, variables: Record<string, unknown>) {
+  const res = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'content-type': 'application/json', 'user-agent': 'orbit-factory' },
+    body: JSON.stringify({ query, variables }),
+  });
+  const j = await res.json();
+  if (!res.ok || j.errors) throw new Error(`GitHub GraphQL: ${JSON.stringify(j.errors || j).slice(0, 300)}`);
+  return j.data;
+}
+
+/** An open pull request an earlier ship run of this issue left — usually a draft it handed back. */
+export async function findEarlierAttempt(issue: number) {
+  'use step';
+  const open = await gh(`/pulls?state=open&per_page=50`);
+  const pr = open.find((p: any) => p.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && new RegExp(`^issue-${issue}-`).test(p.head.ref));
+  return pr ? { number: pr.number as number, head: pr.head.ref as string, draft: Boolean(pr.draft), url: pr.html_url as string } : null;
+}
+
+/**
+ * What people have said about the ticket since it was written: every comment on
+ * the issue and on an earlier attempt's pull request that is not the factory's
+ * own or a bot's. A person answering a hand-back does it in either place.
+ */
+export async function peopleSaid(issue: number, pr: number | null) {
+  'use step';
+  const out: { at: string; who: string; where: string; text: string }[] = [];
+  for (const [n, where] of [[issue, `issue #${issue}`], ...(pr ? [[pr, `pull request #${pr}`]] : [])] as [number, string][]) {
+    const comments = await gh(`/issues/${n}/comments?per_page=100`);
+    for (const c of comments) {
+      const text = String(c.body || '');
+      if (c.user?.type === 'Bot' || text.includes('<!-- factory') || text.includes('<!-- ship-on-vercel')) continue;
+      out.push({ at: c.created_at, who: c.user?.login ?? '?', where, text: text.slice(0, 1500) });
+    }
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at)).slice(-12);
 }
 
 export type Issue = { number: number; title: string; body: string; labels: string[]; state: string; isPullRequest: boolean };
@@ -71,6 +110,11 @@ export async function openPullRequest(p: { head: string; base: string; title: st
   let pr = existing[0];
   if (pr) {
     pr = await gh(`/pulls/${pr.number}`, { method: 'PATCH', body: JSON.stringify({ title: p.title, body: p.body, base: p.base }) });
+    // REST cannot take a pull request out of draft; GraphQL can.
+    if (pr.draft && !p.draft) {
+      await graphql(`mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`, { id: pr.node_id });
+      pr = { ...pr, draft: false };
+    }
   } else {
     pr = await gh('/pulls', { method: 'POST', body: JSON.stringify({ head: p.head, base: p.base, title: p.title, body: p.body, draft: p.draft }) });
   }
@@ -143,6 +187,8 @@ export async function productionHealth(url: string) {
 export type PullRequest = {
   number: number; title: string; body: string; draft: boolean; state: string; merged: boolean;
   head: string; headSha: string; base: string; labels: string[]; issue: number | null; author: string;
+  /** The branch lives in this repository (not a fork), so the factory may push to it. */
+  sameRepo: boolean;
 };
 
 /** A pull request, and the issue it closes (`Closes #n` / `Refs #n`, else an `issue-<n>-` branch). */
@@ -154,6 +200,7 @@ export async function readPullRequest(n: number): Promise<PullRequest> {
     number: p.number, title: p.title, body: p.body || '', draft: p.draft, state: p.state, merged: Boolean(p.merged),
     head: p.head.ref, headSha: p.head.sha, base: p.base.ref,
     labels: (p.labels || []).map((l: any) => l.name), issue: linked ? Number(linked) : null, author: p.user?.login ?? '',
+    sameRepo: p.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO,
   };
 }
 
@@ -175,13 +222,6 @@ export async function setStatus(sha: string, context: string, state: 'pending' |
   return true;
 }
 
-/** File a follow-up: real, but not bad enough to stop a merge. */
-export async function fileIssue(title: string, body: string, labels: string[]) {
-  'use step';
-  const i = await gh('/issues', { method: 'POST', body: JSON.stringify({ title: title.slice(0, 200), body, labels }) });
-  return { number: i.number as number, url: i.html_url as string };
-}
-
 export async function setLabels(issue: number, add: string[], remove: string[]) {
   'use step';
   if (add.length) await gh(`/issues/${issue}/labels`, { method: 'POST', body: JSON.stringify({ labels: add }) });
@@ -190,3 +230,33 @@ export async function setLabels(issue: number, add: string[], remove: string[]) 
   }
   return true;
 }
+
+/**
+ * The run's progress: edit the issue comment, and append what happened since
+ * the last call to the run's `progress` stream — the Streams tab of the run in
+ * Vercel, a live log of every phase and agent (its model, turns, cost, and its
+ * own final answer).
+ */
+export async function progress(issue: number, commentId: number | null, body: string, lines: string[]) {
+  'use step';
+  if (lines.length) {
+    const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+    try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
+  }
+  if (commentId) {
+    await gh(`/issues/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
+    return commentId;
+  }
+  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
+  return c.id as number;
+}
+progress.maxRetries = 3;
+
+/** Append lines to the run's `progress` stream (the run's Streams tab in Vercel). */
+export async function streamLog(lines: string[]) {
+  'use step';
+  const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+  try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
+  return lines.length;
+}
+streamLog.maxRetries = 3;

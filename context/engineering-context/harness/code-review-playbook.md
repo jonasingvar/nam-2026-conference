@@ -64,7 +64,7 @@ lenses when the diff touches it:
   reaching a `run:` script or an agent with a token, a permission or token
   broader than the step needs. `context/engineering-context/harness/github.md` is what this repo
   already learned; contradicting it is a finding.
-- **A doc that is false.** CLAUDE.md, `context/engineering-context/` and the playbooks are
+- **A doc that is false** — the workflow does not let it block working code: on a branch of this repository it asks respond to fix the doc on the pull request (docs only) and says so in the comment; on a fork's it is listed for the author. CLAUDE.md, `context/engineering-context/` and the playbooks are
   read *instead of* the code. A claim the code does not bear out, two docs that
   now disagree, or an instruction an agent would follow into a wrong action.
 - **An orchestration defect.** A workflow path where a dead agent reads as a
@@ -81,8 +81,8 @@ sees go wrong at the end of it. If you cannot name both, it is a
 anything that needs an input nobody gives in normal use — a hand-edited URL,
 a forged request — and the skeptic will say `contrived` if you miss it. The
 workflow demotes a blocker with a blank `how` or `harm` itself. A follow-up
-never turns the check red; it is listed in the comment and filed as a GitHub
-issue labelled `follow-up`, linking the pull request, whatever the verdict.
+never turns the check red; it is listed in the review comment, folded away —
+never filed as an issue of its own: a person decides what is worth a ticket.
 
 ## 3. Never flag these
 
@@ -166,7 +166,7 @@ marker:
 
 ```markdown
 #### Follow-ups
-Not blockers, so they do not colour the check — each is filed as an issue.
+Not blockers, so they do not colour the check, and none is filed as an issue.
 
 - `src/pages/SchedulePage.jsx:88` a NaN day index renders an empty grid — *only with a hand-edited ?day=*
 

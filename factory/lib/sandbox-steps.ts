@@ -1,4 +1,5 @@
 import { Sandbox } from '@vercel/sandbox';
+import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
 
@@ -149,11 +150,44 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
 prepareSandbox.maxRetries = 2;
 
 /**
+ * Start a job if it is not running yet, then wait up to two minutes for it.
+ * Not a step itself: the named steps in phases.ts call it, so the trace shows
+ * which phase was waiting. Safe to repeat — a started job is never restarted.
+ */
+export async function advance(name: string, id: string, files: Record<string, string>, script: string): Promise<JobPoll> {
+  await startJobImpl(name, id, files, script);
+  const r = await pollJobImpl(name, id, 120_000);
+  // The run's Streams tab, written by the phase step itself (no extra span): what this job did,
+  // and — for an agent — its model, turns, cost and its own last words.
+  if (r.state === 'done') {
+    try {
+      const label = id.replace(/^\d+-/, '');
+      let line = `${label}: exit ${r.exit}`;
+      try {
+        const j = JSON.parse(r.result);
+        if (j && typeof j.total_cost_usd === 'number') {
+          const models = Object.keys(j.modelUsage || {}).map((m) => m.replace(/^claude-/, '')).join('+');
+          line = `${label}: ${j.is_error || !j.structured_output ? 'no result' : 'done'} · ${models} · ${j.num_turns} turns · ${Math.round((j.duration_ms || 0) / 1000)}s · $${j.total_cost_usd.toFixed(2)}` +
+            (typeof j.result === 'string' && j.result.trim() ? `\n    ↳ ${j.result.replace(/\s+/g, ' ').trim().slice(0, 600)}` : '');
+        }
+      } catch { /* a command's result, not an agent's */ }
+      const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+      try { await w.write(line + '\n'); } finally { w.releaseLock(); }
+    } catch { /* the log never fails the work */ }
+  }
+  return r;
+}
+
+/**
  * Start one job, detached. Safe to repeat: a job that already started (this
  * step retried after starting it) is left alone.
  */
 export async function startJob(name: string, id: string, files: Record<string, string>, script: string) {
   'use step';
+  return startJobImpl(name, id, files, script);
+}
+
+async function startJobImpl(name: string, id: string, files: Record<string, string>, script: string) {
   const sb = await Sandbox.get({ name });
   // Re-applied on every start: a resumed sandbox must never come back open.
   await sb.updateNetworkPolicy(await policyFor(sb));
@@ -184,9 +218,13 @@ export type JobPoll =
 /** Wait up to ~40 s for a job to end; say how it stands. */
 export async function pollJob(name: string, id: string): Promise<JobPoll> {
   'use step';
+  return pollJobImpl(name, id, 40_000);
+}
+
+async function pollJobImpl(name: string, id: string, waitMs: number): Promise<JobPoll> {
   const sb = await Sandbox.get({ name });
   const dir = `${ROOT}/${id}`;
-  const until = Date.now() + 40_000;
+  const until = Date.now() + waitMs;
   for (;;) {
     const s = await sh(sb, `if [ -f ${dir}/exit ]; then echo "done $(cat ${dir}/exit)"; elif [ -f ${dir}/pid ] && kill -0 "$(cat ${dir}/pid)" 2>/dev/null; then echo running; else echo lost; fi`);
     if (s.out.startsWith('done')) {

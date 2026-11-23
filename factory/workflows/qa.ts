@@ -1,4 +1,4 @@
-import { getWorkflowMetadata, sleep } from 'workflow';
+import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, findDeployment, previewForPr, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
@@ -48,9 +48,25 @@ const probeRun = (url: string, titles: string[]) => [
 
 export async function qa(input: QaInput) {
   'use workflow';
+  try {
+    const r: any = await qaRun(input);
+    await setAttributes({ verdict: String(r.verdict), ...(r.confidence ? { confidence: String(r.confidence) } : {}), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    return r;
+  } catch (e: any) {
+    // Never leave a pull request's check at "pending": say what stopped it.
+    const why = String(e?.message || e).slice(0, 140);
+    const { workflowRunId } = getWorkflowMetadata();
+    const pr = await readPullRequest(input.pr).catch(() => null);
+    if (pr) await setStatus(pr.headSha, 'factory/qa', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
+    return { verdict: 'none', reason: why };
+  }
+}
+
+async function qaRun(input: QaInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
+  await setAttributes({ pr: String(pr.number), sha: pr.headSha.slice(0, 12), ...(pr.issue ? { issue: String(pr.issue) } : {}) });
   if (pr.state !== 'open' || pr.draft) return { verdict: 'none', reason: pr.draft ? 'draft' : 'not open' };
   const box = `qa-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `QA of pull request #${pr.number}`, 'read');
@@ -61,7 +77,7 @@ export async function qa(input: QaInput) {
     const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence];
     await comment(pr.number, [callout, `> ### QA · ${pass ? `${confidence} confidence${confidence === 'low' ? ' — unproven' : ''} &nbsp; \`${meter}\`` : 'bug'}`, `> ${headline}`, '', ...body,
       '', `<sub>🏭 Factory QA · ${k.spendLine()} · [run](${runUrl})</sub>`, `<!-- factory-verdict:qa ${JSON.stringify(marker)} -->`].filter((l) => l !== '').join('\n'));
-    if (pr.issue) await comment(pr.issue, `${callout}\n> ### QA · ${pass ? `${confidence} confidence` : 'bug'}\n> ${headline} → #${pr.number}`);
+    // The verdict lives on the pull request; ship's one progress comment on the issue reports it.
     await setStatus(pr.headSha, 'factory/qa', pass ? 'success' : 'failure', pass ? `${confidence} confidence${confidence === 'low' ? ' (unproven)' : ''}` : headline, runUrl);
   };
 
@@ -199,5 +215,5 @@ export async function qa(input: QaInput) {
     ],
     marker(bugs.map((b) => ({ title: b.title, aim: b.aim }))));
   await disposeSandbox(box);
-  return { verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => b.title), preview: previewUrl, spend: k.spend.total };
+  return { verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => ({ title: b.title, aim: b.aim, expected: b.expected, actual: b.actual })), preview: previewUrl, spend: k.spend.total };
 }

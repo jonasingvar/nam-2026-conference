@@ -1,13 +1,13 @@
-import { createHook, getWorkflowMetadata, sleep } from 'workflow';
+import { createHook, getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { start } from 'workflow/api';
 import { review } from './review';
 import { qa } from './qa';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, openPullRequest, previewForPr, productionHealth, readIssue, setLabels, upsertComment, type Issue,
+  comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
-import { triageIssue, type Size, type Triage } from '../lib/triage';
+import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
@@ -26,7 +26,8 @@ import * as S from './schemas';
  * a redeploy, a crashed function, the sandbox timing out. On resume, finished
  * steps return their recorded results and only the interrupted job reruns.
  */
-export type ShipInput = { issue: number; base?: string; notes?: string; size?: Size | 'sized' };
+/** `answer`: started by a person's comment on a ticket waiting on them — resume only if it settles what was open. */
+export type ShipInput = { issue: number; base?: string; notes?: string; size?: Size | 'sized'; answer?: boolean };
 
 type Finding = {
   severity: 'blocker' | 'minor'; category: string; file: string; line?: number;
@@ -53,11 +54,32 @@ const STUCK_AFTER = 2;
 
 export async function ship(input: ShipInput) {
   'use workflow';
+  try {
+    const r: any = await shipRun(input);
+    await setAttributes({ outcome: String(r.outcome), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    return r;
+  } catch (e: any) {
+    // Anything unexpected — a step that failed for good, a deployment mid-rollout — must never
+    // leave a ticket sitting at "ai-working" with nobody told. Say so on the issue, hand it to a person.
+    const { workflowRunId } = getWorkflowMetadata();
+    const why = String(e?.message || e).slice(0, 400);
+    await disposeSandbox(`ship-${input.issue}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
+    await setLabels(input.issue, ['needs-human'], ['ai-working', 'ready-for-ai']).catch(() => null);
+    await comment(input.issue, `### 🏭 Ship on Vercel · the run crashed\n\n\`${why}\`\n\nNothing is lost: the work so far is on its branch. Reply here (or add \`ready-for-ai\`) to try again.\n\n` +
+      `<sub>[run](${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId})</sub>`).catch(() => null);
+    await setAttributes({ outcome: 'crashed' }).catch(() => null);
+    return { outcome: 'crashed', issue: input.issue, reason: why };
+  }
+}
+
+async function shipRun(input: ShipInput) {
+  await setAttributes({ issue: String(input.issue) });
 
   const { workflowRunId } = getWorkflowMetadata();
   const n = input.issue;
   const BASE = input.base || 'main';
-  const box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}`;
+  // The run's sandbox. A fix after review gets a fresh one (forked, in seconds): `let`, so the agents follow it.
+  let box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}`;
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
 
   // ── State the issue comment shows ────────────────────────────────────────
@@ -94,11 +116,24 @@ export async function ship(input: ShipInput) {
     '<!-- ship-on-vercel -->',
   ].filter((l) => l !== '').join('\n');
 
-  const show = async (headline = current) => { commentId = await upsertComment(n, commentId, render(headline)); };
+  // Every call publishes the comment and streams the lines logged since the last one.
+  let streamed = 0;
+  const show = async (headline = current) => {
+    const fresh = lines.slice(streamed);
+    streamed = lines.length;
+    commentId = await progress(n, commentId, render(headline), [`— ${headline}`, ...fresh]);
+  };
   const enter = async (phase: string) => {
     for (const p of PHASES) if (status[p] === 'running') status[p] = 'done';
     status[phase] = 'running';
     current = phase;
+    // Searchable in Vercel's run list: which ticket, what size, where it is now.
+    // On the run in Vercel, searchable: which ticket, where it is, what it has cost so far (review and QA included).
+    await setAttributes({
+      issue: String(n), title: issueTitle.slice(0, 200), phase,
+      spend_usd: spend.total.toFixed(2), agents: String(spend.agents),
+      ...(profile ? { size: profile.size } : {}), ...(prUrl ? { pr: prUrl.split('/').pop()! } : {}),
+    });
     await show();
   };
   const log = (s: string) => { lines.push(s); console.log(`#${n} ${s}`); };
@@ -127,6 +162,7 @@ export async function ship(input: ShipInput) {
     spend.byPhase[current] = (spend.byPhase[current] || 0) + r.costUsd;
     for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
     log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
+    // The phase step already streamed this agent's result; the comment catches up at the next phase.
     return r.value;
   }
 
@@ -137,10 +173,14 @@ export async function ship(input: ShipInput) {
     try { return JSON.parse(done.result); } catch { log(`${label}: unreadable result (exit ${done.exit}) ${done.tail.slice(-200)}`); return null; }
   }
 
+  // What people said — the comment that asked for this run, and every answer on the issue or an earlier attempt's PR.
+  let said: { at: string; who: string; where: string; text: string }[] = [];
   const ticketText = (issue: Issue, doneWhen: string[]) =>
     `GitHub issue #${n}: ${issue.title}\n\n${issue.body}\n` +
     (doneWhen.length ? `\nDone when (as the plan read it):\n${doneWhen.map((c) => `- ${c}`).join('\n')}\n` : '') +
-    (input.notes ? `\nThe person who asked for this run wrote: "${input.notes}" — where it changes what to build, it amends the ticket.\n` : '');
+    (input.notes ? `\nThe person who asked for this run wrote: "${input.notes}" — where it changes what to build, it amends the ticket.\n` : '') +
+    (said.length ? `\nPeople have said, in order (newest last) — a person's answer amends the ticket where it changes what to build, and settles what a hand-back asked:\n` +
+      said.map((c) => `- ${c.who} on ${c.where}: "${c.text.replace(/\s+/g, ' ')}"`).join('\n') + '\n' : '');
 
   // ── Findings ──────────────────────────────────────────────────────────────
   const key = (f: Finding) => `${f.category}|${f.file}|${f.line ? Math.floor(f.line / 10) : f.claim.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 60)}`;
@@ -171,7 +211,7 @@ export async function ship(input: ShipInput) {
           head: branch, base: BASE, draft: true, labels: [],
           title: issueTitle,
           body: `Refs #${n}\n\n## Why this stopped\n${stage}: ${why}\n\n${open.length ? `## Still open\n${list(open)}\n\n` : ''}` +
-            `The work so far is on this branch. Answer what is open on the issue, then add \`ready-for-ai\` again — a fresh run starts from your answer.\n\n<sub>🏭 Ship on Vercel · [run](${runUrl})</sub>`,
+            `The work so far is on this branch. **Just reply — here or on #${n}.** Your comment is the answer: the factory picks it up, continues on this branch and turns this into the pull request.\n\n<sub>🏭 Ship on Vercel · [run](${runUrl})</sub>`,
         });
         prUrl = draft.url;
       }
@@ -190,8 +230,25 @@ export async function ship(input: ShipInput) {
   if (issue.isPullRequest || issue.state !== 'open') {
     return { outcome: 'declined', issue: n, reason: issue.isPullRequest ? 'that is a pull request, not an issue' : 'the issue is closed' };
   }
+  // An earlier attempt handed back as a draft? Continue it, with what people answered.
+  const earlier = await findEarlierAttempt(n);
+  said = await peopleSaid(n, earlier?.number ?? null);
+  // A comment on a ticket waiting on a person: resume only if it answers what is open.
+  if (input.answer && earlier) {
+    const body = (await readPullRequest(earlier.number)).body;
+    const open = body.slice(Math.max(0, body.indexOf('## Why this stopped')), body.indexOf('The work so far') > 0 ? body.indexOf('The work so far') : undefined).trim();
+    const verdict = await judgeAnswers(open || body.slice(0, 3000), said);
+    if (!verdict.answered) {
+      await comment(earlier.number, `🏭 Not resuming yet — Jev reads the replies as not settling everything that is open` +
+        `${verdict.probability !== null ? ` (${Math.round(verdict.probability * 100)}% that they do)` : ''}. Still open:\n\n${open.replace(/^## Why this stopped\n?/, '')}\n\n` +
+        `Reply again with the missing answer, or add \`ready-for-ai\` to go ahead as things stand.`);
+      return { outcome: 'waiting', issue: n, draft: earlier.url, answered: verdict.probability };
+    }
+  }
   await setLabels(n, ['ai-working'], ['ready-for-ai', 'needs-human', 'ready-for-human']);
+  if (earlier) { await setLabels(earlier.number, [], ['ready-for-ai', 'needs-human']); prUrl = earlier.url; }
   await enter('Triage');
+  if (earlier) log(`continuing ${earlier.draft ? 'the draft' : 'pull request'} #${earlier.number} on ${earlier.head}, with ${said.length} comment${said.length === 1 ? '' : 's'} from people`);
   triage = input.size ? { size: input.size, picked: null, sure: null, why: 'asked for explicitly', ms: 0 } : await triageIssue(issue);
   log(`triage: ${triage.why}${triage.ms ? ` in ${triage.ms} ms` : ''}`);
   if (triage.size !== 'sized') profile = { ...PROFILES[triage.size], why: triage.why };
@@ -202,9 +259,12 @@ export async function ship(input: ShipInput) {
   await enter('Plan');
   await prepareSandbox(box, BASE, 'push');
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').split('-').slice(0, 5).join('-') || 'change';
-  const made = await command('branch',
-    `git fetch -q --prune origin && b="issue-${n}-${slug}"; i=2; while git ls-remote --exit-code --heads origin "$b" >/dev/null; do b="issue-${n}-${slug}-$i"; i=$((i+1)); done; ` +
-    `git checkout -q -B "$b" "origin/${BASE}" && echo "{\\"branch\\":\\"$b\\"}" > "$JOB/result.json"`);
+  const made = await command('branch', earlier
+    // Continue the earlier attempt's branch, brought up to date with the base.
+    ? `git fetch -q --prune origin && git checkout -q -B "${earlier.head}" "origin/${earlier.head}" && ` +
+      `{ git merge -q --no-edit "origin/${BASE}" >/dev/null 2>&1 || git merge --abort; } && echo '{"branch":"${earlier.head}"}' > "$JOB/result.json"`
+    : `git fetch -q --prune origin && b="issue-${n}-${slug}"; i=2; while git ls-remote --exit-code --heads origin "$b" >/dev/null; do b="issue-${n}-${slug}-$i"; i=$((i+1)); done; ` +
+      `git checkout -q -B "$b" "origin/${BASE}" && echo "{\\"branch\\":\\"$b\\"}" > "$JOB/result.json"`);
   if (!made?.branch) return handBack('Plan', 'could not make a branch from ' + BASE);
   branch = made.branch;
   await show();
@@ -212,6 +272,10 @@ export async function ship(input: ShipInput) {
   const plan = await agent('plan',
     `${ticketText(issue, [])}\n` +
     `You are the planner. Work on branch ${branch} (already checked out, from origin/${BASE}). Write no code.\n\n` +
+    (earlier ? `An earlier run of this ticket handed it back to a person, and this branch holds its work: a spec under specs/${n}-*.md and probably code and tests. ` +
+      `Read the spec and \`git log --oneline origin/${BASE}..HEAD\`. Do not start over: revise that spec so it settles what the people above answered — record each ` +
+      `answer as a Decision, and change *Where* and *How it will be proved* where the answer changes them — then commit ("docs(spec): …") and push. ` +
+      `Return the spec's existing path.\n\n` : '') +
     `First decide whether the ticket is shippable: it is not if it states no outcome a check could be written against, ` +
     `or asks for two unrelated things — then return shippable=false with the reason and stop.\n\n` +
     `Otherwise write the spec at specs/${n}-${slug}.md — half a page, this shape:\n` +
@@ -284,9 +348,13 @@ export async function ship(input: ShipInput) {
   await enter('Build');
   const built = await agent('build',
     `${ticket}\nImplement ${specPath} on branch ${branch}. Its *Where* is your map: open those files directly.\n\n` +
+    (earlier ? `This branch already holds an earlier run's work (\`git log --oneline origin/${BASE}..HEAD\`, \`git diff origin/${BASE}...HEAD\`): keep what still holds, ` +
+      `change what the revised spec and the people's answers change, and add the tests that prove it. The rules below still apply.\n\n` : '') +
     `Write the check first and confirm it fails for the reason you expect — commit it on its own, red, as "test(…)", before any fix: ` +
     `that commit is the evidence the check proves something. Then implement, \`npm test\` after every edit; Conventional Commits; push. ` +
     `Keep the docs true in the same push: \`node scripts/context.mjs for <changed files>\` names the context/engineering-context/ docs that own them — update what the change made wrong, and list a new file in its area doc's \`files\`. ` +
+    `Then search every doc an agent reads instead of the code — \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route, function and the words your change makes untrue ` +
+    `(a feature you built that a doc calls a placeholder, "coming soon", "not built yet" or "no UI calls it") — and fix each one. ` +
     `Prove each criterion at the cheapest layer (a rule, payload or 400 in a unit/API test; a browser test only for what only a page shows, ` +
     `the variants of one criterion in one test, never mode: 'serial'). Every state the change adds gets its own assertion; when a state depends on the clock, ` +
     `also a moment before it applies (Day 1 08:00 — the seed's morning is already attended). A browser test you added runs once, alone, before you hand over ` +
@@ -306,7 +374,9 @@ export async function ship(input: ShipInput) {
       `For each Done-when criterion find what satisfies it and the test that proves it — nothing satisfying it is a blocker, and so is a test that would pass before the change, ` +
       `or an existing test weakened the ticket did not ask to change (test-weakened). Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
       `A change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs — is a blocker (category unasked), however well meant. ` +
-      `Last, \`node scripts/context.mjs for <changed files>\`: a doc that now describes the code wrongly is docs-stale. context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
+      `Last, the docs: \`node scripts/context.mjs for <changed files>\`, and \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route and functions the diff touches — ` +
+      `a doc that now describes the code wrongly is docs-stale, a blocker when an agent following it would build the wrong thing (a doc still calling a built page a placeholder is one). ` +
+      `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
     criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it and the test that proves it. ` +
       `Nothing satisfying it is a blocker; so is a test that would pass before the change, asserts the implementation against itself, or weakens an existing test the ticket did not ask to change (test-weakened); ` +
       `and so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked).`,
@@ -513,14 +583,57 @@ export async function ship(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   await disposeSandbox(box); // ship is done with its machine; review and QA bring their own
   await enter('Review & QA');
-  const [reviewRun, qaRun] = await Promise.all([start(review, [{ pr: pr.number }]), start(qa, [{ pr: pr.number }])]);
-  log(`review run ${reviewRun.runId}, QA run ${qaRun.runId}`);
-  const [rv, qv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null)]);
   const verdictLine = (name: string, v: any) => !v || v.verdict === 'none' ? `${name}: did not run` : `${name}: ${v.verdict === 'pass' ? `pass, ${v.confidence} confidence` : 'blocker'}${v.skipped ? ` (${v.skipped})` : ''}`;
-  log(verdictLine('review', rv));
-  log(verdictLine('QA', qv));
-  for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
-  if (!rv || rv.verdict !== 'pass' || !qv || qv.verdict === 'fail') status['Review & QA'] = 'failed';
+  // Review and QA are one more audit round: what they find, ship fixes itself — the same fixer,
+  // gate and push as before the PR — then asks them again (each re-checks only what changed).
+  // Two rounds at most; still not clean goes to a person, with the pull request left open.
+  const checks = async (round: number) => {
+    // Under ship, review leaves stale docs to ship's fixer: two workflows never push one branch at once.
+    const [reviewRun, qaRun] = await Promise.all([start(review, [{ pr: pr.number, fixDocs: false }]), start(qa, [{ pr: pr.number }])]);
+    log(`review & QA ${round ? `round ${round + 1} ` : ''}— runs ${reviewRun.runId}, ${qaRun.runId}`);
+    const [rv, qv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null)]);
+    log(verdictLine('review', rv));
+    log(verdictLine('QA', qv));
+    for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
+    const found: Finding[] = [
+      ...(rv?.blockers || []).map((b: any) => ({ severity: 'blocker', category: `review:${b.category}`, file: b.file, line: b.line, claim: b.claim, evidence: [b.how && `how: ${b.how}`, b.harm && `harm: ${b.harm}`, b.evidence].filter(Boolean).join(' · ') || 'raised by review', fix: 'resolve what the review found' })),
+      ...(rv?.docs || []).map((d: any) => ({ severity: 'blocker', category: 'docs-stale', file: d.file, line: d.line, claim: d.claim, evidence: d.evidence || 'raised by review', fix: 'make the doc say what the code does now' })),
+      ...(qv?.bugs || []).map((b: any) => ({ severity: 'blocker', category: 'qa-bug', file: 'tests/qa-probe.spec.js', claim: `${b.title}: ${b.aim}`, evidence: `on the preview — expected: ${b.expected ?? '?'} · actual: ${b.actual ?? '?'}`, fix: 'make the change behave as expected, and add a test that proves it' })),
+    ];
+    return { rv, qv, found };
+  };
+  let verdicts = await checks(0);
+  for (let round = 1; verdicts.found.length && round <= 2; round++) {
+    const open = verdicts.found;
+    log(`review & QA found ${open.length} thing${open.length === 1 ? '' : 's'} to fix — fix round ${round}`);
+    await show();
+    box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}-r${round}`;
+    await prepareSandbox(box, BASE, 'push');
+    const onBranch = await command(`branch#r${round}`, `git fetch -q --prune origin && git checkout -q -B "${branch}" "origin/${branch}" && echo '{"ok":true}' > "$JOB/result.json"`);
+    if (!onBranch) { log('could not check the branch out again'); break; }
+    const fixed = await agent(`fix#r${round}`,
+      `${ticket}\nThe pull request for this ticket, #${pr.number} on branch ${branch} (spec ${specPath}), was reviewed and tried on its preview. These were found:\n\n${list(open)}\n\n` +
+      `Fix each at its cause, and only these. A stale doc: make it say what the code does now, and \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere. ` +
+      `A QA bug: reproduce it in a test first, then fix it. Never edit an existing test to make it pass, never skip or delete one. \`npm test\` after every edit; a browser test you add or change runs alone by title. ` +
+      `Leave \`git status\` clean. Commit and push.`,
+      S.BUILT, profile.build);
+    if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); break; }
+    const ran = await command(`gate#r${round}`, gateScript(BASE, profile.gateScope));
+    const g = readGate(ran?.gate ?? '');
+    rounds.push({ round: rounds.length + 1, gate: `${g.ok ? '✅' : '❌'} ${gateLine(g)} (after review)`, raised: open.length, confirmed: open.length, covered: 'fixed what review and QA found' });
+    if (!g.ok) { log('the gate is red after the fix'); break; }
+    await command(`push#r${round}`, `git push -q origin HEAD >"$JOB/push.log" 2>&1; echo '{"ok":true}' > "$JOB/result.json"`);
+    await disposeSandbox(box);
+    await show();
+    verdicts = await checks(round);
+  }
+  await disposeSandbox(box);
+  if (verdicts.found.length) {
+    status['Review & QA'] = 'failed';
+    await setLabels(n, ['needs-human'], []);
+    await comment(pr.number, `### 🏭 Still open after ${verdicts.rv || verdicts.qv ? 'review and QA' : 'the checks'}\n\nShip fixed what it could; these remain:\n\n${list(verdicts.found)}\n\n` +
+      `The pull request stays open — merge it as it is, or reply with how to settle these and ship will pick it up.`);
+  }
   await comment(pr.number, `<sub>🏭 Ship on Vercel · AI spend for this ticket, build to review: ${dollars(spend.total)} — ${Object.entries(spend.byPhase).map(([p, c]) => `${p} ${dollars(c)}`).join(', ')}</sub>`);
 
   // ════════════════════════════════════════════════════════════════════════

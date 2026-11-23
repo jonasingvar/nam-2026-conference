@@ -42,7 +42,7 @@ export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
     spend.byPhase[phase] = (spend.byPhase[phase] || 0) + r.costUsd;
     for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
     log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
-    return r.value;
+    return r.value; // its result was streamed by the phase step that ran it
   }
 
   /** A shell job whose script writes $JOB/result.json; that JSON, or null. */
