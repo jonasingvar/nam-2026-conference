@@ -3,7 +3,8 @@ import { start } from 'workflow/api';
 import { respond } from './respond';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
+import { comment, pastDismissals, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
+import { composeReview, isDoc, isTestGap, listed, mayBlock, settle, toCheck, wasDismissed, type Dismissed, type Raised, type SkepticVerdict } from '../lib/review-policy';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import * as S from './schemas';
 
@@ -28,10 +29,10 @@ export type ReviewInput = { pr: number; notes?: string; fixDocs?: boolean };
 type Lens = { key: string; ask: string };
 const LENSES: Record<string, string> = {
   combined: 'Every Done-when criterion traced to what satisfies it and the test that proves it; then the diff against CLAUDE.md and .claude/rules/; then logic errors; then changes the ticket did not ask for.',
-  criteria: 'For each Done-when criterion, find what satisfies it and the test that proves it. Nothing satisfying it is a blocker. So is a change the ticket did not ask for that a reviewer would not expect (category unasked).',
+  criteria: 'For each Done-when criterion, find what satisfies it, and run it to see. Code that does not do what a criterion says — shown by running it — can be a blocker; a criterion the code meets but no test pins is a test gap (category test-gap), never a blocker. A change the ticket did not ask for that a reviewer would not expect is category unasked.',
   rules: 'The diff against CLAUDE.md and the .claude/rules/ file for each area it touches: a recorded decision contradicted — quote the rule and the line.',
   logic: 'Logic errors: for each, an input a person gives in normal use and the wrong output it produces.',
-  tests: 'Tests that prove nothing: one asserting the implementation against itself, one that would pass before the change, an existing test weakened. The red-check result below is evidence, not a verdict — a refactor passes it either way.',
+  tests: 'Test gaps — never blockers, worth a look: one asserting the implementation against itself, one that would pass before the change, an existing test weakened. Show it by executing: mutate the guarded code and run the test, or query the seed or API the test relies on. The red-check result below is evidence, not a verdict — a refactor passes it either way.',
   actions: 'GitHub Actions defects: a trigger that cannot fire as intended, an `if:` wrong for a concrete payload (say which), untrusted text reaching a `run:` script, a token broader than the step needs.',
   docs: 'Docs that are false: CLAUDE.md, context/ and the playbooks are read *instead of* the code. A claim the code does not bear out, two docs that disagree, or an instruction an agent would follow into a wrong action.',
   orchestration: 'Factory defects (factory/, scripts/): a path where a dead agent reads as a pass, an unbounded loop, two jobs sharing ports at once, a secret reaching the sandbox, a prompt contradicting the playbook it cites.',
@@ -107,6 +108,15 @@ async function reviewRun(input: ReviewInput) {
     ? `\nThis is a re-review. The last pass reviewed ${previous.commit.slice(0, 7)}; look for NEW problems only in what changed since: ${facts.delta.join(', ') || 'nothing'} (\`git diff ${previous.commit} HEAD\`). Outside that, raise only what would have blocked a first review.\n`
     : '';
 
+  // What else is known: QA's verdict on this commit's preview, and the findings people dismissed as wrong.
+  const qaMarker = await readMarker(pr.number, 'factory-verdict:qa');
+  const qaPassed = !!qaMarker && qaMarker.commit === co.head && !(qaMarker.bugs ?? []).length;
+  const qaNote = qaPassed ? `\nQA already probed this commit on its preview and found no bug: a concern you only reason your way to from the diff is not a blocker unless you can show it happening anyway.\n` : '';
+  const dismissed = await pastDismissals().catch(() => [] as Dismissed[]);
+  const dismissedNote = dismissed.length
+    ? `\nPeople marked these earlier review findings wrong; never raise the same claim again:\n${dismissed.slice(-15).map((d) => `- ${d.file}${d.line ? ':' + d.line : ''} [${d.category}] ${d.claim}`).join('\n')}\n`
+    : '';
+
   // 1. Recheck the last pass's blockers, at this head.
   k.setPhase('recheck');
   const stillOpen: any[] = [];
@@ -127,36 +137,50 @@ async function reviewRun(input: ReviewInput) {
     `Form your own view from the ticket and \`git diff origin/${pr.base}...HEAD\`. The pull request's description:\n${pr.body.slice(0, 3000)}\n\n` +
     `Your lens: ${l.ask}\n` +
     (l.key === 'tests' || l.key === 'combined' ? `\nThe red-check (app code reverted to ${pr.base}, the branch's new tests run): ${facts?.red || 'not run'}\n` : '') +
-    scope +
-    `\nA blocker must say how a person reaches it in normal use (how) and what they lose (harm); without both it is a follow-up. At most three findings. ` +
-    `Every finding cites file:line, read from the line. Confidence is how much of the change you could actually judge. Empty is a good answer.`;
+    scope + qaNote + dismissedNote +
+    `\nApprove with comments is the default; a blocker is rare: serious (wrong behaviour a person hits, a crash, lost data, a security hole, a broken contract), ` +
+    `present (how: the route through normal use, with this code now; harm: what that person loses — not "if ever…"), and demonstrated (you ran code, a test or a command that shows it; demonstrated=true). ` +
+    `A nitpick — it works, just not exactly as you would read the ticket — is not a finding at all. Test gaps are never blockers. ` +
+    `Verify every finding before you report it, suggestions too: evidence says what you ran or queried and what it showed, or quotes the exact line and what it does. ` +
+    `Give each a confidence; below 0.8 it is dropped, so leave it out. At most three findings; fewer true ones beat many plausible ones. ` +
+    `Every finding cites file:line, read from the line. Each is checked by an independent skeptic, and only what it can demonstrate is reported. ` +
+    `The lens's own confidence is how much of the change you could actually judge. Empty is a good answer.`;
   const first = await Promise.all(lenses.map((l) => k.agent(`lens:${l.key}`, ask(l), S.REVIEW_LENS, model)));
   const reports = await Promise.all(lenses.map((l, i) => first[i] ? Promise.resolve(first[i]) : k.agent(`lens:${l.key}-retry`, ask(l), S.REVIEW_LENS, model)));
 
-  // 3. Every new blocker faces a skeptic; one with no how or harm is a follow-up already.
+  // 3. Every finding — blocker or suggestion — faces its own skeptic: a fresh agent on another model that sees only the
+  // claim, the cited line, the diff and the ticket, never the lens's reasoning. Only what it demonstrates is reported.
   k.setPhase('skeptic');
-  const raised = reports.filter(Boolean).flatMap((r: any) => r.findings as any[]);
-  const asBlocker = raised.filter((x) => x.severity === 'blocker' && x.how && x.harm);
-  const followUps = raised.filter((x) => !(x.severity === 'blocker' && x.how && x.harm));
-  const judged = await Promise.all(asBlocker.map((b) => k.agent(`skeptic:${b.category}`,
-    `${ticket}\nA reviewer of pull request #${pr.number} claims this blocker. Try to REFUTE it: open the cited file and line; refuted if the line does not say what is claimed, ` +
-    `if it is already on origin/${pr.base}, if it is style, or if the code, its tests or its spec show it was deliberate. Contrived if it is real but only reachable from an input nobody gives ` +
-    `in normal use (a hand-edited URL, a forged request). If you cannot tell, it is confirmed.\n\n[${b.category}] ${b.file}${b.line ? ':' + b.line : ''} — ${b.claim}\nhow: ${b.how}\nharm: ${b.harm}\nevidence: ${b.evidence}`,
-    S.SKEPTIC, 'sonnet', 'medium')));
-  const confirmed: any[] = [];
-  asBlocker.forEach((b, i) => {
-    const v = judged[i]?.verdict ?? 'confirmed';
-    if (v === 'confirmed') confirmed.push(b);
-    else if (v === 'contrived') followUps.push({ ...b, severity: 'follow-up', claim: `${b.claim} (contrived: ${judged[i].why})` });
-  });
+  const raised: Raised[] = reports.filter(Boolean).flatMap((r: any) => r.findings as Raised[]);
+  const { checked } = toCheck(raised, dismissed);
+  const judged: SkepticVerdict[] = await Promise.all(checked.map((x, i) => k.agent(`skeptic:${i + 1}-${x.category}`,
+    `${ticket}\nSomeone claims this about pull request #${pr.number} (branch ${pr.head} into ${pr.base}; \`git diff origin/${pr.base}...HEAD\`):\n\n` +
+    `${x.file}${x.line ? ':' + x.line : ''} — ${x.claim}\n\n` +
+    `Check it yourself, from the code — do not take the claim's word for anything. Demonstrate it by running the code, a test or a command (a throwaway script or test is fine; commit nothing), ` +
+    `or by quoting the exact lines and showing what they do. ` +
+    (isTestGap(x)
+      ? `It is a claim about a test: execute before you confirm it — mutate the code the test guards and run the test to see whether it fails, or query the seed or API the test depends on. `
+      : `Refuted if the code does not do what is claimed, if it is already so on origin/${pr.base}, if the code, its tests or its spec show it was deliberate, or if it is a nitpick or a deviation in detail that hurts nobody. ` +
+        `Contrived if it is real but only reachable from input nobody gives in normal use (a hand-edited URL, a forged request). `) +
+    (qaPassed ? `QA probed this commit on its preview and found no bug. ` : '') +
+    `Confirmed only if you demonstrated it; if you cannot show it, it is unproven — and an unproven claim is not reported. ` +
+    `executed=true only if you ran something that shows it (a quote is not a run); confidence is how sure you are of your verdict. ` +
+    `Only a claim you executed, at confidence 0.95 or more, can hold up a merge.`,
+    S.SKEPTIC, mayBlock(x) ? (model === 'opus' ? 'sonnet' : 'opus') : 'haiku', 'medium')));
+  const settled = settle(checked, judged);
+  const confirmed = settled.blockers;
+  // A verified stale doc is not a suggestion: it is fixed on the branch (below), so it is held apart.
+  const followUps: any[] = [...settled.suggestions.filter((x) => !isDoc(x)), ...settled.polish];
+  k.log(`${raised.length} raised · ${checked.length} checked · ${confirmed.length + followUps.length} survived their skeptic`);
 
   // 4. The verdict, composed by the script — no model shapes its own verdict.
   // A doc that the change made false is real (agents read docs instead of code), but it is not a
   // reason to hold back working code: on a branch of this repository the factory fixes it on the
   // pull request (respond, docs only) and says so; on a fork's, it is listed for the author.
   const isDocs = (b: any) => b.category === 'docs';
-  const staleDocs = [...stillOpen, ...confirmed].filter(isDocs);
-  const blockers = [...stillOpen, ...confirmed].filter((b) => !isDocs(b)).slice(0, 3);
+  const staleDocs = [...stillOpen, ...settled.suggestions].filter(isDocs);
+  // A previous blocker still open stays one — unless it was a test gap (never a blocker now) or a person dismissed it.
+  const blockers = [...stillOpen.filter((b) => !isTestGap(b) && !wasDismissed(b, dismissed)), ...confirmed].filter((b) => !isDocs(b)).slice(0, 3);
   let docsRun: string | null = null;
   const handDocsBack = input.fixDocs === false;
   if (staleDocs.length && pr.sameRepo && !handDocsBack) {
@@ -182,26 +206,31 @@ async function reviewRun(input: ReviewInput) {
   // …and never a place already raised above, as a blocker or a doc being fixed.
   const raisedAbove = new Set([...blockers, ...(docsRun || handDocsBack ? staleDocs : [])].map(fkey));
   const toList = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x)) && !raisedAbove.has(fkey(x))).slice(0, 5);
-  const callout = pass ? (confidence === 'high' ? '> [!TIP]' : confidence === 'medium' ? '> [!NOTE]' : '> [!WARNING]') : '> [!CAUTION]';
-  const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence as 'high'];
-  const summary = reports.filter(Boolean).map((r: any) => r.covered).join(' · ');
-  const marker = { pass: 'review', commit: co.head, blockers: blockers.map((b) => ({ category: b.category, file: b.file, line: b.line, claim: b.claim })), followUps: [...filedBefore, ...toList.map(fkey)] };
-  await comment(pr.number, [
-    callout,
-    `> ### Code review · ${pass ? `${confidence} confidence${confidence === 'low' ? ' — unproven' : ''} &nbsp; \`${meter}\`` : 'blocker'}`,
-    `> ${summary || 'Nothing to report.'}`,
-    '',
-    ...blockers.map((b) => `**${b.category}** \`${b.file}${b.line ? ':' + b.line : ''}\` — ${b.claim}\n${b.how ? `*How:* ${b.how} · ` : ''}${b.harm ? `*Harm:* ${b.harm}` : b.evidence ? `*Evidence:* ${b.evidence}` : ''}\n`),
-    handDocsBack && staleDocs.length ? `📝 **Stale docs — ship is fixing these on this branch:**\n${staleDocs.map((d) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`).join('\n')}\n` : '',
-    docsRun ? `📝 **Stale docs — being fixed on this branch now**, so the next agent does not build on them ([run](${FACTORY_DASHBOARD}/workflows/runs/${docsRun})):\n${staleDocs.map((d) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`).join('\n')}\n` : '',
-    toList.length ? `<details><summary>Worth a look — not blockers (${toList.length})</summary>\n\n${toList.map((x) => `- \`${x.file}${x.line ? ':' + x.line : ''}\` ${x.claim}`).join('\n')}\n</details>` : '',
-    '',
-    `<sub>🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${model} · ${k.spendLine()} · [run](${runUrl})</sub>`,
-    `<!-- factory-verdict:review ${JSON.stringify(marker)} -->`,
-  ].filter((l) => l !== '').join('\n'));
-  await setStatus(pr.headSha, 'factory/review', pass ? 'success' : 'failure', pass ? `${confidence} confidence${confidence === 'low' ? ' (unproven)' : ''}` : blockers[0].claim, runUrl);
-  // A blocker on a pull request ship built is something ship's own loop let through.
+  const summary = reports.filter(Boolean).map((r: any) => r.covered).join(' · ') || 'Nothing to report.';
+  const marker = {
+    pass: 'review', commit: co.head,
+    blockers: blockers.map((b) => ({ category: b.category, file: b.file, line: b.line, claim: b.claim })),
+    followUps: [...filedBefore, ...toList.map(fkey)],
+    listed: listed(blockers, toList),
+  };
+  const docLine = (d: any) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`;
+  await comment(pr.number, composeReview({
+    pass, confidence: confidence as 'high', summary, blockers, suggestions: toList,
+    extra: [
+      handDocsBack && staleDocs.length ? `📝 **Stale docs — ship is fixing these on this branch:**\n${staleDocs.map(docLine).join('\n')}` : '',
+      docsRun ? `📝 **Stale docs — being fixed on this branch now**, so the next agent does not build on them ([run](${FACTORY_DASHBOARD}/workflows/runs/${docsRun})):\n${staleDocs.map(docLine).join('\n')}` : '',
+    ],
+    footer: `🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${model} · ${raised.length} raised · ${confirmed.length + followUps.length} survived their skeptic · ${k.spendLine()} · [run](${runUrl})`,
+    marker,
+  }));
+  await setStatus(pr.headSha, 'factory/review', pass ? 'success' : 'failure', pass ? `approved, ${confidence} confidence${confidence === 'low' ? ' (unproven)' : ''}` : blockers[0].claim, runUrl);
+  // A blocker on a pull request ship built is something ship's own loop let through (test gaps never are).
   if (!pass && /^issue-\d+-/.test(pr.head)) await setLabels(pr.number, ['harness-escape'], []);
   await disposeSandbox(box);
-  return { verdict: pass ? 'pass' : 'fail', confidence, blockers, docs: handDocsBack ? staleDocs : [], followUps: toList.length, spend: k.spend.total };
+  return {
+    verdict: pass ? 'pass' : 'fail', confidence, blockers, docs: handDocsBack ? staleDocs : [], followUps: toList.length,
+    // Test gaps its skeptics showed: ship's fixer tightens them as polish when it is fixing anyway; they never hold a run.
+    polish: settled.polish.map((x) => ({ category: x.category, file: x.file, line: x.line, claim: x.claim, evidence: x.evidence })),
+    spend: k.spend.total,
+  };
 }

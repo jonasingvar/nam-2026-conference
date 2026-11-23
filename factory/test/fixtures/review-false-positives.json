@@ -1,0 +1,49 @@
+{
+  "about": "Findings review raised as blockers that a person called wrong or silly. Each must never block again, whatever a lens or skeptic says about it. Copied from the review markers on the pull requests named.",
+  "cases": [
+    {
+      "source": "https://github.com/jonasingvar/nam-2026-conference/pull/30#issuecomment-7113288666",
+      "why": "Both true, both test gaps: the PR worked and QA passed on its preview. The user: a BS blocker.",
+      "finding": {
+        "severity": "blocker", "category": "test-proves-nothing", "file": "tests/agenda.spec.js", "line": 84,
+        "claim": "The removal check can't fail on the flag part. It removes the flagged row itself (pair[1]), and `hop` is a locator inside that row, so once `row` has count 0, `hop` has count 0 by construction.",
+        "evidence": "tests/agenda.spec.js:84-86 removes the flagged row and then asserts the flag is gone",
+        "how": "an attendee removes a session whose partner stays on the page", "harm": "a stale clash flag would go unnoticed by the suite",
+        "demonstrated": true, "confidence": 0.97
+      }
+    },
+    {
+      "source": "https://github.com/jonasingvar/nam-2026-conference/pull/30#issuecomment-7113288666",
+      "why": "True, a test gap: the seeded Jonas has no conflicts, so the loop never runs. Not something a person hits.",
+      "finding": {
+        "severity": "blocker", "category": "test-proves-nothing", "file": "tests/agenda.spec.js", "line": 31,
+        "claim": "The only browser check for clashes never runs. It loops over Jonas's server-side `conflicts`, and the seeded Jonas has none.",
+        "evidence": "GET /api/users/1/schedule returned conflicts: [] on all four days",
+        "how": "any run of the suite", "harm": "a broken clash flag would pass the suite",
+        "demonstrated": true, "confidence": 0.98
+      }
+    },
+    {
+      "source": "https://github.com/jonasingvar/nam-2026-conference/pull/25#issuecomment-7110948389",
+      "why": "A stale line in a rule file: fixed on the branch by respond, never a reason to hold back working code. The user called it silly.",
+      "finding": {
+        "severity": "blocker", "category": "docs", "file": ".claude/rules/ui.md", "line": 74,
+        "claim": "The UI rule file still says My Agenda is a placeholder. This PR replaced the placeholder, and CLAUDE.md was updated to match, but this file was not.",
+        "evidence": ".claude/rules/ui.md:74 reads 'My Agenda is a coming-soon placeholder'",
+        "how": "the next agent reads the rule file", "harm": "it may treat My Agenda as unbuilt",
+        "demonstrated": true, "confidence": 0.99
+      }
+    }
+  ],
+  "control": {
+    "source": "https://github.com/jonasingvar/nam-2026-conference/pull/6#issuecomment-7108668325",
+    "why": "A real blocker (a stranger's fork PR got the factory's write token used on its behalf). The policy must still let a demonstrated, certain one through.",
+    "finding": {
+      "severity": "blocker", "category": "orchestration", "file": "factory/app/api/github/route.ts", "line": 64,
+      "claim": "Code from a fork's pull request runs inside a sandbox whose network proxy adds the factory's GitHub token to every api.github.com request.",
+      "evidence": "a fork PR webhook payload started review; the sandbox's curl to api.github.com/user returned the factory account",
+      "how": "anyone opens a pull request from a fork", "harm": "their code acts on the repository with the factory's write token",
+      "demonstrated": true, "confidence": 0.98
+    }
+  }
+}
