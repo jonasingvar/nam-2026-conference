@@ -1,4 +1,4 @@
-import { ALLOWED_REPO } from './constants';
+import { ALLOWED_REPO, APP_PROJECT } from './constants';
 
 /**
  * The factory's own GitHub calls — the progress comment and the spend line —
@@ -104,17 +104,22 @@ export async function findDeployment(sha: string, kind: 'Preview' | 'Production'
 }
 
 /**
- * The preview that shows a pull request's head. A commit that changes nothing
- * in the app (only factory/, say) is not built — the app project's ignore
- * step skips it — so the newest earlier commit's preview is the same app, and
- * the one to test. Pending while the newest buildable commit is still building.
+ * The preview that shows a pull request's head. Vercel reports every commit as
+ * a status, "Vercel – <project>": a commit that changes nothing in the app
+ * (only factory/, say) reads "Canceled by Ignored Build Step", and the newest
+ * earlier commit's preview is the same app — the one to test. A commit with no
+ * status yet has not been seen by Vercel: pending, never an older preview.
  */
 export async function previewForPr(n: number) {
   'use step';
   const commits = await gh(`/pulls/${n}/commits?per_page=100`);
   for (const c of [...commits].reverse()) {
+    const combined = await gh(`/commits/${c.sha}/status`);
+    const vercel = (combined.statuses || []).find((x: any) => x.context === `Vercel – ${APP_PROJECT}`);
+    if (!vercel) return { state: 'pending' as const, url: null, sha: c.sha };
+    if (/ignored build step/i.test(vercel.description || '')) continue;
     const d = await deploymentFor(c.sha, 'Preview');
-    if (d.state !== 'none') return d;
+    return d.state === 'none' ? { state: 'pending' as const, url: null, sha: c.sha } : d;
   }
   return { state: 'none' as const, url: null, sha: null };
 }

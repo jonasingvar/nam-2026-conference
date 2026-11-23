@@ -11,3 +11,6 @@ export const PRODUCTION_URL = 'https://nam-2026-conference.vercel.app';
 
 /** The factory's own Vercel project, for links to a run. */
 export const FACTORY_DASHBOARD = 'https://vercel.com/jonasingvar-3626/nam-2026-factory';
+
+/** The app's Vercel project: its commit status is "Vercel – <project>". */
+export const APP_PROJECT = 'nam-2026-conference';

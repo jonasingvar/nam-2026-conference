@@ -15,10 +15,10 @@ comments carry `<!-- factory…` or `<!-- ship-on-vercel` markers).
 | Event | Starts |
 | --- | --- |
 | issue labelled `ready-for-ai` · `/ship` or `@claude` on an issue | ship |
-| pull request opened, reopened, marked ready (not one ship opened) | review + QA, and verify |
-| push to a pull request | verify |
-| `/review` on a pull request | review + QA |
-| `@claude …` on a pull request | respond |
+| any pull request opened, reopened or pushed to | verify — no credential, so safe for anyone's |
+| …on a branch of this repository, by someone with write access, not a bot (and not one ship opened, which runs its own) | review + QA too |
+| `/review` on a pull request, by someone with write access | verify, review + QA — for a fork's pull request too, in read mode |
+| `@claude …` on a pull request of a branch in this repository | respond |
 | pull request closed | wakes the ship run waiting on it; a merge clears its issue's labels |
 | push to `main` | verify, and warm |
 
