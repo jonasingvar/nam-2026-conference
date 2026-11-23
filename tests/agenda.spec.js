@@ -57,7 +57,8 @@ test.describe('My Agenda', () => {
       expect((await put(pair.b.id)).ok()).toBe(true);
 
       await visit(page, '/my-agenda', { as: lane.user, at: `${lane.day}T07:00` });
-      const hop = page.getByTestId('agenda-hop');
+      // the seeded plan may carry its own hops elsewhere in the day; ours is on b
+      const hop = page.locator(`[data-session-id="${pair.b.id}"]`).getByTestId('agenda-hop');
       await expect(hop).toContainText(`${pair.fastest} min`);
       await expect(hop).toContainText(`you have ${pair.gap}`);
       await shotForPR(page, 'a hop between two seats that the gap cannot cover is flagged');
