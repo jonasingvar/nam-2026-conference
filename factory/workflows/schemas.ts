@@ -118,12 +118,15 @@ export const REVIEW_LENS = {
     findings: {
       type: 'array', maxItems: 3,
       items: {
-        type: 'object', required: ['severity', 'category', 'file', 'claim', 'evidence'],
+        type: 'object', required: ['severity', 'category', 'file', 'claim', 'evidence', 'confidence', 'demonstrated'],
         properties: {
           severity: { enum: ['blocker', 'follow-up'] },
-          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'actions', 'docs', 'orchestration'] },
-          file: str, line: int, claim: str, evidence: str,
-          how: { type: 'string', description: 'the route through normal use that reaches it — who does what, where' },
+          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'test-gap', 'actions', 'docs', 'orchestration'] },
+          file: str, line: int, claim: str,
+          evidence: { type: 'string', description: 'what you checked and what it showed: the command or test you ran and its output, the API or preview response, or the exact line quoted and what it does' },
+          confidence: { type: 'number', minimum: 0, maximum: 1, description: 'how sure you are this is real and matters; under 0.8 it is dropped' },
+          demonstrated: { type: 'boolean', description: 'true only if you ran code, a test or a command that shows it happening — reading is not demonstrating' },
+          how: { type: 'string', description: 'the route through normal use, with this code now, that reaches it — who does what, where' },
           harm: { type: 'string', description: 'what that person loses or sees go wrong' },
         },
       },
@@ -132,8 +135,11 @@ export const REVIEW_LENS = {
 };
 
 export const SKEPTIC = {
-  type: 'object', required: ['verdict', 'why'],
-  properties: { verdict: { enum: ['confirmed', 'refuted', 'contrived'] }, why: str },
+  type: 'object', required: ['verdict', 'why', 'confidence', 'executed'],
+  properties: {
+    confidence: { type: 'number', minimum: 0, maximum: 1, description: 'how sure you are of your verdict' },
+    executed: { type: 'boolean', description: 'true only if you ran code, a test or a command that shows it — reading and quoting is not executing' },
+    verdict: { enum: ['confirmed', 'refuted', 'contrived', 'unproven'], description: 'confirmed: you demonstrated it; contrived: real but only from input nobody gives in normal use; refuted: wrong, deliberate, already on the base, or a nitpick that hurts nobody; unproven: you could not show it' }, why: str },
 };
 
 export const QA_TRIAGE = {

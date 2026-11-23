@@ -12,6 +12,7 @@ import {
   comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
+import { isTestGap } from '../lib/review-policy';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
@@ -399,15 +400,15 @@ async function shipRun(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   const LENS_ASK: Record<string, string> = {
     combined: `Read the ticket, then the spec (does it read the ticket right? a misreading is criterion-unmet; a self-contradicting ticket is scope), then \`git diff origin/${BASE}...HEAD\`. ` +
-      `For each Done-when criterion find what satisfies it and the test that proves it — nothing satisfying it is a blocker, and so is a test that would pass before the change, ` +
-      `or an existing test weakened the ticket did not ask to change (test-weakened). Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
+      `For each Done-when criterion find what satisfies it, and run it — code that does not do what a criterion says is a blocker. A test gap (a test that would pass before the change, ` +
+      `one asserting the implementation against itself, an existing test weakened the ticket did not ask to change) is minor, never a blocker: the fixer tightens it as polish. Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
       `A change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs — is a blocker (category unasked), however well meant. ` +
       `Last, the docs: \`node scripts/context.mjs for <changed files>\`, and \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route and functions the diff touches — ` +
       `a doc that now describes the code wrongly is docs-stale, a blocker when an agent following it would build the wrong thing (a doc still calling a built page a placeholder is one). ` +
       `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
-    criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it and the test that proves it. ` +
-      `Nothing satisfying it is a blocker; so is a test that would pass before the change, asserts the implementation against itself, or weakens an existing test the ticket did not ask to change (test-weakened); ` +
-      `and so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked).`,
+    criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it, and run it to see. ` +
+      `Code that does not do what a criterion says is a blocker; so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked). ` +
+      `A test gap — a test that would pass before the change, asserts the implementation against itself, or weakens an existing test (test-proves-nothing, test-weakened) — is minor, never a blocker.`,
     rules: `Read \`git diff origin/${BASE}...HEAD\` against CLAUDE.md and .claude/rules/. A blocker is a recorded decision contradicted — quote the rule and the line — or a logic error with an input and the wrong output. ` +
       `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
     browser: `Drive the change in a real browser and try to break it, following context/engineering-context/harness/qa-playbook.md §1–§3: probes in tests/qa-probe.spec.js, ` +
@@ -421,6 +422,11 @@ async function shipRun(input: ShipInput) {
   let gate: any = null;
   let red: any = null;
   let minors: Finding[] = [];
+  /** Test gaps: never blockers, never a reason to hand back — tightened as polish when a fix round runs anyway. */
+  let polish: Finding[] = [];
+  const polishAsk = (p: Finding[]) => p.length
+    ? `\n\nAlso, as polish — not required, and never a reason to return ok=false: tighten these tests so they would fail without the change, if it is quick:\n${list(p)}`
+    : '';
   let audited = 0;
   for (let round = 1; ; round++) {
     await enter('Gate');
@@ -476,14 +482,16 @@ async function shipRun(input: ShipInput) {
       const raised: Finding[] = [
         ...reports.flatMap((r) => r.findings as Finding[]),
         ...(red && red.checked && red.failedOnBase === false ? [{
-          severity: 'blocker' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
+          severity: 'minor' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
           claim: 'the tests this branch added or changed pass with its app code reverted',
           evidence: `scripts/red-check.mjs reverted ${red.reverted.join(', ')} to ${BASE} and ran ${red.tests.join(', ')}: none failed`,
           fix: 'add a test that exercises the changed code where an attendee meets it, and fails on the base branch',
         }] : []),
       ];
-      minors = raised.filter((f) => f.severity === 'minor');
-      open = await confirm(raised.filter((f) => f.severity === 'blocker'), 'the change', ticket);
+      // A test gap is never a blocker, whatever the auditor called it: it rides along with the next fix as polish.
+      minors = raised.filter((f) => f.severity === 'minor' || isTestGap(f)).map((f) => ({ ...f, severity: 'minor' as const }));
+      polish = minors.filter(isTestGap);
+      open = await confirm(raised.filter((f) => f.severity === 'blocker' && !isTestGap(f)), 'the change', ticket);
       history.push(...open);
       rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: raised.length, confirmed: open.length,
         covered: reports.map((r) => `ran ${r.ran}: ${String(r.covered).slice(0, 80)}`).join(' · ') });
@@ -516,7 +524,8 @@ async function shipRun(input: ShipInput) {
       `Fix each at its cause, and only what is listed. A gate failure in a test or code this branch did not touch may be the environment, not you: run that test on ` +
       `origin/${BASE} (a scratch worktree, then remove it) — if it fails there too, change nothing for it and return ok=false with a summary that starts "pre-existing:". ` +
       `Never work around a failure by changing something the ticket did not ask for. Never edit an existing test to make it pass, never skip or delete one. If a finding shows the spec was wrong, fix the spec too and say so; ` +
-      `if a fix changes what a context doc says, fix the doc. \`npm test\` after every edit; a browser test you added or changed runs alone by title; not the whole suite. Leave \`git status\` clean. Commit and push.`,
+      `if a fix changes what a context doc says, fix the doc. \`npm test\` after every edit; a browser test you added or changed runs alone by title; not the whole suite. Leave \`git status\` clean. Commit and push.` +
+      polishAsk(polish),
       S.BUILT, 'fix');
     if (!fixed) return handBack('Audit', 'the fixer did not finish', open);
     if (!fixed.ok) return handBack(gate.ok ? 'Audit' : 'Gate', fixed.summary, open);
@@ -633,7 +642,9 @@ async function shipRun(input: ShipInput) {
       ...(rv?.docs || []).map((d: any) => ({ severity: 'blocker', category: 'docs-stale', file: d.file, line: d.line, claim: d.claim, evidence: d.evidence || 'raised by review', fix: 'make the doc say what the code does now' })),
       ...(qv?.bugs || []).map((b: any) => ({ severity: 'blocker', category: 'qa-bug', file: 'tests/qa-probe.spec.js', claim: `${b.title}: ${b.aim}`, evidence: `on the preview — expected: ${b.expected ?? '?'} · actual: ${b.actual ?? '?'}`, fix: 'make the change behave as expected, and add a test that proves it' })),
     ];
-    return { rv, qv, found };
+    // Review's test gaps ride along with a fix round as polish; on their own they start none and hold nothing up.
+    const testPolish: Finding[] = (rv?.polish || []).map((b: any) => ({ severity: 'minor', category: b.category, file: b.file, line: b.line, claim: b.claim, evidence: b.evidence || 'shown by review', fix: 'make the test fail without the change' }));
+    return { rv, qv, found, polish: testPolish };
   };
   let verdicts = await checks(0);
   for (let round = 1; verdicts.found.length && round <= 2; round++) {
@@ -648,7 +659,7 @@ async function shipRun(input: ShipInput) {
       `${ticket}\nThe pull request for this ticket, #${pr.number} on branch ${branch} (spec ${specPath}), was reviewed and tried on its preview. These were found:\n\n${list(open)}\n\n` +
       `Fix each at its cause, and only these. A stale doc: make it say what the code does now, and \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere. ` +
       `A QA bug: reproduce it in a test first, then fix it. Never edit an existing test to make it pass, never skip or delete one. \`npm test\` after every edit; a browser test you add or change runs alone by title. ` +
-      `Leave \`git status\` clean. Commit and push.`,
+      `Leave \`git status\` clean. Commit and push.` + polishAsk(verdicts.polish),
       S.BUILT, 'fix');
     if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); break; }
     const ran = await command(`gate#r${round}`, gateScript(BASE, profile.gateScope));
@@ -704,14 +715,18 @@ async function shipRun(input: ShipInput) {
 
   // ── helpers that need the run's state ─────────────────────────────────────
   async function confirm(findings: Finding[], what: string, t: string): Promise<Finding[]> {
+    // One independent skeptic per claim: it sees the claim and the cited line, never the auditor's evidence or reasoning,
+    // and must demonstrate it — the same bar review holds (code-review-playbook.md §2). What it cannot show is dropped.
     const judged = await Promise.all(dedupe(findings).map((f) => agent(`skeptic:${f.category}`,
-      `${t}\nThe spec is ${specPath}, on branch ${branch}. An auditor claims this ${f.severity === 'minor' ? 'minor problem' : 'blocker'} in ${what}. Try to REFUTE it. ` +
-      `Open the cited file and line yourself; \`npm test\` is fine, but do not boot the app or run Playwright. Refute if the line does not say what is claimed, if the behaviour is already on origin/${BASE}, ` +
-      `if it is style rather than a defect, if its fix would contradict CLAUDE.md, or if CLAUDE.md or the spec *as first committed* (\`git log --diff-filter=A --format=%H -- ${specPath}\`, then \`git show\`) shows it was deliberate. ` +
-      `A later edit to the spec does not make a missed Done-when criterion deliberate. If you cannot tell, it is NOT refuted.` +
-      (f.also?.length ? ' Several auditors read this location differently ("also"): refute only if EVERY reading is wrong.' : '') + `\n\n${list([f])}`,
-      S.REFUTATION, 'skeptic').then((v) => (v && v.refuted ? null : f))));
-    // A skeptic that did not finish refuted nothing.
+      `${t}\nThe spec is ${specPath}, on branch ${branch}. Someone claims this about ${what} (\`git diff origin/${BASE}...HEAD\`):\n\n` +
+      `${f.file}${f.line ? ':' + f.line : ''} — ${f.claim}${f.also?.length ? f.also.map((a) => `\nalso read as: ${a.claim}`).join('') : ''}\n\n` +
+      `Check it yourself, from the code — do not take the claim's word for anything. It stands only if you demonstrate it: run the code, \`npm test\`, a throwaway test or a command ` +
+      `(commit nothing; do not boot the app or run Playwright), or quote the exact lines and show what they do. ` +
+      `Refute it if you cannot show it, if the code does not do what is claimed, if the behaviour is already on origin/${BASE}, if it is style or a nitpick — it works, just not exactly as someone ` +
+      `would read the ticket, and nobody is hurt — if its fix would contradict CLAUDE.md, or if CLAUDE.md or the spec *as first committed* ` +
+      `(\`git log --diff-filter=A --format=%H -- ${specPath}\`, then \`git show\`) shows it was deliberate. A later edit to the spec does not make a missed Done-when criterion deliberate.`,
+      S.REFUTATION, 'skeptic').then((v) => (v && !v.refuted ? f : null))));
+    // Not demonstrated — refuted, or a skeptic that did not finish — is not raised.
     return judged.filter(Boolean) as Finding[];
   }
 }
