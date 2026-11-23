@@ -19,6 +19,7 @@ tests:
   - tests/unit/show.test.js
   - tests/unit/gitignore.test.js
   - tests/smoke.spec.js
+  - tests/expo.spec.js
   - tests/api/static.test.js
 related: [seed, architecture, clock, seats, harness]
 ---
