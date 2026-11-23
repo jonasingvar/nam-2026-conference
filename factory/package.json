@@ -1,0 +1,30 @@
+{
+  "name": "orbit-factory",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ship on Vercel: a GitHub issue becomes a reviewed pull request, as a resumable Vercel Workflow running Claude Code in Vercel Sandboxes",
+  "scripts": {
+    "dev": "next dev --port 4800",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.152",
+    "@vercel/sandbox": "^4.1.0",
+    "ai": "^7.0.179",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "workflow": "^5.7.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vercel": "^66.6.0"
+  }
+}

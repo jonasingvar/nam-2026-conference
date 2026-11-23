@@ -1,80 +1,54 @@
-# The harness on GitHub
+# The factory and GitHub
 
-Why the workflows in `.github/workflows/` are wired the way they are. None of
-this matters to an agent building the app; all of it matters to whoever
-changes the harness, and most of it was learned the hard way.
+GitHub holds the issues and pull requests; everything that acts on them runs
+on Vercel. There are no GitHub Actions in this repository.
 
-## Setting it up on a fork
+## The webhook
 
-A fork inherits the workflows and the skills but **not the labels**, and
-`ready-for-ai` is what starts everything — so on a fresh fork, labelling an
-issue does nothing and nothing says why.
+`https://nam-2026-factory.vercel.app/api/github` receives `issues`,
+`issue_comment`, `pull_request` and `push` events, signed with
+`GITHUB_WEBHOOK_SECRET` (HMAC SHA-256, checked before anything is parsed).
+Anything not from `jonasingvar/nam-2026-conference` is refused. Comments count
+only from `OWNER`, `MEMBER` or `COLLABORATOR`, and never the factory's own (its
+comments carry `<!-- factory…` or `<!-- ship-on-vercel` markers).
 
-A fork also starts with its workflows paused: open the **Actions** tab and click
-*I understand my workflows, go ahead and enable them* first — until then no
-workflow, this one included, can run.
+| Event | Starts |
+| --- | --- |
+| issue labelled `ready-for-ai` · `/ship` or `@claude` on an issue | ship |
+| pull request opened, reopened, marked ready (not one ship opened) | review + QA, and verify |
+| push to a pull request | verify |
+| `/review` on a pull request | review + QA |
+| `@claude …` on a pull request | respond |
+| pull request closed | wakes the ship run waiting on it; a merge clears its issue's labels |
+| push to `main` | verify, and warm |
 
-Actions → **Set up the harness** → Run workflow. It creates the labels — the
-ones `/ship` puts on an issue from your laptop too — and writes a summary of
-what else the fork has. The agents on GitHub Actions also need an
-`ANTHROPIC_API_KEY` secret **scoped to a workspace** (an organisation-level key
-is rejected, and the error does not say which kind to make), and optionally an
-`AGENT_GITHUB_TOKEN`; running them from Claude Code needs neither.
+Each start holds a token for the life of its run (`ship:<repo>#<n>`,
+`verify:<repo>@<sha>`…), so a redelivered webhook or a second label is told
+which run already has it.
 
-## When the passes run
+## Secrets (on the `nam-2026-factory` Vercel project)
 
-They run when a pull request **opens**, and again if it is marked ready for
-review — but never on a push. One pull request costs one pass of each.
-`synchronize` was the expensive part: it charged for a full review on every
-commit, so a fourteen-commit branch paid fourteen times over for one change.
-To ask for another look after pushing fixes, put the pull request back to
-draft and mark it ready again.
+| Name | What |
+| --- | --- |
+| `GITHUB_TOKEN` | the `jonasingvar` account's token: the factory's API calls, and injected by the sandbox proxy for the agents' `git` and `gh` |
+| `AI_GATEWAY_API_KEY` | injected by the proxy for Claude Code; the functions use OIDC |
+| `JEV_API_KEY` | Jev through AI Gateway, bring-your-own-key |
+| `GITHUB_WEBHOOK_SECRET` | the webhook's signature |
+| `PREVIEW_BYPASS_SECRET` | the app project's *Protection Bypass for Automation*, injected for the one preview QA tests |
+| `FACTORY_TRIGGER_SECRET` | `POST /api/ship` and `GET /api/ship?runId=` by hand |
+| `CRON_SECRET` | the daily warm |
 
-Both passes publish a verdict carrying a **confidence**, which means coverage
-rather than feeling: how much of the change the agent could actually exercise
-or judge. A high-confidence pass is green, a low-confidence one publishes as
-*unproven* — a pass nobody could earn should not read like one.
+## Labels and statuses
 
-Code review and QA trigger on the pull request itself. An earlier design keyed
-off the ship workflow finishing, which cannot work: a run started by an
-`issues` event reports its `head_branch` as `main`, so looking up the pull
-request by branch found nothing and neither pass ever ran.
+Labels: `ready-for-ai` (start), `ai-working`, `needs-human`, `ready-for-human`,
+`ship:fast` / `ship:full` (a person's sizing, read before Jev's), `follow-up`
+(filed by review), `harness-escape`. Statuses on a commit, beside Vercel's
+own: `factory/verify`, `factory/review`, `factory/qa` — each links to its run.
+Machines gate, agents advise: none of them is a required check.
 
-**`pull_request` does fire for a pull request the agent opened**, even though
-that pull request is created with `GITHUB_TOKEN`. This gets re-derived wrongly
-about once a week, because the well-known rule — GitHub does not trigger
-workflows from `GITHUB_TOKEN` actions — sounds like it should apply and does
-not. Verified on PR #22, opened by `github-actions[bot]` with no
-`AGENT_GITHUB_TOKEN` set: `verify` ran on it twice, `event=pull_request`.
+## Deploying
 
-What does happen is that every run on it sits at **`action_required`** until
-somebody clicks *Approve workflows to run*. Verified on a brand-new repository
-in a personal account with no organisation policy of any kind: three workflows
-waiting. This is GitHub's behaviour for anything `github-actions[bot]` opens
-and there is no setting that turns it off.
-
-`AGENT_GITHUB_TOKEN` is the only way around it — the pull request is then
-authored by a person, so nothing is gated. Keeping the click instead is a
-defensible choice: it is a human checkpoint before any agent work runs.
-
-
-## Deploying main to Railway
-
-`.github/workflows/deploy.yml` deploys `main` to Railway. It runs when the
-`verify` workflow finishes for a push to `main`, and only when that run
-succeeded: a red `verify` never deploys. It checks out the exact commit
-`verify` ran on and runs `railway up --ci`. That streams only the build, so the
-workflow then waits (up to 15 minutes) for the deployment it created to reach
-`SUCCESS`, which for this service means its healthcheck passed, and fails on
-`FAILED`, `CRASHED`, `REMOVED` or `SKIPPED`. A deployment that builds but does
-not boot is therefore a red run. Deploys queue in order rather than cancelling
-each other. When the run is green, `https://orbit26.up.railway.app/api/health`
-serves the new commit.
-
-| Name | Kind | Who creates it | What it is |
-| --- | --- | --- | --- |
-| `RAILWAY_TOKEN` | secret | a person, in Railway | A Railway **project token** for the production environment: project settings, Tokens. Add it under the repo's Settings, Secrets and variables, Actions. |
-| `RAILWAY_SERVICE` | variable, optional | a person | The service to deploy. Unset, the CLI uses the project's only service. |
-
-With `RAILWAY_TOKEN` unset the workflow skips with a notice and the run stays
-green, so a fork that has no Railway project is unaffected.
+Both projects deploy from Git through Vercel's integration: `nam-2026-conference`
+(the app) builds every branch as a preview and `main` as production;
+`nam-2026-factory` is the factory. A run in flight finishes on the deployment
+it started on.

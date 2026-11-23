@@ -11,7 +11,6 @@
       "Bash(git merge:*)",
       "Bash(git checkout:*)",
       "Bash(git switch:*)",
-      "Bash(git worktree:*)",
       "Bash(git branch:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -39,23 +38,9 @@
       "Bash(node scripts/:*)",
       "Bash(GATE_SCOPE=branch GATE_BASE=:*)",
       "Bash(GATE_BASE=:*)",
-      "Bash(eval \"$(node scripts/lane.mjs:*)",
       "Bash(npm test:*)",
       "Bash(npm run:*)",
       "Bash(npx playwright test:*)"
-    ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/fork-guard.mjs\" --hook"
-          }
-        ]
-      }
     ]
   }
 }

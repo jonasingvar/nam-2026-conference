@@ -17,31 +17,27 @@ const section = () => {
 };
 
 describe('tracker access in the AI context', () => {
-  test('names the tracker, the repository, the route and the read-only probe rule', () => {
+  test('names the tracker, the repository, and that the original is never written to', () => {
     const s = section();
     assert.match(s, /GitHub Issues/);
-    // The repository is whatever `origin` is: a fixed owner is wrong in every
-    // fork, and pointed agents at the upstream — #128, #149.
-    assert.match(s, /`origin` points at/);
-    assert.doesNotMatch(s, /EqualExperts\//);
-    assert.match(s, /gh repo set-default "\$\(git remote get-url origin\)"/);
+    // This is a personal repository now, not a workshop fork: it names itself,
+    // and names the original only to say nothing writes there.
+    assert.match(s, /jonasingvar\/nam-2026-conference/);
+    assert.match(s, /never the workshop's original \(`EqualExperts\/nam-2026-conference`\)/);
     assert.match(s, /`gh`/);
-    assert.match(s, /upstream/);
     assert.match(s, /read-only/i);
-    assert.match(s, /never[^.]*creat[^.]*(ticket|issue)/i);
+    assert.match(s, /never create a test ticket/i);
   });
 
   test('names the MCP server and REST-with-token alternatives', () => {
     const s = section();
     assert.match(s, /MCP/);
     assert.match(s, /REST/);
-    assert.match(s, /token/i);
   });
 
   test('links the label docs instead of restating labels', () => {
     const s = section();
     assert.ok(s.includes('context/engineering-context/harness/github.md'));
-    assert.ok(s.includes('context/engineering-context/harness.md'));
     for (const label of ['ai-working', 'needs-human', 'ready-for-human', 'ship:full']) {
       assert.ok(!s.includes(label), `${label} is not restated`);
     }

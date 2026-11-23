@@ -1,8 +1,8 @@
 <!--
-The rules a code review follows. Not a command: `/code-review <pr>` runs the
-workflow (.claude/workflows/code-review.js), whose agents are pointed at the
-numbered sections here. The workflow owns the structure — the separate lenses,
-the skeptic, the comment's shape and the verdict line (§5–§6) — so where this
+The rules a code review follows. Not a command: the factory's `review`
+workflow (factory/workflows/review.ts) points its lens agents at the numbered
+sections here. The workflow owns the structure — which lenses, the skeptic,
+the comment's shape, the marker and the commit status (§5–§6) — so where this
 says "you" write the comment or the verdict, the workflow does it for you.
 -->
 

@@ -48,11 +48,13 @@ test('no reference to the previous pin outside specs/ and the lockfile', () => {
 
 test('every skill the README tells you to run is deployed', () => {
   const readme = read('README.md');
-  // a slash command is a skill, or a saved workflow (/ship, /code-review, /qa)
+  // a slash command is a skill, or a command the factory's webhook answers on GitHub
   const names = [...new Set([...readme.matchAll(/(?:`|^)\/([a-z][a-z-]+)/gm)].map((m) => m[1]))];
   assert.ok(names.length > 0);
   for (const n of names) {
-    assert.ok(existsSync(join(root, '.claude/skills', n)) || existsSync(join(root, '.claude/workflows', `${n}.js`)),
-      `README names /${n}, which is neither in .claude/skills nor .claude/workflows`);
+    // /ship and /review are the factory's: comments on GitHub, handled by its webhook.
+    const factory = ['ship', 'review'].includes(n) && readFileSync(join(root, 'factory/app/api/github/route.ts'), 'utf8').includes(`/${n}`);
+    assert.ok(existsSync(join(root, '.claude/skills', n)) || factory,
+      `README names /${n}, which is neither a skill in .claude/skills nor a factory command`);
   }
 });
