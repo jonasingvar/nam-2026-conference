@@ -49,7 +49,9 @@ const probeRun = (url: string, titles: string[]) => [
 export async function qa(input: QaInput) {
   'use workflow';
   try {
-    return await qaRun(input);
+    const r: any = await qaRun(input);
+    await setAttributes({ verdict: String(r.verdict), ...(r.confidence ? { confidence: String(r.confidence) } : {}), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    return r;
   } catch (e: any) {
     // Never leave a pull request's check at "pending": say what stopped it.
     const why = String(e?.message || e).slice(0, 140);

@@ -40,7 +40,9 @@ const LENSES: Record<string, string> = {
 export async function review(input: ReviewInput) {
   'use workflow';
   try {
-    return await reviewRun(input);
+    const r: any = await reviewRun(input);
+    await setAttributes({ verdict: String(r.verdict), ...(r.confidence ? { confidence: String(r.confidence) } : {}), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    return r;
   } catch (e: any) {
     // Never leave a pull request's check at "pending": say what stopped it.
     const why = String(e?.message || e).slice(0, 140);

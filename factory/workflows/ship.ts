@@ -55,7 +55,9 @@ const STUCK_AFTER = 2;
 export async function ship(input: ShipInput) {
   'use workflow';
   try {
-    return await shipRun(input);
+    const r: any = await shipRun(input);
+    await setAttributes({ outcome: String(r.outcome), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    return r;
   } catch (e: any) {
     // Anything unexpected — a step that failed for good, a deployment mid-rollout — must never
     // leave a ticket sitting at "ai-working" with nobody told. Say so on the issue, hand it to a person.
@@ -65,6 +67,7 @@ export async function ship(input: ShipInput) {
     await setLabels(input.issue, ['needs-human'], ['ai-working', 'ready-for-ai']).catch(() => null);
     await comment(input.issue, `### 🏭 Ship on Vercel · the run crashed\n\n\`${why}\`\n\nNothing is lost: the work so far is on its branch. Reply here (or add \`ready-for-ai\`) to try again.\n\n` +
       `<sub>[run](${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId})</sub>`).catch(() => null);
+    await setAttributes({ outcome: 'crashed' }).catch(() => null);
     return { outcome: 'crashed', issue: input.issue, reason: why };
   }
 }
@@ -125,7 +128,12 @@ async function shipRun(input: ShipInput) {
     status[phase] = 'running';
     current = phase;
     // Searchable in Vercel's run list: which ticket, what size, where it is now.
-    await setAttributes({ issue: String(n), phase, ...(profile ? { size: profile.size } : {}), ...(prUrl ? { pr: prUrl.split('/').pop()! } : {}) });
+    // On the run in Vercel, searchable: which ticket, where it is, what it has cost so far (review and QA included).
+    await setAttributes({
+      issue: String(n), title: issueTitle.slice(0, 200), phase,
+      spend_usd: spend.total.toFixed(2), agents: String(spend.agents),
+      ...(profile ? { size: profile.size } : {}), ...(prUrl ? { pr: prUrl.split('/').pop()! } : {}),
+    });
     await show();
   };
   const log = (s: string) => { lines.push(s); console.log(`#${n} ${s}`); };

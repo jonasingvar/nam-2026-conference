@@ -53,5 +53,6 @@ export async function respond(input: RespondInput) {
     `\n<sub>🏭 Factory · ${k.spendLine()} · [run](${runUrl})</sub>`,
   ].filter(Boolean).join('\n'));
   await disposeSandbox(box);
+  await setAttributes({ outcome: change?.changed ? 'changed' : 'answered', spend_usd: k.spend.total.toFixed(2) });
   return { outcome: change?.changed ? 'changed' : 'answered', gate: gateLine, spend: k.spend.total };
 }

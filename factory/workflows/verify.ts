@@ -42,5 +42,6 @@ export async function verify(input: VerifyInput) {
   if (ran.factory === 'failed') { g.ok = false; g.browser.failed.unshift({ test: 'factory: typecheck or tests' }); }
   const line = `unit ${g.unit.passed}${g.unit.failed ? ` (${g.unit.failed} failed)` : ''} · browser ${g.browser.passed}${g.browser.failed.length ? ` (${g.browser.failed.length} failed)` : ''}${g.scope === 'branch' ? ' · specs this change reaches' : ''}${ran.factory === 'ok' ? ' · factory ok' : ''}`;
   await setStatus(input.sha, 'factory/verify', g.ok ? 'success' : 'failure', g.ok ? line : `${g.browser.failed[0]?.test || 'npm test'} — ${line}`, runUrl);
+  await setAttributes({ verdict: g.ok ? 'pass' : 'fail' });
   return { ok: g.ok, line, failed: g.browser.failed.map((f: any) => f.test) };
 }
