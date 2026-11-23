@@ -4,9 +4,11 @@ The rules a QA pass follows. Not a command: the factory's `qa` workflow
 (another, cheaper one, from the plan alone), runs them on the pull request's
 Vercel preview itself — desktop and mobile — and reproduces each failure there
 and on the base's deployment before it publishes. The re-runs in §3 are the
-workflow's, not an agent's. Its agents are pointed at the numbered sections here. Probes run against the
+workflow's, not an agent's. Its agents are pointed at the numbered sections here. Read-only probes run against the
 deployed preview (`QA_BASE_URL`, a remote Playwright config the workflow
-writes), not a local dev server: never start the app.
+writes); probes the plan marks `stateful` run on the branch's own app, which
+a second config the workflow writes boots on a claimed lane. Never start the
+app yourself.
 -->
 
 # QA a change
@@ -80,6 +82,15 @@ workflow, the Actions YAML or a doc is probed by running it:
 Nothing that touches GitHub, and nothing that changes a tracked file.
 
 
+**A probe that writes is `stateful`.** A preview's function instances each
+seed their own SQLite, so a seat booked through the API on one is missing when
+another serves the page: on #36 every probe that booked and then looked saw an
+empty agenda. Mark any probe that books or releases a seat, checks in, rates or
+follows and then reads it back `stateful`; the workflow runs it on the branch's
+own app in the sandbox (one process, one database, desktop then mobile, never
+at once). Plan the rest read-only, on the seed as it is, so they still meet the
+real preview — which is the point.
+
 **Time is an edge.** When the change depends on the clock, one probe pins it before
 the change applies — Day 1 08:00, before the seed's already-attended morning has
 happened. #89 read "Rated ★5" for a talk an hour away, and only that probe saw it.
@@ -122,10 +133,21 @@ Two checks, both required.
 **Re-run it.** A probe that fails once and passes once has not reproduced.
 That is flakiness, and filing it as a defect is worse than missing it.
 
-**Try it on `main`.** Stash the probe, check out `origin/main`, run it there.
+**Try it on `main`.** Stash the probe, check out `origin/main`, run it there
+(the workflow uses the base's deployment, or for a `stateful` probe a worktree
+of the base running its own app).
 If it fails there too the bug is real but **pre-existing** — report it and
 pass. Blaming this pull request sends somebody to fix code that did not
 change.
+
+**Not every failure is the code's.** A failure that comes from where the probe
+ran — a preview instance without state another wrote, a host the sandbox
+cannot reach (`net::ERR_NAME_NOT_RESOLVED`), a cold start — is the
+**environment's**: the base comparison or the skeptic says so, and the comment
+lists it ⚪ under *Environment, not this change*, with the reason. It never
+shows ❌, never fails the pass, and does not count towards confidence: it
+exercised nothing. A base that fails a probe only because the feature is not
+there yet says nothing about the change, so the skeptic decides it.
 
 **A blocker is something someone will hit.** A failure that reproduces but
 only from an input nobody gives in normal use — a hand-edited URL or
@@ -154,8 +176,8 @@ three lines: **what you did, what you expected, what happened.**
 
 Label every finding **a bug in this change**, **pre-existing**, **a
 follow-up** (real, but contrived — or harmless: reachable, yet nobody loses
-anything, like a stray label), or **a question** you cannot tell is
-intended. The workflow ends the comment with the `orbit-verdict:qa` marker the
+anything, like a stray label), **the environment's** (§3), or **a question**
+you cannot tell is intended. The workflow ends the comment with the `orbit-verdict:qa` marker the
 next pass reads back. Show it rather than describe it:
 
 ```bash
