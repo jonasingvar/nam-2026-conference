@@ -59,7 +59,8 @@ Anything under `EqualExperts/` is refused by the proxy itself.
 
 ## 🧾 What it costs
 
-Every agent reports its own cost (`total_cost_usd`, by model). The issue's
+Every agent's tokens are priced from AI Gateway's live catalog (Claude Code's
+own `total_cost_usd` guesses for models it does not know). The issue's
 progress comment shows the spend as it grows, and the pull request gets a line
 splitting it by phase. A first small ticket: about **$1** to a pull request.
 

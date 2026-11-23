@@ -76,7 +76,21 @@ export async function qaTriage(s: string, id: string, f: Record<string, string>,
   'use step';
   return advance(s, id, f, c);
 }
-export async function probePreview(s: string, id: string, f: Record<string, string>, c: string) {
+// QA, split so the trace shows where its time goes: seed the preview's instances, plan (a thinking
+// model), write the probes (a cheap one), and the factory's own run of them on each viewport.
+export async function warmPreview(s: string, id: string, f: Record<string, string>, c: string) {
+  'use step';
+  return advance(s, id, f, c);
+}
+export async function planProbes(s: string, id: string, f: Record<string, string>, c: string) {
+  'use step';
+  return advance(s, id, f, c);
+}
+export async function writeProbes(s: string, id: string, f: Record<string, string>, c: string) {
+  'use step';
+  return advance(s, id, f, c);
+}
+export async function runProbes(s: string, id: string, f: Record<string, string>, c: string) {
   'use step';
   return advance(s, id, f, c);
 }
@@ -126,7 +140,10 @@ measureDiff.maxRetries = 5;
 recheckBlocker.maxRetries = 5;
 reviewLens.maxRetries = 5;
 qaTriage.maxRetries = 5;
-probePreview.maxRetries = 5;
+warmPreview.maxRetries = 5;
+planProbes.maxRetries = 5;
+writeProbes.maxRetries = 5;
+runProbes.maxRetries = 5;
 reproduce.maxRetries = 5;
 reproduceOnBase.maxRetries = 5;
 cleanUp.maxRetries = 5;
@@ -143,7 +160,7 @@ export function phaseFor(label: string): Phase {
     branch: makeBranch, plan: spec, 'plan-audit': planAudit, 'revise-spec': reviseSpec, build: implement,
     gate, audit: codeAudit, skeptic, fix, learn, push: pushBranch,
     checkout, facts: measureDiff, recheck: recheckBlocker, lens: reviewLens,
-    triage: qaTriage, probe: probePreview, again: reproduce, base: reproduceOnBase, clean: cleanUp, change: makeChange,
+    triage: qaTriage, warm: warmPreview, probeplan: planProbes, write: writeProbes, run: runProbes, again: reproduce, base: reproduceOnBase, clean: cleanUp, change: makeChange,
     pages: listPages, shoot: screenshot,
   };
   return table[head] ?? job;

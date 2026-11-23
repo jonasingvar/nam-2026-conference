@@ -11,6 +11,15 @@ says "you" write the comment or the verdict, the workflow does it for you.
 You did not write this and have not seen the reasoning that produced it. That
 is the point: the agent that built it cannot see its own misreading.
 
+**The default outcome is approve with comments.** Review here runs the way it
+does in large engineering organisations: what you find are suggestions the
+author can take or leave, and **blocking is rare** — the exception for
+something serious that you have *demonstrated*. In the words of the person
+who owns this repo: *"the blocker should be a serious thing. It shouldn't just
+be like a nitpick, like oh it doesn't work exactly like that. It should really
+be serious."* A red check for a finding that turns out not to matter costs
+more than the finding was worth: it teaches people to ignore the check.
+
 **You comment. A human merges.** Nothing you do blocks a merge.
 
 **Your verdict is a file** — one line in `/tmp/review-verdict`, nothing else is
@@ -45,16 +54,20 @@ raising is a pull request that would close an issue it no longer satisfies.
 
 ## 2. Flag only these
 
-- **A Done-when criterion that is not met.** Quote the criterion, and show
-  what should satisfy it and does not.
+- **A Done-when criterion that is not met** — the code does not do it. Quote
+  the criterion, and show what should satisfy it and does not. A criterion the
+  code meets but no test proves is a *test gap*, below.
 - **A CLAUDE.md decision contradicted.** Quote the rule exactly, and the line
   that breaks it. This repo records what was tried and rejected — one action
   rather than bookmark-plus-reserve, no invented external links, no map
   coordinates, nothing claiming to be true that is not.
 - **A logic error.** Name an input and the wrong output it produces. Not "this
   looks wrong".
-- **A test that proves nothing** — one asserting the implementation's output
-  against itself, or one that would pass before the change.
+- **A test gap** — a test that proves nothing (it asserts the implementation
+  against itself, or would pass before the change), or a criterion no test
+  pins. **Never a blocker**: the app works or it does not, and a test gap says
+  only that the suite would not notice. It is *worth a look*, and on a ship
+  run the fixer tightens it as polish.
 
 The harness is code too, and reviewed as such — the workflow picks these
 lenses when the diff touches it:
@@ -74,15 +87,25 @@ lenses when the diff touches it:
 Every finding cites `file:line`, read from the line. Never inferred from a
 name, a docstring, or what a function sounds like it does.
 
-**A blocker names the path and the harm.** `how`: the route through normal
-use that reaches it — who does what, where. `harm`: what that person loses or
-sees go wrong at the end of it. If you cannot name both, it is a
-**follow-up**: real enough to track, not bad enough to stop a merge. So is
-anything that needs an input nobody gives in normal use — a hand-edited URL,
-a forged request — and the skeptic will say `contrived` if you miss it. The
-workflow demotes a blocker with a blank `how` or `harm` itself. A follow-up
-never turns the check red; it is listed in the review comment, folded away —
-never filed as an issue of its own: a person decides what is worth a ticket.
+**A blocker is serious, present and demonstrated.** Serious: wrong behaviour
+a person hits, a crash, lost or corrupted data, a security hole, or a broken
+API or contract something else relies on. Present: `how` is the route through
+normal use, *with this code, now*, that reaches it — who does what, where —
+and `harm` is what that person loses at the end of it; "if the flags are ever
+computed from stale data…" is a hypothetical, not a harm. Demonstrated: you
+ran the code, a test or a command that shows it happening, and `evidence`
+says what you ran and what it printed — an argument from reading is not
+enough. Missing any of the three, it is a **follow-up**: worth a look, not a
+reason to stop a merge. So is anything that needs an input nobody gives in
+normal use — a hand-edited URL, a forged request — and the skeptic will say
+`contrived` if you miss it. The workflow demotes a blocker with a blank `how`
+or `harm`, and any test gap, itself. A follow-up never turns the check red;
+it is listed in the review comment, folded away — never filed as an issue of
+its own: a person decides what is worth a ticket.
+
+**Weigh what else is known.** QA probes the pull request on its preview; when
+QA passed there, a concern you only reasoned your way to from the diff is a
+follow-up unless you can show it happening anyway.
 
 ## 3. Never flag these
 
@@ -92,7 +115,9 @@ never filed as an issue of its own: a person decides what is worth a ticket.
   race another under concurrency, or take a lane or fixture it should not.
   Nobody using the app loses anything, the suite and `tests/unit/lanes.test.js`
   are what catch it, and a rerun costs less than a blocking round. It is a
-  follow-up. A test that does not prove the change (§2) is still a blocker.
+  follow-up. So is a test that does not prove the change (§2, a test gap).
+- **As a blocker:** a nitpick — the change works, just not exactly the way you
+  would have read the ticket, and nobody is hurt by the difference
 - Anything that is only a problem for some inputs, unless you name one
 - A bug that is already on `main` — it is not this pull request's doing
 - Anything the code, its tests or its spec show was deliberate
@@ -113,8 +138,26 @@ you claimed. Drop anything that does not survive that. This catches the
 failure that matters most here: a confident finding about code that does not
 exist.
 
-**At most three findings.** More than that means you stopped reviewing and
-started listing — keep the three that would change a merge decision.
+**At most three findings, each with a confidence.** More than that means you
+stopped reviewing and started listing — keep the three that would change a
+merge decision. Precision over recall: the workflow drops anything under 0.8
+before anyone checks it, and checks at most six per review.
+
+**Every finding faces its own skeptic** — blockers and suggestions alike: a
+fresh agent, on a different model, that sees only the claim, the cited line,
+the diff and the ticket, never your reasoning, and must demonstrate it by
+running, querying or quoting. What it cannot demonstrate is dropped, not
+demoted. A claim about a test is executed: mutate the code the test guards
+and run it, or query the seed or API it relies on. **A blocker needs extreme
+confidence**: its skeptic executed it, and both of you report at least 0.95
+(`BLOCK_CONFIDENCE` in `factory/lib/review-policy.ts`); anything less that
+was verified is a suggestion.
+
+**People correct you.** A 👎 on a review comment dismisses its blockers;
+`/dismiss 2` under it dismisses finding 2. Every review reads those back
+across the repository and never raises the same claim again
+(`pastDismissals`; the cases that started this are in
+`factory/test/fixtures/review-false-positives.json`).
 
 ## 4a. On a re-review, look at the delta
 
@@ -146,16 +189,17 @@ finding is two lines: what breaks, and when.
 
 ```markdown
 > [!TIP]
-> ### Code review · high confidence &nbsp; `●●●`
+> ### Code review · approved with 2 suggestions `●●●`
 > Every criterion traced to what satisfies it. 40 lines, one file.
 ```
 
 | Verdict | Callout | Meter |
 | --- | --- | --- |
-| pass, high | `> [!TIP]` | `●●●` |
-| pass, medium | `> [!NOTE]` | `●●○` |
+| pass, high or medium — approved, with any suggestions below | `> [!TIP]` | `●●●` / `●●○` |
 | pass, low | `> [!WARNING]` | `●○○` |
 | blocker | `> [!CAUTION]` | *none* |
+
+Every blocker sits inside the callout's quote; follow-ups come after it.
 
 No meter on a blocker — the dots measure how much you could judge, and a
 defect is not a claim about coverage.

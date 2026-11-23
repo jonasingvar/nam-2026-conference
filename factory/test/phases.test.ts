@@ -8,7 +8,7 @@ test('every job a workflow starts runs under the step named for its phase, not t
     'build': P.implement, 'gate_2': P.gate, 'audit_combined_1': P.codeAudit, 'audit_browser-retry_2': P.codeAudit,
     'skeptic_logic': P.skeptic, 'fix_1': P.fix, 'learn': P.learn, 'push': P.pushBranch,
     'checkout': P.checkout, 'facts': P.measureDiff, 'recheck_logic': P.recheckBlocker, 'lens_criteria': P.reviewLens,
-    'triage': P.qaTriage, 'probe': P.probePreview, 'again_x': P.reproduce, 'base_x': P.reproduceOnBase, 'clean': P.cleanUp,
+    'triage': P.qaTriage, 'warm': P.warmPreview, 'probeplan': P.planProbes, 'write': P.writeProbes, 'write_up': P.writeProbes, 'build_up': P.implement, 'plan_up': P.spec, 'run_desktop': P.runProbes, 'again_x': P.reproduce, 'base_x': P.reproduceOnBase, 'clean': P.cleanUp,
     'change': P.makeChange,
   };
   for (const [label, step] of Object.entries(cases)) assert.equal(P.phaseFor(label), step, label);

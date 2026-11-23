@@ -118,12 +118,15 @@ export const REVIEW_LENS = {
     findings: {
       type: 'array', maxItems: 3,
       items: {
-        type: 'object', required: ['severity', 'category', 'file', 'claim', 'evidence'],
+        type: 'object', required: ['severity', 'category', 'file', 'claim', 'evidence', 'confidence', 'demonstrated'],
         properties: {
           severity: { enum: ['blocker', 'follow-up'] },
-          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'actions', 'docs', 'orchestration'] },
-          file: str, line: int, claim: str, evidence: str,
-          how: { type: 'string', description: 'the route through normal use that reaches it — who does what, where' },
+          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'test-gap', 'actions', 'docs', 'orchestration'] },
+          file: str, line: int, claim: str,
+          evidence: { type: 'string', description: 'what you checked and what it showed: the command or test you ran and its output, the API or preview response, or the exact line quoted and what it does' },
+          confidence: { type: 'number', minimum: 0, maximum: 1, description: 'how sure you are this is real and matters; under 0.8 it is dropped' },
+          demonstrated: { type: 'boolean', description: 'true only if you ran code, a test or a command that shows it happening — reading is not demonstrating' },
+          how: { type: 'string', description: 'the route through normal use, with this code now, that reaches it — who does what, where' },
           harm: { type: 'string', description: 'what that person loses or sees go wrong' },
         },
       },
@@ -132,8 +135,11 @@ export const REVIEW_LENS = {
 };
 
 export const SKEPTIC = {
-  type: 'object', required: ['verdict', 'why'],
-  properties: { verdict: { enum: ['confirmed', 'refuted', 'contrived'] }, why: str },
+  type: 'object', required: ['verdict', 'why', 'confidence', 'executed'],
+  properties: {
+    confidence: { type: 'number', minimum: 0, maximum: 1, description: 'how sure you are of your verdict' },
+    executed: { type: 'boolean', description: 'true only if you ran code, a test or a command that shows it — reading and quoting is not executing' },
+    verdict: { enum: ['confirmed', 'refuted', 'contrived', 'unproven'], description: 'confirmed: you demonstrated it; contrived: real but only from input nobody gives in normal use; refuted: wrong, deliberate, already on the base, or a nitpick that hurts nobody; unproven: you could not show it' }, why: str },
 };
 
 export const QA_TRIAGE = {
@@ -148,22 +154,36 @@ export const QA_TRIAGE = {
   },
 };
 
-export const QA_PROBES = {
+/** QA's planner: what to probe, exactly enough that a cheap model can write it without exploring. */
+export const QA_PLAN = {
   type: 'object', required: ['probes', 'covered'],
   properties: {
-    covered: { type: 'string', description: 'what the probes exercised — under 15 words' },
+    covered: { type: 'string', description: 'what the probes will exercise — under 15 words' },
     probes: {
       type: 'array', maxItems: 5,
       items: {
-        type: 'object', required: ['title', 'aim', 'passedDesktop', 'passedMobile'],
+        type: 'object', required: ['title', 'aim', 'route', 'as', 'steps', 'expect'],
         properties: {
-          title: { type: 'string', description: 'the exact test title in tests/qa-probe.spec.js' },
+          title: { type: 'string', description: 'the test title, starting "qa: "' },
           aim: { type: 'string', description: 'what it checks, and the criterion or gap it serves' },
-          passedDesktop: bool, passedMobile: bool,
-          expected: str, actual: str,
+          route: { type: 'string', description: 'the path to open, e.g. /my-agenda or /schedule?view=list' },
+          as: { enum: ['jonas', 'andy', 'kenji', 'sofia', 'marcus', 'abraham'], description: 'the seeded attendee (tests/helpers.js ATTENDEES)' },
+          at: { type: 'string', description: 'the pinned clock as "<dayIndex> HH:MM" (0 is Day 1), or "" for unpinned' },
+          steps: { type: 'array', items: str, description: 'what to do, in order, naming the test id or role and accessible name of each control (read from src/)' },
+          expect: { type: 'array', items: str, description: 'each observable result to assert, naming its test id or role' },
         },
       },
     },
+  },
+};
+
+/** QA's writer: the probe file, compiled and run once. */
+export const QA_WRITTEN = {
+  type: 'object', required: ['written', 'titles'],
+  properties: {
+    written: { type: 'boolean', description: 'tests/qa-probe.spec.js holds one test per plan item and lists without errors' },
+    titles: { type: 'array', items: str, description: 'the exact test titles written' },
+    notes: { type: 'string', description: 'anything the plan could not be written as — under 40 words' },
   },
 };
 

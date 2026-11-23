@@ -2,6 +2,7 @@ import { getWorkflowMetadata, setAttributes } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, readPullRequest } from '../lib/github-steps';
+import { chooseModels, describe, modelBook } from '../lib/models';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import * as S from './schemas';
 
@@ -39,13 +40,18 @@ async function respondRun(input: RespondInput) {
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await comment(pr.number, `Could not check out ${pr.head}. [run](${runUrl})`); return { outcome: 'failed' }; }
 
+  // The model for the change: Jev reads the ask and the pull request; a docs-only fix from review is cheap work.
+  const choice = await chooseModels(`Pull request #${pr.number}: ${pr.title}\n\n${pr.body.slice(0, 3000)}\n\nAsked by ${input.author}: ${input.ask}`, 'small', ['respond']);
+  const models = modelBook(choice, 'small');
+  k.useModels(models);
+  k.log(`respond on ${describe(models.pick('respond'))}`);
   const change = await k.agent('change',
     `${input.author} asked, on pull request #${pr.number} "${pr.title}" (branch ${pr.head}):\n\n"${input.ask}"\n\n` +
     `Make the change asked for, and nothing else. Read the conversation for context first (\`gh pr view ${pr.number} --comments\`). If a spec in specs/ for this branch ` +
     `records a decision this changes, update the spec too. Keep the context docs true (\`node scripts/context.mjs for <changed files>\`). \`npm test\` after every edit; ` +
     `a browser test you add or change runs alone by title. Never edit an existing test to make it pass. Commit in Conventional Commits and push. ` +
     `If the ask is a question rather than a change, answer it and change nothing. Leave \`git status\` clean.`,
-    S.RESPONSE, 'sonnet');
+    S.RESPONSE, 'respond');
 
   let gateLine = '';
   if (change?.changed) {
@@ -61,9 +67,9 @@ async function respondRun(input: RespondInput) {
   await comment(pr.number, [
     change ? change.reply : `I could not finish that. [run](${runUrl})`,
     gateLine ? `\n${gateLine}` : '',
-    `\n<sub>🏭 Factory · ${k.spendLine()} · [run](${runUrl})</sub>`,
+    `\n<sub>🏭 Factory · ${models.summary()} · ${k.spendLine()} · [run](${runUrl})</sub>`,
   ].filter(Boolean).join('\n'));
   await disposeSandbox(box);
-  await setAttributes({ outcome: change?.changed ? 'changed' : 'answered', spend_usd: k.spend.total.toFixed(2) });
+  await setAttributes({ outcome: change?.changed ? 'changed' : 'answered', spend_usd: k.spend.total.toFixed(2), models: models.summary().slice(0, 250), est_usd: models.totals().est.toFixed(2) });
   return { outcome: change?.changed ? 'changed' : 'answered', gate: gateLine, spend: k.spend.total };
 }

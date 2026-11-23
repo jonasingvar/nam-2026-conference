@@ -4,12 +4,15 @@ import { review } from './review';
 import { qa } from './qa';
 import { shots } from './shots';
 import { pinPreview } from '../lib/shots-steps';
-import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
+import { runJob } from '../lib/jobs';
+import { routedAgent } from '../lib/kit';
+import { chooseModels, describe, modelBook, type Job, type ModelBook } from '../lib/models';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
   comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
+import { isTestGap } from '../lib/review-policy';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
@@ -36,7 +39,7 @@ type Finding = {
   claim: string; evidence: string; fix: string; also?: { category: string; claim: string; evidence: string }[];
 };
 type Profile = {
-  size: Size; why: string; think: Model; build: Model;
+  size: Size; why: string;
   planAudits: string[]; planRounds: number; lenses: string[]; buildRounds: number;
   browserAlways?: boolean; probes: number; gateScope?: 'branch'; reaudit: boolean; learns: boolean; escalated?: boolean;
 };
@@ -44,15 +47,18 @@ type Profile = {
 const PROFILES: Record<Size, Omit<Profile, 'why'>> = {
   // A person is waiting and the change is understood: one combined audit, the
   // browser specs the change reaches, a fix re-gated rather than re-audited.
-  fast: { size: 'fast', think: 'sonnet', build: 'sonnet', planAudits: [], planRounds: 0, lenses: ['combined'], buildRounds: 2, probes: 0, gateScope: 'branch', reaudit: false, learns: false },
+  fast: { size: 'fast', planAudits: [], planRounds: 0, lenses: ['combined'], buildRounds: 2, probes: 0, gateScope: 'branch', reaudit: false, learns: false },
   // Contained: one combined audit, the whole suite, a browser audit only when
   // something visible changed without a browser test to prove it.
-  small: { size: 'small', think: 'sonnet', build: 'sonnet', planAudits: [], planRounds: 0, lenses: ['combined', 'browser'], buildRounds: 2, probes: 2, reaudit: true, learns: true },
+  small: { size: 'small', planAudits: [], planRounds: 0, lenses: ['combined', 'browser'], buildRounds: 2, probes: 2, reaudit: true, learns: true },
   // A rule, stored data or the harness: Opus, a plan audit, three lenses.
-  full: { size: 'full', think: 'opus', build: 'opus', planAudits: ['criteria', 'fit'], planRounds: 3, lenses: ['criteria', 'rules', 'browser'], buildRounds: 4, probes: 5, reaudit: true, learns: true },
+  full: { size: 'full', planAudits: ['criteria', 'fit'], planRounds: 3, lenses: ['criteria', 'rules', 'browser'], buildRounds: 4, probes: 5, reaudit: true, learns: true },
 };
 
 const STUCK_AFTER = 2;
+
+/** The jobs a ship run books a model for. */
+const SHIP_JOBS: Job[] = ['spec', 'planAudit', 'reviseSpec', 'implement', 'fix', 'audit', 'browserAudit', 'skeptic', 'learn'];
 
 export async function ship(input: ShipInput) {
   'use workflow';
@@ -111,7 +117,9 @@ async function shipRun(input: ShipInput) {
     rounds.length ? `\n| Round | Gate | Audit |\n| --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed |`).join('\n')}` : '',
     '',
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
-      (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m.replace(/^claude-/, '')} ${dollars(c)}`).join(', ')})` : ''),
+      (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m} ${dollars(c)}`).join(', ')})` : '') +
+      (models && models.attempts.length ? ` · expected ${dollars(models.totals().est)}${models.climbs.length ? ` · ${models.climbs.length} climb${models.climbs.length === 1 ? '' : 's'}` : ''}` : ''),
+    models && models.attempts.length ? `\n<details><summary>Models — which job ran on what, and why</summary>\n\n${models.table()}\n\nPicked per job by Jev from AI Gateway's live catalog, cheapest tier that is likely enough; a failure climbs one tier.\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
     `<sub>Durable run [${workflowRunId}](${runUrl}) · resumes from its last finished step if anything dies</sub>`,
@@ -134,6 +142,8 @@ async function shipRun(input: ShipInput) {
     await setAttributes({
       issue: String(n), title: issueTitle.slice(0, 200), phase,
       spend_usd: spend.total.toFixed(2), agents: String(spend.agents),
+      // Which model each job ran on (job=model, ↑ a climb), what was expected, and how often a cheap pick failed.
+      ...(models && models.attempts.length ? { models: models.summary().slice(0, 250), est_usd: models.totals().est.toFixed(2), climbs: String(models.climbs.length) } : {}),
       ...(profile ? { size: profile.size } : {}), ...(prUrl ? { pr: prUrl.split('/').pop()! } : {}),
     });
     await show();
@@ -155,18 +165,30 @@ async function shipRun(input: ShipInput) {
     `the app fits together — open source only for the lines you will change or must verify. ` +
     `When you are done, your final answer is the structured result; nothing else you write is read.\n\n`;
 
-  async function agent(label: string, prompt: string, schema: any, model: Model, effort?: Effort): Promise<any | null> {
-    const id = jobId(label);
-    const done = await runJob(box, id, { 'prompt.md': PREAMBLE + prompt, 'schema.json': JSON.stringify(schema) }, agentScript(model, effort));
-    const r: AgentRun = readAgent(done, schema);
-    spend.total += r.costUsd;
-    spend.agents += 1;
-    spend.byPhase[current] = (spend.byPhase[current] || 0) + r.costUsd;
-    for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
-    log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
+  // Which model each job runs on: Jev's choice, priced from the gateway's catalog, climbing on failure.
+  let models: ModelBook | null = null;
+  /** The tier of whichever job last wrote the code: a red gate after it sends the fixer above it. */
+  let lastEdit: { job: Job; tier: number; model: string } | null = null;
+  async function agent(label: string, prompt: string, schema: any, job: Job): Promise<any | null> {
+    const { value, pick } = await routedAgent({
+      box, jobId, book: models!, job, label, prompt: PREAMBLE + prompt, schema, log,
+      onRun: (_r, cost) => {
+        spend.total += cost.total;
+        spend.agents += 1;
+        spend.byPhase[current] = (spend.byPhase[current] || 0) + cost.total;
+        for (const [m, c] of Object.entries(cost.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
+      },
+    });
+    if (job === 'implement' || job === 'fix') lastEdit = { job, tier: pick.tier, model: pick.model };
     // The phase step already streamed this agent's result; the comment catches up at the next phase.
-    return r.value;
+    return value;
   }
+  const chooseFor = async (size: Size, jobs: Job[]) => {
+    const choice = await chooseModels(`GitHub issue #${n}: ${issueTitle}\n\n${issue.body}` + (input.notes ? `\n\nThe person who asked wrote: ${input.notes}` : ''), size, jobs);
+    if (models) models.adopt(choice); else models = modelBook(choice, size);
+    log(`models for a ${size} run (Jev, ${choice.ms} ms${choice.live ? '' : ', last known prices'}${choice.why ? `; ${choice.why}` : ''}): ` +
+      jobs.map((j) => `${j} ${describe(models!.pick(j))}`).join(' · '));
+  };
 
   /** A shell job whose script writes $JOB/result.json; returns it parsed, or null. */
   async function command(label: string, script: string): Promise<any | null> {
@@ -254,6 +276,8 @@ async function shipRun(input: ShipInput) {
   triage = input.size ? { size: input.size, picked: null, sure: null, why: 'asked for explicitly', ms: 0 } : await triageIssue(issue);
   log(`triage: ${triage.why}${triage.ms ? ` in ${triage.ms} ms` : ''}`);
   if (triage.size !== 'sized') profile = { ...PROFILES[triage.size], why: triage.why };
+  // A sized run is chosen for as small until its plan says otherwise (then chosen again).
+  await chooseFor(profile?.size ?? 'small', SHIP_JOBS);
 
   // ════════════════════════════════════════════════════════════════════════
   // 2. Plan — a sandbox, a branch, and a spec as the branch's first commit.
@@ -290,7 +314,7 @@ async function shipRun(input: ShipInput) {
     `Commit it as the branch's first commit ("docs(spec): <title in lower case>") and push (\`git push -u origin HEAD\`).\n\n` +
     `Then report facts about the change — what it touches and risks, from the files you opened, not from how long the ticket is — and ` +
     `each Done-when criterion verbatim (write them as checkable criteria if the ticket has none). Return each Decision as a yes/no question for the reviewer.`,
-    S.PLAN, profile?.think ?? 'opus', 'medium');
+    S.PLAN, 'spec');
   if (!plan) return handBack('Plan', 'the planner did not finish');
   if (!plan.shippable) {
     await comment(n, `### 🏭 Ship on Vercel · not started\n\n${plan.reason}\n\nEdit the issue and add \`ready-for-ai\` again.`);
@@ -303,7 +327,10 @@ async function shipRun(input: ShipInput) {
   specPath = plan.spec.path;
   const doneWhen: string[] = plan.doneWhen;
   const ticket = ticketText(issue, doneWhen);
-  if (!profile) profile = profileFor(plan.facts);
+  if (!profile) {
+    profile = profileFor(plan.facts);
+    if (profile.size !== 'small') await chooseFor(profile.size, SHIP_JOBS.filter((j) => j !== 'spec'));
+  }
   log(`sized ${profile.size} — ${profile.why}`);
   await show();
 
@@ -326,7 +353,7 @@ async function shipRun(input: ShipInput) {
       `${ticket}\nYou are auditing a spec you did not write: ${specPath} on branch ${branch}. ${asks[l]}\n\n` +
       `Judge the plan, do not build it: open source only for a line the spec cites that the docs do not settle; run no tests. ` +
       `Blockers only for what would make the change wrong or unprovable. Category scope only when the TICKET itself is contradictory or unbuildable. Cite file and line. Empty is a good answer.`,
-      S.FINDINGS, profile!.think, 'medium')));
+      S.FINDINGS, 'planAudit')));
     if (reports.some((r) => !r)) return handBack('Plan audit', 'a plan auditor did not finish');
     const blockers = reports.flatMap((r: any) => r.findings as Finding[]).filter((f) => f.severity === 'blocker' && !carried.some((c) => where(c) === where(f)));
     const confirmed = await confirm(blockers, 'the spec', ticket);
@@ -340,7 +367,7 @@ async function shipRun(input: ShipInput) {
     const revised = await agent(`revise-spec#${round}`,
       `${ticket}\nIndependent auditors confirmed these problems with ${specPath} on branch ${branch}:\n\n${list(open)}\n\n` +
       `Revise the spec to resolve each. A technical question the ticket does not settle is yours: decide it under *Decisions*, with why. Commit ("docs(spec): …") and push.`,
-      S.SPEC_REVISED, profile.think);
+      S.SPEC_REVISED, 'reviseSpec');
     if (!revised) return handBack('Plan audit', 'the spec reviser did not finish', open);
   }
 
@@ -365,7 +392,7 @@ async function shipRun(input: ShipInput) {
     `If something an attendee sees changed, call \`await shotForPR(page, '<what it shows>')\` (tests/helpers.js) in the browser test at the moment the change is on screen. ` +
     `Leave \`git status\` clean.` +
     (carried.length ? `\n\nThe plan audit left these for the build to resolve:\n${list(carried)}` : ''),
-    S.BUILT, profile.build);
+    S.BUILT, 'implement');
   if (!built || !built.ok) return handBack('Build', built ? built.summary : 'the builder did not finish');
 
   // ════════════════════════════════════════════════════════════════════════
@@ -373,15 +400,15 @@ async function shipRun(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   const LENS_ASK: Record<string, string> = {
     combined: `Read the ticket, then the spec (does it read the ticket right? a misreading is criterion-unmet; a self-contradicting ticket is scope), then \`git diff origin/${BASE}...HEAD\`. ` +
-      `For each Done-when criterion find what satisfies it and the test that proves it — nothing satisfying it is a blocker, and so is a test that would pass before the change, ` +
-      `or an existing test weakened the ticket did not ask to change (test-weakened). Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
+      `For each Done-when criterion find what satisfies it, and run it — code that does not do what a criterion says is a blocker. A test gap (a test that would pass before the change, ` +
+      `one asserting the implementation against itself, an existing test weakened the ticket did not ask to change) is minor, never a blocker: the fixer tightens it as polish. Then the diff against CLAUDE.md and .claude/rules/ for the areas it touches (quote the rule and the line), and logic errors (an input and the wrong output). ` +
       `A change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs — is a blocker (category unasked), however well meant. ` +
       `Last, the docs: \`node scripts/context.mjs for <changed files>\`, and \`git grep -n -i\` over CLAUDE.md, .claude/rules/ and context/ for the page, route and functions the diff touches — ` +
       `a doc that now describes the code wrongly is docs-stale, a blocker when an agent following it would build the wrong thing (a doc still calling a built page a placeholder is one). ` +
       `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
-    criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it and the test that proves it. ` +
-      `Nothing satisfying it is a blocker; so is a test that would pass before the change, asserts the implementation against itself, or weakens an existing test the ticket did not ask to change (test-weakened); ` +
-      `and so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked).`,
+    criteria: `Read the ticket, then the spec, then \`git diff origin/${BASE}...HEAD\`. For each Done-when criterion find what satisfies it, and run it to see. ` +
+      `Code that does not do what a criterion says is a blocker; so is a change the ticket did not ask for — a file, a dependency, a behaviour no criterion needs (category unasked). ` +
+      `A test gap — a test that would pass before the change, asserts the implementation against itself, or weakens an existing test (test-proves-nothing, test-weakened) — is minor, never a blocker.`,
     rules: `Read \`git diff origin/${BASE}...HEAD\` against CLAUDE.md and .claude/rules/. A blocker is a recorded decision contradicted — quote the rule and the line — or a logic error with an input and the wrong output. ` +
       `context/engineering-context/harness/code-review-playbook.md §2–§4 says what not to flag.`,
     browser: `Drive the change in a real browser and try to break it, following context/engineering-context/harness/qa-playbook.md §1–§3: probes in tests/qa-probe.spec.js, ` +
@@ -395,8 +422,12 @@ async function shipRun(input: ShipInput) {
   let gate: any = null;
   let red: any = null;
   let minors: Finding[] = [];
+  /** Test gaps: never blockers, never a reason to hand back — tightened as polish when a fix round runs anyway. */
+  let polish: Finding[] = [];
+  const polishAsk = (p: Finding[]) => p.length
+    ? `\n\nAlso, as polish — not required, and never a reason to return ok=false: tighten these tests so they would fail without the change, if it is quick:\n${list(p)}`
+    : '';
   let audited = 0;
-  let redStreak = 0;
   for (let round = 1; ; round++) {
     await enter('Gate');
     const ran = await command(`gate#${round}`, gateScript(BASE, profile.gateScope));
@@ -410,11 +441,17 @@ async function shipRun(input: ShipInput) {
     const appLines = Number((/--app-lines=(\d+)/.exec(facts) || [])[1] || 0);
     const reasons = [/--risky=yes\b/.test(facts) && 'the diff touches a risky path', appLines > 300 && `the diff is ${appLines} app lines`].filter(Boolean);
     if (profile.size === 'small' && !profile.escalated && reasons.length) {
-      profile = { ...profile, escalated: true, think: 'opus', buildRounds: Math.max(profile.buildRounds, 3), lenses: ['criteria', 'rules', 'browser'] };
-      log(`escalated: ${reasons.join(', ')}`);
+      profile = { ...profile, escalated: true, buildRounds: Math.max(profile.buildRounds, 3), lenses: ['criteria', 'rules', 'browser'] };
+      // A risky diff is judged by the strong tier at least, whatever Jev expected from the ticket.
+      for (const j of ['audit', 'skeptic', 'fix'] as Job[]) models!.raise(j, 2, reasons.join(', '));
+      log(`escalated: ${reasons.join(', ')} — audit ${describe(models!.pick('audit'))}, fixer ${describe(models!.pick('fix'))}`);
     }
-    redStreak = gate.ok ? 0 : redStreak + 1;
-    if (redStreak >= 2 && profile.build !== 'opus') { profile = { ...profile, build: 'opus' }; log('the gate was red twice running — the fixer moves to Opus'); }
+    // The code the last edit wrote fails the gate: the fixer works one tier above that model.
+    const edit = lastEdit as { job: Job; tier: number; model: string } | null; // set inside agent(), which TS cannot see
+    if (!gate.ok && ran.sync !== 'conflict' && edit) {
+      const up = models!.raise('fix', edit.tier + 1, `the gate was red after ${edit.job} on ${edit.model.replace(/^[^/]+\//, '')}`);
+      if (up) log(`the gate is red after ${edit.job} — the fixer climbs to ${describe(up)}`);
+    }
 
     let open: Finding[] = [];
     if (gate.ok && !profile.reaudit && audited > 0) {
@@ -437,25 +474,24 @@ async function shipRun(input: ShipInput) {
         `Blockers only for something that would change a merge decision; everything else is minor. Change no code. Empty is a good answer.`;
       // Readers in parallel; the browser lens boots the app, so it runs alone after them.
       const readers = lenses.filter((l) => l !== 'browser');
-      const reports: any[] = await Promise.all(readers.map((l) => agent(`audit:${l}#${round}`, auditPrompt(l), S.FINDINGS, profile!.think)));
-      if (lenses.includes('browser')) reports.push(await agent(`audit:browser#${round}`, auditPrompt('browser'), S.FINDINGS, 'sonnet'));
-      for (let i = 0; i < reports.length; i++) {
-        if (reports[i]) continue;
-        const l = [...readers, 'browser'][i];
-        reports[i] = await agent(`audit:${l}-retry#${round}`, auditPrompt(l), S.FINDINGS, l === 'browser' ? 'sonnet' : profile.think);
-        if (!reports[i]) return handBack('Audit', `the ${l} auditor did not finish twice`);
-      }
+      // An auditor that returns nothing has already been run once more, a tier up (routedAgent).
+      const reports: any[] = await Promise.all(readers.map((l) => agent(`audit:${l}#${round}`, auditPrompt(l), S.FINDINGS, 'audit')));
+      if (lenses.includes('browser')) reports.push(await agent(`audit:browser#${round}`, auditPrompt('browser'), S.FINDINGS, 'browserAudit'));
+      const dead = reports.findIndex((r) => !r);
+      if (dead >= 0) return handBack('Audit', `the ${[...readers, 'browser'][dead]} auditor did not finish twice`);
       const raised: Finding[] = [
         ...reports.flatMap((r) => r.findings as Finding[]),
         ...(red && red.checked && red.failedOnBase === false ? [{
-          severity: 'blocker' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
+          severity: 'minor' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
           claim: 'the tests this branch added or changed pass with its app code reverted',
           evidence: `scripts/red-check.mjs reverted ${red.reverted.join(', ')} to ${BASE} and ran ${red.tests.join(', ')}: none failed`,
           fix: 'add a test that exercises the changed code where an attendee meets it, and fails on the base branch',
         }] : []),
       ];
-      minors = raised.filter((f) => f.severity === 'minor');
-      open = await confirm(raised.filter((f) => f.severity === 'blocker'), 'the change', ticket);
+      // A test gap is never a blocker, whatever the auditor called it: it rides along with the next fix as polish.
+      minors = raised.filter((f) => f.severity === 'minor' || isTestGap(f)).map((f) => ({ ...f, severity: 'minor' as const }));
+      polish = minors.filter(isTestGap);
+      open = await confirm(raised.filter((f) => f.severity === 'blocker' && !isTestGap(f)), 'the change', ticket);
       history.push(...open);
       rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: raised.length, confirmed: open.length,
         covered: reports.map((r) => `ran ${r.ran}: ${String(r.covered).slice(0, 80)}`).join(' · ') });
@@ -488,8 +524,9 @@ async function shipRun(input: ShipInput) {
       `Fix each at its cause, and only what is listed. A gate failure in a test or code this branch did not touch may be the environment, not you: run that test on ` +
       `origin/${BASE} (a scratch worktree, then remove it) — if it fails there too, change nothing for it and return ok=false with a summary that starts "pre-existing:". ` +
       `Never work around a failure by changing something the ticket did not ask for. Never edit an existing test to make it pass, never skip or delete one. If a finding shows the spec was wrong, fix the spec too and say so; ` +
-      `if a fix changes what a context doc says, fix the doc. \`npm test\` after every edit; a browser test you added or changed runs alone by title; not the whole suite. Leave \`git status\` clean. Commit and push.`,
-      S.BUILT, profile.build);
+      `if a fix changes what a context doc says, fix the doc. \`npm test\` after every edit; a browser test you added or changed runs alone by title; not the whole suite. Leave \`git status\` clean. Commit and push.` +
+      polishAsk(polish),
+      S.BUILT, 'fix');
     if (!fixed) return handBack('Audit', 'the fixer did not finish', open);
     if (!fixed.ok) return handBack(gate.ok ? 'Audit' : 'Gate', fixed.summary, open);
   }
@@ -502,7 +539,7 @@ async function shipRun(input: ShipInput) {
       `Find at most two classes of mistake that would recur on a different ticket — not this ticket's specifics. Write each where it would have been seen in time: ` +
       `the *Gotchas* of the context/engineering-context/ doc for that area (usually), or CLAUDE.md (only for a decision). If it is already written, make it shorter and higher instead. ` +
       `Present tense, checked against the code. \`npm test\`. Commit as "docs(context): …" and push. If nothing generalises, change nothing and return an empty list.`,
-      S.LESSON, profile.think);
+      S.LESSON, 'learn');
     lessons = learned?.lessons || [];
   }
 
@@ -597,6 +634,7 @@ async function shipRun(input: ShipInput) {
     const [rv, qv, sv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null), shotsRun.returnValue.catch(() => null)]);
     log(verdictLine('review', rv));
     log(verdictLine('QA', qv));
+    for (const [name, v] of [['review', rv], ['QA', qv]] as const) if (v?.models) log(`${name} ran on ${v.models} — $${Number(v.spend || 0).toFixed(3)} (expected $${Number(v.est || 0).toFixed(3)})`);
     log(`screenshots: ${sv?.outcome === 'posted' ? `${sv.pages} page${sv.pages === 1 ? '' : 's'} — ${sv.url}` : sv?.outcome ?? 'did not run'}`);
     for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
     const found: Finding[] = [
@@ -604,7 +642,9 @@ async function shipRun(input: ShipInput) {
       ...(rv?.docs || []).map((d: any) => ({ severity: 'blocker', category: 'docs-stale', file: d.file, line: d.line, claim: d.claim, evidence: d.evidence || 'raised by review', fix: 'make the doc say what the code does now' })),
       ...(qv?.bugs || []).map((b: any) => ({ severity: 'blocker', category: 'qa-bug', file: 'tests/qa-probe.spec.js', claim: `${b.title}: ${b.aim}`, evidence: `on the preview — expected: ${b.expected ?? '?'} · actual: ${b.actual ?? '?'}`, fix: 'make the change behave as expected, and add a test that proves it' })),
     ];
-    return { rv, qv, found };
+    // Review's test gaps ride along with a fix round as polish; on their own they start none and hold nothing up.
+    const testPolish: Finding[] = (rv?.polish || []).map((b: any) => ({ severity: 'minor', category: b.category, file: b.file, line: b.line, claim: b.claim, evidence: b.evidence || 'shown by review', fix: 'make the test fail without the change' }));
+    return { rv, qv, found, polish: testPolish };
   };
   let verdicts = await checks(0);
   for (let round = 1; verdicts.found.length && round <= 2; round++) {
@@ -619,8 +659,8 @@ async function shipRun(input: ShipInput) {
       `${ticket}\nThe pull request for this ticket, #${pr.number} on branch ${branch} (spec ${specPath}), was reviewed and tried on its preview. These were found:\n\n${list(open)}\n\n` +
       `Fix each at its cause, and only these. A stale doc: make it say what the code does now, and \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere. ` +
       `A QA bug: reproduce it in a test first, then fix it. Never edit an existing test to make it pass, never skip or delete one. \`npm test\` after every edit; a browser test you add or change runs alone by title. ` +
-      `Leave \`git status\` clean. Commit and push.`,
-      S.BUILT, profile.build);
+      `Leave \`git status\` clean. Commit and push.` + polishAsk(verdicts.polish),
+      S.BUILT, 'fix');
     if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); break; }
     const ran = await command(`gate#r${round}`, gateScript(BASE, profile.gateScope));
     const g = readGate(ran?.gate ?? '');
@@ -675,14 +715,18 @@ async function shipRun(input: ShipInput) {
 
   // ── helpers that need the run's state ─────────────────────────────────────
   async function confirm(findings: Finding[], what: string, t: string): Promise<Finding[]> {
+    // One independent skeptic per claim: it sees the claim and the cited line, never the auditor's evidence or reasoning,
+    // and must demonstrate it — the same bar review holds (code-review-playbook.md §2). What it cannot show is dropped.
     const judged = await Promise.all(dedupe(findings).map((f) => agent(`skeptic:${f.category}`,
-      `${t}\nThe spec is ${specPath}, on branch ${branch}. An auditor claims this ${f.severity === 'minor' ? 'minor problem' : 'blocker'} in ${what}. Try to REFUTE it. ` +
-      `Open the cited file and line yourself; \`npm test\` is fine, but do not boot the app or run Playwright. Refute if the line does not say what is claimed, if the behaviour is already on origin/${BASE}, ` +
-      `if it is style rather than a defect, if its fix would contradict CLAUDE.md, or if CLAUDE.md or the spec *as first committed* (\`git log --diff-filter=A --format=%H -- ${specPath}\`, then \`git show\`) shows it was deliberate. ` +
-      `A later edit to the spec does not make a missed Done-when criterion deliberate. If you cannot tell, it is NOT refuted.` +
-      (f.also?.length ? ' Several auditors read this location differently ("also"): refute only if EVERY reading is wrong.' : '') + `\n\n${list([f])}`,
-      S.REFUTATION, profile?.think ?? 'sonnet', 'medium').then((v) => (v && v.refuted ? null : f))));
-    // A skeptic that did not finish refuted nothing.
+      `${t}\nThe spec is ${specPath}, on branch ${branch}. Someone claims this about ${what} (\`git diff origin/${BASE}...HEAD\`):\n\n` +
+      `${f.file}${f.line ? ':' + f.line : ''} — ${f.claim}${f.also?.length ? f.also.map((a) => `\nalso read as: ${a.claim}`).join('') : ''}\n\n` +
+      `Check it yourself, from the code — do not take the claim's word for anything. It stands only if you demonstrate it: run the code, \`npm test\`, a throwaway test or a command ` +
+      `(commit nothing; do not boot the app or run Playwright), or quote the exact lines and show what they do. ` +
+      `Refute it if you cannot show it, if the code does not do what is claimed, if the behaviour is already on origin/${BASE}, if it is style or a nitpick — it works, just not exactly as someone ` +
+      `would read the ticket, and nobody is hurt — if its fix would contradict CLAUDE.md, or if CLAUDE.md or the spec *as first committed* ` +
+      `(\`git log --diff-filter=A --format=%H -- ${specPath}\`, then \`git show\`) shows it was deliberate. A later edit to the spec does not make a missed Done-when criterion deliberate.`,
+      S.REFUTATION, 'skeptic').then((v) => (v && !v.refuted ? f : null))));
+    // Not demonstrated — refuted, or a skeptic that did not finish — is not raised.
     return judged.filter(Boolean) as Finding[];
   }
 }
