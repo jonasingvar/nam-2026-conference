@@ -5,7 +5,7 @@ import { qa } from './qa';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, openPullRequest, productionHealth, readIssue, setLabels, upsertComment, type Issue,
+  comment, findDeployment, openPullRequest, previewForPr, productionHealth, readIssue, setLabels, upsertComment, type Issue,
 } from '../lib/github-steps';
 import { triageIssue, type Size, type Triage } from '../lib/triage';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
@@ -200,7 +200,7 @@ export async function ship(input: ShipInput) {
   // 2. Plan — a sandbox, a branch, and a spec as the branch's first commit.
   // ════════════════════════════════════════════════════════════════════════
   await enter('Plan');
-  await prepareSandbox(box, BASE);
+  await prepareSandbox(box, BASE, 'push');
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').split('-').slice(0, 5).join('-') || 'change';
   const made = await command('branch',
     `git fetch -q --prune origin && b="issue-${n}-${slug}"; i=2; while git ls-remote --exit-code --heads origin "$b" >/dev/null; do b="issue-${n}-${slug}-$i"; i=$((i+1)); done; ` +
@@ -486,6 +486,10 @@ export async function ship(input: ShipInput) {
     `<sub>🏭 Built by Ship on Vercel · ${profile.size}${profile.escalated ? ', escalated' : ''} · ${triage.why} · ${dollars(spend.total)} of AI · [durable run](${runUrl})</sub>`,
   ].filter((l) => l !== '').join('\n');
   const pr = await openPullRequest({ head: branch, base: BASE, title: issueTitle, body, draft: false, labels: [`ship:${profile.size}`] });
+  // Listen for the merge from the moment the pull request exists: a person may
+  // merge while the preview builds or review runs, and a close that finds no
+  // hook is lost. A hook keeps what it receives until the run awaits it.
+  const decision = createHook<{ merged: boolean; sha?: string }>({ token: `pr:${ALLOWED_REPO}#${pr.number}` });
   prUrl = pr.url;
   await setLabels(n, ['ready-for-human'], ['ai-working']);
   log(`pull request #${pr.number} opened`);
@@ -495,10 +499,10 @@ export async function ship(input: ShipInput) {
   // 7. Preview — Vercel builds the pull request; the review reads it there.
   // ════════════════════════════════════════════════════════════════════════
   await enter('Preview');
-  let preview = await findDeployment(final.head, 'Preview');
+  let preview = await previewForPr(pr.number);
   for (let i = 0; i < 60 && (preview.state === 'pending' || preview.state === 'none'); i++) {
     await sleep('20s');
-    preview = await findDeployment(final.head, 'Preview');
+    preview = await previewForPr(pr.number);
   }
   if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); }
   else { status.Preview = 'failed'; log(`preview ${preview.state}${preview.url ? `: ${preview.url}` : ''}`); }
@@ -524,7 +528,6 @@ export async function ship(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   await enter('Merge');
   await show('waiting for you to review and merge');
-  const decision = createHook<{ merged: boolean; sha?: string }>({ token: `pr:${ALLOWED_REPO}#${pr.number}` });
   const outcome = await decision;
   if (!outcome.merged) {
     status.Merge = 'skipped';

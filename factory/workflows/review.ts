@@ -40,13 +40,13 @@ export async function review(input: ReviewInput) {
   const pr = await readPullRequest(input.pr);
   if (pr.state !== 'open' || pr.draft) return { verdict: 'none', reason: pr.draft ? 'draft' : 'not open' };
   const box = `review-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
-  const k = kit(box, `reviewing pull request #${pr.number}`);
+  const k = kit(box, `reviewing pull request #${pr.number}`, 'read');
   await setStatus(pr.headSha, 'factory/review', 'pending', 'Reviewing…', runUrl);
 
   const issue = pr.issue ? await readIssue(pr.issue).catch(() => null) : null;
   const previous = await readMarker(pr.number, 'factory-verdict:review');
 
-  await prepareSandbox(box, pr.headSha);
+  await prepareSandbox(box, pr.headSha, 'read');
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await setStatus(pr.headSha, 'factory/review', 'error', 'Could not check out the pull request', runUrl); return { verdict: 'none', reason: 'checkout failed' }; }
 
@@ -101,7 +101,7 @@ export async function review(input: ReviewInput) {
     `${ticket}${input.notes ? `\nThe person who asked for this review wrote: "${input.notes}"\n` : ''}\n` +
     `You are reviewing pull request #${pr.number} "${pr.title}" (branch ${pr.head} into ${pr.base}) as someone who did not write it and has not seen the reasoning that produced it. ` +
     `Read context/engineering-context/harness/code-review-playbook.md §1–§4 first (\`awk '/^## 1\\./,/^## 5\\./' context/engineering-context/harness/code-review-playbook.md\`). ` +
-    `Form your own view from the ticket and \`git diff origin/${pr.base}...HEAD\` before reading any comments on the pull request.\n\n` +
+    `Form your own view from the ticket and \`git diff origin/${pr.base}...HEAD\`. The pull request's description:\n${pr.body.slice(0, 3000)}\n\n` +
     `Your lens: ${l.ask}\n` +
     (l.key === 'tests' || l.key === 'combined' ? `\nThe red-check (app code reverted to ${pr.base}, the branch's new tests run): ${facts?.red || 'not run'}\n` : '') +
     scope +

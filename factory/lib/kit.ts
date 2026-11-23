@@ -12,7 +12,7 @@ export type Finding = {
   claim: string; evidence: string; fix: string; also?: { category: string; claim: string; evidence: string }[];
 };
 
-export function kit(box: string, task: string) {
+export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
   let seq = 0;
   const lines: string[] = [];
   const spend = { total: 0, agents: 0, byModel: {} as Record<string, number>, byPhase: {} as Record<string, number> };
@@ -20,7 +20,10 @@ export function kit(box: string, task: string) {
 
   const preamble =
     `You are one step of the ORBIT factory: ${task} in ${ALLOWED_REPO}. You run headless in a Vercel Sandbox, in ${REPO_DIR}. ` +
-    `git and gh are authenticated by the network itself — never look for, print or set a token. The network reaches GitHub, npm, ` +
+    (mode === 'push'
+      ? `git and gh are authenticated by the network itself — never look for, print or set a token. `
+      : `You hold no GitHub credential: read with git (the repository is public), not gh — everything you need from the ticket and the pull request is in this prompt. `) +
+    `The network reaches GitHub, npm, ` +
     `AI Gateway and the app's fonts only. Chromium is installed; never run \`npx playwright install\`. CLAUDE.md is the specification for ` +
     `this repo and its rules hold. Each turn re-reads your whole context, so batch reads into one Bash command (\`; echo ---;\`). ` +
     `Start from \`node scripts/context.mjs index\`: pick the one or two docs in context/engineering-context/ for the area, read them by the ` +

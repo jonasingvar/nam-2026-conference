@@ -79,7 +79,7 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Pull request | merge the base once more, refuse if code changed after the gate, push, screenshots, compose the body from what the run knows, open it | command + GitHub API |
 | Preview | wait for Vercel's preview of the PR's head (a GitHub Deployment "Preview – …") | step |
 | Review | a fresh reviewer that never saw the build; verdict and the run's spend as a PR comment; the sandbox is deleted | agent + API |
-| Merge | `createHook` — the run sleeps, costing nothing, until the PR closes | hook |
+| Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 
 **Profiles.** `fast` (Sonnet, one combined audit, `GATE_SCOPE=branch`, a fix
@@ -102,6 +102,16 @@ on Hobby) or dies, its disk is kept and the next step resumes it. `pollJob`
 then reports the job `lost` and `runJob` starts that one job again (twice at
 most). Every finished step returns its recorded result on replay — a redeploy,
 a crashed function or a dead sandbox costs only the job that was running.
+
+**Trust and modes.** A sandbox gets only what its workflow needs
+(`lib/policy.ts:Mode`, kept on the sandbox's disk and re-applied on every job
+start): **none** for verify — no credential at all, so it runs for anyone's
+pull request; **read** for review and QA — AI Gateway for Claude Code, no
+GitHub token (the repository is public, and the factory posts verdicts from
+the function); **push** for ship and respond — the GitHub token too, only on
+branches of this repository. Review and QA start by themselves only for a
+branch of this repository opened by someone with write access; anyone else's
+pull request gets verify until a maintainer comments `/review`.
 
 **The network.** `lib/policy.ts:lockedPolicy` is applied before any agent runs
 and on every job start: GitHub, npm and AI Gateway only. The agents hold

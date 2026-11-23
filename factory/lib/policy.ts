@@ -1,4 +1,4 @@
-import type { NetworkPolicy } from '@vercel/sandbox';
+import type { NetworkPolicy, NetworkPolicyRule } from '@vercel/sandbox';
 import { ALLOWED_REPO } from './constants';
 
 export { ALLOWED_REPO };
@@ -21,29 +21,36 @@ const BLOCK = (what: string) => ({
 const UPSTREAM = { path: { regex: '(?i)^/+equalexperts(/|$)' } };
 const UPSTREAM_API = { path: { regex: '(?i)^/+repos/+equalexperts(/|$)' } };
 
+/**
+ * How much a sandbox may do, by what it runs:
+ *   none — verify: tests only. No credential at all, so it is safe on any
+ *          pull request, a stranger's fork included.
+ *   read — review and QA: Claude Code needs AI Gateway; nothing needs to
+ *          write to GitHub (the repository is public, and the factory posts
+ *          verdicts itself, from the function), so no GitHub token.
+ *   push — ship and respond, on branches of this repository only: the GitHub
+ *          token too, so the agents can push and open pull requests.
+ */
+export type Mode = 'none' | 'read' | 'push';
+
 export function lockedPolicy(
   secrets: { githubToken: string; gatewayKey: string; previewBypass?: string },
   previewHosts: string[] = [],
+  mode: Mode = 'push',
 ): NetworkPolicy {
   const basic = Buffer.from(`x-access-token:${secrets.githubToken}`).toString('base64');
+  const github = (inject: NetworkPolicyRule[]): NetworkPolicyRule[] => [{ match: UPSTREAM, ...BLOCK('the upstream workshop repository') }, ...inject];
+  const api = (inject: NetworkPolicyRule[]): NetworkPolicyRule[] => [{ match: UPSTREAM_API, ...BLOCK('the upstream workshop repository') }, ...inject];
+  const push = mode === 'push';
   return {
     allow: {
-      'github.com': [
-        { match: UPSTREAM, ...BLOCK('the upstream workshop repository') },
-        { transform: [{ headers: { authorization: `Basic ${basic}` } }] },
-      ],
-      'api.github.com': [
-        { match: UPSTREAM_API, ...BLOCK('the upstream workshop repository') },
-        { transform: [{ headers: { authorization: `Bearer ${secrets.githubToken}` } }] },
-      ],
+      'github.com': github(push ? [{ transform: [{ headers: { authorization: `Basic ${basic}` } }] }] : []),
+      'api.github.com': api(push ? [{ transform: [{ headers: { authorization: `Bearer ${secrets.githubToken}` } }] }] : []),
       // Screenshots for the pull request (scripts/pr-media.mjs) upload here.
-      'uploads.github.com': [
-        { match: UPSTREAM_API, ...BLOCK('the upstream workshop repository') },
-        { transform: [{ headers: { authorization: `Bearer ${secrets.githubToken}` } }] },
-      ],
+      'uploads.github.com': api(push ? [{ transform: [{ headers: { authorization: `Bearer ${secrets.githubToken}` } }] }] : []),
       'codeload.github.com': [],
       'objects.githubusercontent.com': [],
-      'ai-gateway.vercel.sh': [{ transform: [{ headers: { authorization: `Bearer ${secrets.gatewayKey}` } }] }],
+      ...(mode === 'none' ? {} : { 'ai-gateway.vercel.sh': [{ transform: [{ headers: { authorization: `Bearer ${secrets.gatewayKey}` } }] }] }),
       'registry.npmjs.org': [],
       '*.npmjs.org': [],
       // The app loads its fonts from Google; a test page that cannot reach them
@@ -52,16 +59,11 @@ export function lockedPolicy(
       'fonts.gstatic.com': [],
       // QA probes a pull request's Vercel preview. Each host is named exactly —
       // never *.vercel.app — so the bypass header reaches only that deployment.
-      ...Object.fromEntries(previewHosts.map((h) => [h, secrets.previewBypass
+      ...Object.fromEntries(previewHosts.map((h) => [h, secrets.previewBypass && mode !== 'none'
         ? [{ transform: [{ headers: { 'x-vercel-protection-bypass': secrets.previewBypass, 'x-vercel-set-bypass-cookie': 'true' } }] }]
         : []])),
     },
   };
-}
-
-
-export function assertAllowedRepo(repo: string) {
-  if (repo.toLowerCase() !== ALLOWED_REPO) throw new Error(`the factory only builds ${ALLOWED_REPO}, not ${repo}`);
 }
 
 /** What every agent's shell gets: placeholders where the proxy puts the real credentials. */

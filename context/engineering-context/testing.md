@@ -200,7 +200,7 @@ once on mobile.
 - **A browser test the branch added that skips on every project fails the gate** (`neverRanAdded` in
   `scripts/gate.mjs`): it never ran, so it proves nothing. Make its precondition hold — a lane, a
   slot, a pinned clock — rather than letting `test.skip(!target, …)` fire.
-- **Never open `data/orbit.db` to learn the seed** — `node -e "require('better-sqlite3')…"` from an
+- **Never open `data/orbit.db` to learn the seed** — `node -e "require('libsql')…"` from an
   agent's shell crashed on #78 and #70. Read `context/engineering-context/seed.md`, or ask the API: `attendedSession()`
   in `tests/api/harness.js`, `bookableFor()` in `tests/helpers.js`, or `curl localhost:$PORT/api/…`.
 - `tests/unit/lanes.test.js` fails `npm test` when two panes share an attendee and day

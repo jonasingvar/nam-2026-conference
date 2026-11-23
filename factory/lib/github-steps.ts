@@ -82,21 +82,41 @@ openPullRequest.maxRetries = 2;
 /**
  * The Vercel deployment GitHub knows about for a commit — Vercel's Git
  * integration reports each one as a GitHub Deployment whose environment is
- * "Preview – <project>" or "Production – <project>".
+ * "Preview – <project>" or "Production – <project>" (the factory's own are skipped).
  */
-export async function findDeployment(sha: string, kind: 'Preview' | 'Production') {
-  'use step';
+async function deploymentFor(sha: string, kind: 'Preview' | 'Production') {
   const deployments = await gh(`/deployments?sha=${sha}&per_page=20`);
   for (const d of deployments) {
     if (!String(d.environment).startsWith(kind) || /factory/i.test(d.environment)) continue;
     const statuses = await gh(`/deployments/${d.id}/statuses?per_page=5`);
     const latest = statuses[0];
-    if (!latest) return { state: 'pending' as const, url: null };
-    if (latest.state === 'success') return { state: 'ready' as const, url: (latest.environment_url || latest.target_url) as string };
-    if (['failure', 'error'].includes(latest.state)) return { state: 'failed' as const, url: latest.target_url as string };
-    return { state: 'pending' as const, url: null };
+    if (!latest) return { state: 'pending' as const, url: null, sha };
+    if (latest.state === 'success') return { state: 'ready' as const, url: (latest.environment_url || latest.target_url) as string, sha };
+    if (['failure', 'error'].includes(latest.state)) return { state: 'failed' as const, url: latest.target_url as string, sha };
+    return { state: 'pending' as const, url: null, sha };
   }
-  return { state: 'none' as const, url: null };
+  return { state: 'none' as const, url: null, sha };
+}
+
+export async function findDeployment(sha: string, kind: 'Preview' | 'Production') {
+  'use step';
+  return deploymentFor(sha, kind);
+}
+
+/**
+ * The preview that shows a pull request's head. A commit that changes nothing
+ * in the app (only factory/, say) is not built — the app project's ignore
+ * step skips it — so the newest earlier commit's preview is the same app, and
+ * the one to test. Pending while the newest buildable commit is still building.
+ */
+export async function previewForPr(n: number) {
+  'use step';
+  const commits = await gh(`/pulls/${n}/commits?per_page=100`);
+  for (const c of [...commits].reverse()) {
+    const d = await deploymentFor(c.sha, 'Preview');
+    if (d.state !== 'none') return d;
+  }
+  return { state: 'none' as const, url: null, sha: null };
 }
 
 /** The production app, asked directly: is it up, and how many sessions does it serve? */

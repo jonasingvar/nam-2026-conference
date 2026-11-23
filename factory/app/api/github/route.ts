@@ -57,20 +57,24 @@ export async function POST(req: Request) {
   }
 
   // CI on every push to a pull request. The push ship's gate already proved is not run twice.
+  // verify holds no credential, so it runs for anyone's pull request; review and QA spend
+  // money and read untrusted code, so they run by themselves only for a branch of this
+  // repository opened by someone with write access — anyone else's need a maintainer's /review.
   if (event === 'pull_request' && ['synchronize', 'opened', 'reopened'].includes(p.action)) {
     const pr = p.pull_request;
+    const trusted = pr.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && WRITERS.has(pr.author_association);
     const shipOpened = p.action === 'opened' && /^issue-\d+-/.test(pr.head.ref);
     const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
     const v = shipOpened ? null : await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast });
     if (p.action === 'synchronize') return Response.json({ verify: v });
     if (pr.draft) return Response.json({ verify: v, ignored: 'draft' });
     // A bot's pull request (Dependabot) gets CI, not a paid review and QA.
-    if (pr.user?.type === 'Bot') return Response.json({ verify: v, ignored: 'a bot opened it: verify only' });
+    if (pr.user?.type === 'Bot' || !trusted) return Response.json({ verify: v, ignored: 'not a trusted branch: verify only, until a maintainer comments /review' });
     if (shipOpened) return Response.json({ ignored: 'ship opened it, and runs its own gate, review and QA' });
     return Response.json({ verify: v, checks: await startChecks(pr.number, pr.head.sha) });
   }
 
-  if (event === 'pull_request' && p.action === 'ready_for_review') {
+  if (event === 'pull_request' && p.action === 'ready_for_review' && p.pull_request.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && WRITERS.has(p.pull_request.author_association)) {
     return Response.json(await startChecks(p.pull_request.number, p.pull_request.head.sha));
   }
 
@@ -84,6 +88,9 @@ export async function POST(req: Request) {
       return Response.json({ verify: v, checks });
     }
     if (/(^|\s)@claude\b/i.test(body)) {
+      // respond pushes, so only to a branch of this repository.
+      const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
+      if (pr.head?.repo?.full_name?.toLowerCase() !== ALLOWED_REPO) return Response.json({ ignored: 'a fork\'s branch: the factory pushes only to this repository' });
       return Response.json(await startRespond({ pr: p.issue.number, ask: body.replace(/(^|\s)@claude\b/gi, ' ').trim(), author: p.comment.user.login }, p.comment.id));
     }
   }

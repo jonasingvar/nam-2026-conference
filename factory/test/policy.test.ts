@@ -30,3 +30,16 @@ test('the preview bypass reaches only the preview hosts named, never all of verc
   const without: any = lockedPolicy(secrets);
   assert.ok(!JSON.stringify(without).includes('bypass_REAL'));
 });
+
+test('each mode gets only what it needs: none has no credential, read only the Gateway, push both', () => {
+  const none = JSON.stringify(lockedPolicy(secrets, ['p.vercel.app'], 'none'));
+  assert.ok(!none.includes('ghs_REAL') && !none.includes(Buffer.from('x-access-token:ghs_REAL').toString('base64')), 'none: no GitHub token');
+  assert.ok(!none.includes('vck_REAL') && !none.includes('ai-gateway.vercel.sh'), 'none: no Gateway');
+  assert.ok(!none.includes('bypass_REAL'), 'none: no preview bypass');
+  const read = JSON.stringify(lockedPolicy(secrets, [], 'read'));
+  assert.ok(read.includes('vck_REAL'), 'read: the Gateway, for Claude Code');
+  assert.ok(!read.includes('ghs_REAL') && !read.includes(Buffer.from('x-access-token:ghs_REAL').toString('base64')), 'read: no GitHub token');
+  const push = JSON.stringify(lockedPolicy(secrets, [], 'push'));
+  assert.ok(push.includes('vck_REAL') && push.includes('ghs_REAL'), 'push: both');
+  for (const mode of ['none', 'read', 'push'] as const) assert.ok(blocks(lockedPolicy(secrets, [], mode), 'github.com', '/EqualExperts/x'), `${mode}: upstream refused`);
+});

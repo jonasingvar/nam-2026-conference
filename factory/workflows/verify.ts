@@ -18,9 +18,9 @@ export async function verify(input: VerifyInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const box = `verify-${input.sha.slice(0, 8)}-${workflowRunId.slice(-6).toLowerCase()}`;
-  const k = kit(box, `verifying ${input.ref} at ${input.sha.slice(0, 7)}`);
+  const k = kit(box, `verifying ${input.ref} at ${input.sha.slice(0, 7)}`, 'read');
   await setStatus(input.sha, 'factory/verify', 'pending', 'Running the gate…', runUrl);
-  const prep = await prepareSandbox(box, input.sha);
+  const prep = await prepareSandbox(box, input.sha, 'none');
   k.log(`sandbox ${prep.how} in ${prep.seconds}s`);
   const base = input.base || 'main';
   const ran = await k.command('gate', [

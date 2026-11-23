@@ -40,7 +40,7 @@ starts the app on its lane and opens the page.
 
 ## Stack
 
-Node 22 · Express · better-sqlite3 · React 18 · Vite 6 · React Router 6 ·
+Node 22 · Express · libsql (SQLite locally, Turso in production) · React 18 · Vite 6 · React Router 6 ·
 Tailwind CSS v4 · Playwright. No state library, no ORM, no component library —
 if you are reaching for one, you are probably solving the wrong problem.
 
@@ -199,7 +199,10 @@ attendees: `context/engineering-context/seed.md`.
 
 **Everything runs on Vercel.** The app: project `nam-2026-conference`, `main` →
 production (https://nam-2026-conference.vercel.app, Turso), every branch → a
-preview with its own fresh SQLite. The factory: project `nam-2026-factory`
+preview whose function instances each seed their own SQLite file — so on a
+preview, a seat taken can be missing on a request another instance serves;
+"moves `seats_taken` for everybody" holds in production, not across a
+preview's instances. The factory: project `nam-2026-factory`
 (`factory/`), whose Vercel Workflows build, check and review this repository in
 Vercel Sandboxes. There are no GitHub Actions. (how:
 `context/engineering-context/architecture.md` § On Vercel, `context/engineering-context/harness.md`)

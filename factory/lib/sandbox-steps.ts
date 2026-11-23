@@ -1,5 +1,5 @@
 import { Sandbox } from '@vercel/sandbox';
-import { AGENT_ENV, lockedPolicy } from './policy';
+import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
 
 /**
@@ -28,9 +28,12 @@ const secrets = () => {
 
 /** The preview hosts a sandbox may reach, remembered on its disk so every job start re-applies them. */
 const HOSTS = `/vercel/.factory/preview-hosts`;
+/** The sandbox's mode, kept on its disk so a resumed sandbox can never come back with more than it had. */
+const MODE = `/vercel/.factory/mode`;
 async function policyFor(sb: Sandbox) {
-  const r = await sh(sb, `cat ${HOSTS} 2>/dev/null || true`);
-  return lockedPolicy(secrets(), r.out.split('\n').map((h) => h.trim()).filter(Boolean));
+  const r = await sh(sb, `cat ${HOSTS} 2>/dev/null || true; echo "::mode=$(cat ${MODE} 2>/dev/null || echo none)"`);
+  const mode = (/::mode=(none|read|push)/.exec(r.out)?.[1] ?? 'none') as Mode;
+  return lockedPolicy(secrets(), r.out.split('\n').map((h) => h.trim()).filter((h) => h && !h.startsWith('::mode')), mode);
 }
 
 /** Let a sandbox reach these preview deployments (and only these), with the protection bypass injected. */
@@ -90,10 +93,10 @@ export async function refreshWarm(ref = 'main') {
   const r = ready.out === 'yes'
     ? await sh(sb, `set -e; cd ${REPO_DIR}; git fetch --prune --quiet origin; git checkout -q -B warm origin/${ref}; ` +
         `if [ "$(sha256sum package-lock.json | cut -c1-16)" != "$(cat ${ROOT}/prepared)" ]; then npm ci --no-audit --no-fund; npx playwright install --with-deps chromium; sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; fi; ` +
-        `rm -rf ${ROOT}/[0-9]* ${HOSTS}`)
+        `rm -rf ${ROOT}/[0-9]* ${HOSTS} ${MODE}`)
     : await sh(sb, `${INSTALL} && cd ${REPO_DIR} && git checkout -q -B warm origin/${ref}`);
   if (r.code !== 0) throw new Error(`warming failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
-  await sb.updateNetworkPolicy(lockedPolicy(secrets()));
+  await sb.updateNetworkPolicy(lockedPolicy(secrets(), [], 'none'));
   await sb.stop();
   return { ref, seconds: Math.round((Date.now() - t0) / 1000) };
 }
@@ -107,7 +110,7 @@ refreshWarm.maxRetries = 1;
  * installed. Falls back to a fresh install when there is no warm sandbox yet,
  * and resumes the sandbox if it already exists (a retried step, a replay).
  */
-export async function prepareSandbox(name: string, ref: string) {
+export async function prepareSandbox(name: string, ref: string, mode: Mode) {
   'use step';
   const t0 = Date.now();
   let sb: Sandbox;
@@ -138,8 +141,10 @@ export async function prepareSandbox(name: string, ref: string) {
     : await sh(sb, `${INSTALL} && cd ${REPO_DIR} && git checkout -q --detach ${target} && ` +
         `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat ${ROOT}/prepared)" ] || { npm ci --no-audit --no-fund && sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; }; }`);
   if (r.code !== 0) throw new Error(`preparing the sandbox failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
+  // Written once, before any agent runs; a fork of the warm sandbox starts at none.
+  await sh(sb, `mkdir -p /vercel/.factory && echo ${mode} > ${MODE}`);
   await sb.updateNetworkPolicy(await policyFor(sb));
-  return { name: sb.name, how, seconds: Math.round((Date.now() - t0) / 1000) };
+  return { name: sb.name, how, mode, seconds: Math.round((Date.now() - t0) / 1000) };
 }
 prepareSandbox.maxRetries = 2;
 

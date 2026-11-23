@@ -1,7 +1,7 @@
 import { getWorkflowMetadata, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, findDeployment, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
+import { comment, findDeployment, previewForPr, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
 import { FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
@@ -53,7 +53,7 @@ export async function qa(input: QaInput) {
   const pr = await readPullRequest(input.pr);
   if (pr.state !== 'open' || pr.draft) return { verdict: 'none', reason: pr.draft ? 'draft' : 'not open' };
   const box = `qa-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
-  const k = kit(box, `QA of pull request #${pr.number}`);
+  const k = kit(box, `QA of pull request #${pr.number}`, 'read');
   await setStatus(pr.headSha, 'factory/qa', 'pending', 'Waiting for the preview…', runUrl);
 
   const publish = async (pass: boolean, confidence: 'high' | 'medium' | 'low', headline: string, body: string[], marker: any) => {
@@ -66,8 +66,8 @@ export async function qa(input: QaInput) {
   };
 
   // The preview of this head, and the deployment of the base to compare against.
-  let preview = await findDeployment(pr.headSha, 'Preview');
-  for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await findDeployment(pr.headSha, 'Preview'); }
+  let preview = await previewForPr(pr.number);
+  for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await previewForPr(pr.number); }
   if (preview.state !== 'ready') {
     await setStatus(pr.headSha, 'factory/qa', 'error', `No preview to test (${preview.state})`, runUrl);
     return { verdict: 'none', reason: `preview ${preview.state}` };
@@ -77,7 +77,7 @@ export async function qa(input: QaInput) {
   const issue = pr.issue ? await readIssue(pr.issue).catch(() => null) : null;
   const previous = await readMarker(pr.number, 'factory-verdict:qa');
 
-  await prepareSandbox(box, pr.headSha);
+  await prepareSandbox(box, pr.headSha, 'read');
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await setStatus(pr.headSha, 'factory/qa', 'error', 'Could not check out the pull request', runUrl); return { verdict: 'none' }; }
   const baseDeploy = (await findDeployment(co.base, 'Preview')).url ?? (pr.base === 'main' ? PRODUCTION_URL : null);
