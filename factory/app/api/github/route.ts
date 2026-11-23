@@ -7,6 +7,8 @@ import { startChecks, startRespond, startShip, startVerify, startWarm } from '@/
 /**
  * GitHub's webhook for the repository:
  *   - an issue labelled `ready-for-ai`, or `@claude …` / `/ship …` on an issue → ship it
+ *   - `ready-for-ai` or `/ship` on a pull request ship opened → ship its issue again, continuing that branch
+ *   - any comment on a ticket in needs-human, or on its draft → the answer: ship resumes with it
  *   - a pull request opened, reopened or marked ready  → review and QA it
  *     (not one ship opened: ship runs its own, and waits for them)
  *   - `/review` on a pull request                      → verify, review and QA it again
@@ -34,6 +36,26 @@ export async function POST(req: Request) {
   const p = JSON.parse(raw);
   if (event === 'ping') return Response.json({ ok: true, zen: p.zen });
   if (p.repository?.full_name?.toLowerCase() !== ALLOWED_REPO) return Response.json({ ignored: 'not the factory repository' }, { status: 403 });
+
+  // A ticket waiting on a person (needs-human): their comment is the answer. Any comment from someone with
+  // write access, on the issue or on the draft ship handed back, resumes it — no label needed.
+  if (event === 'issue_comment' && p.action === 'created' && WRITERS.has(p.comment?.author_association)) {
+    const body: string = p.comment?.body || '';
+    if (!body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel')) {
+      let n: number | null = null;
+      if (!p.issue?.pull_request) {
+        if ((p.issue.labels || []).some((l: any) => l.name === 'needs-human')) n = p.issue.number;
+      } else {
+        const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
+        const linked = pr.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO ? /^issue-(\d+)-/.exec(pr.head.ref)?.[1] : undefined;
+        if (linked) {
+          const issue = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/issues/${linked}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
+          if ((issue.labels || []).some((l: any) => l.name === 'needs-human')) n = Number(linked);
+        }
+      }
+      if (n) return Response.json({ answered: n, ...(await startShip({ issue: n, answer: true })) });
+    }
+  }
 
   if (event === 'issues' && p.action === 'labeled' && p.label?.name === 'ready-for-ai' && !p.issue?.pull_request) {
     return Response.json(await startShip({ issue: p.issue.number }));
@@ -78,9 +100,23 @@ export async function POST(req: Request) {
     return Response.json(await startChecks(p.pull_request.number, p.pull_request.head.sha));
   }
 
+  // ready-for-ai on a pull request ship opened (issue-<n>-…) means "ship #n again": put the label on the
+  // issue, which is what starts a run — so the issue and the PR say the same thing.
+  if (event === 'pull_request' && p.action === 'labeled' && p.label?.name === 'ready-for-ai') {
+    const n = /^issue-(\d+)-/.exec(p.pull_request.head.ref)?.[1];
+    if (!n || p.pull_request.head?.repo?.full_name?.toLowerCase() !== ALLOWED_REPO) return Response.json({ ignored: 'not a pull request ship opened' });
+    await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/issues/${n}/labels`, {
+      method: 'POST', headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'content-type': 'application/json', 'user-agent': 'orbit-factory' },
+      body: JSON.stringify({ labels: ['ready-for-ai'] }),
+    });
+    return Response.json({ relayed: `ready-for-ai → issue #${n}` });
+  }
+
   if (event === 'issue_comment' && p.action === 'created' && p.issue?.pull_request && WRITERS.has(p.comment?.author_association)) {
     const body: string = p.comment?.body || '';
     if (body.includes('<!-- factory') || body.includes('<!-- ship-on-vercel')) return Response.json({ ignored: 'the factory\'s own comment' });
+    const shipOf = /(^|\s)\/ship\b/i.test(body) ? await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json()).then((pr) => /^issue-(\d+)-/.exec(pr.head?.ref ?? '')?.[1]) : null;
+    if (shipOf) return Response.json(await startShip({ issue: Number(shipOf), notes: body.replace(/(^|\s)\/ship\b/gi, ' ').trim() || undefined }));
     if (/(^|\s)(\/review|@claude\s+review)\b/i.test(body)) {
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
       const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');

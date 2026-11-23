@@ -19,6 +19,8 @@ comments carry `<!-- factory…` or `<!-- ship-on-vercel` markers).
 | …on a branch of this repository, by someone with write access, not a bot (and not one ship opened, which runs its own) | review + QA too |
 | `/review` on a pull request, by someone with write access | verify, review + QA — a fork's pull request too: its head is fetched as `pull/<n>/head`, and review and QA hold no GitHub token |
 | `@claude …` on a pull request of a branch in this repository | respond |
+| a comment on a ticket in `needs-human`, or on its draft (by someone with write access) | ship resumes **if** Jev judges the replies settle everything the hand-back asked; otherwise one reply saying what is still open |
+| `ready-for-ai` or `/ship` on a pull request ship opened | the label is put on its issue too, and ship resumes, no questions asked |
 | pull request closed | wakes the ship run waiting on it; a merge clears its issue's labels |
 | push to `main` | verify, and warm |
 

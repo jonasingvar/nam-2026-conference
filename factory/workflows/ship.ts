@@ -5,9 +5,9 @@ import { qa } from './qa';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, openPullRequest, previewForPr, productionHealth, progress, readIssue, setLabels, type Issue,
+  comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
-import { triageIssue, type Size, type Triage } from '../lib/triage';
+import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
@@ -26,7 +26,8 @@ import * as S from './schemas';
  * a redeploy, a crashed function, the sandbox timing out. On resume, finished
  * steps return their recorded results and only the interrupted job reruns.
  */
-export type ShipInput = { issue: number; base?: string; notes?: string; size?: Size | 'sized' };
+/** `answer`: started by a person's comment on a ticket waiting on them — resume only if it settles what was open. */
+export type ShipInput = { issue: number; base?: string; notes?: string; size?: Size | 'sized'; answer?: boolean };
 
 type Finding = {
   severity: 'blocker' | 'minor'; category: string; file: string; line?: number;
@@ -148,10 +149,14 @@ export async function ship(input: ShipInput) {
     try { return JSON.parse(done.result); } catch { log(`${label}: unreadable result (exit ${done.exit}) ${done.tail.slice(-200)}`); return null; }
   }
 
+  // What people said — the comment that asked for this run, and every answer on the issue or an earlier attempt's PR.
+  let said: { at: string; who: string; where: string; text: string }[] = [];
   const ticketText = (issue: Issue, doneWhen: string[]) =>
     `GitHub issue #${n}: ${issue.title}\n\n${issue.body}\n` +
     (doneWhen.length ? `\nDone when (as the plan read it):\n${doneWhen.map((c) => `- ${c}`).join('\n')}\n` : '') +
-    (input.notes ? `\nThe person who asked for this run wrote: "${input.notes}" — where it changes what to build, it amends the ticket.\n` : '');
+    (input.notes ? `\nThe person who asked for this run wrote: "${input.notes}" — where it changes what to build, it amends the ticket.\n` : '') +
+    (said.length ? `\nPeople have said, in order (newest last) — a person's answer amends the ticket where it changes what to build, and settles what a hand-back asked:\n` +
+      said.map((c) => `- ${c.who} on ${c.where}: "${c.text.replace(/\s+/g, ' ')}"`).join('\n') + '\n' : '');
 
   // ── Findings ──────────────────────────────────────────────────────────────
   const key = (f: Finding) => `${f.category}|${f.file}|${f.line ? Math.floor(f.line / 10) : f.claim.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 60)}`;
@@ -182,7 +187,7 @@ export async function ship(input: ShipInput) {
           head: branch, base: BASE, draft: true, labels: [],
           title: issueTitle,
           body: `Refs #${n}\n\n## Why this stopped\n${stage}: ${why}\n\n${open.length ? `## Still open\n${list(open)}\n\n` : ''}` +
-            `The work so far is on this branch. Answer what is open on the issue, then add \`ready-for-ai\` again — a fresh run starts from your answer.\n\n<sub>🏭 Ship on Vercel · [run](${runUrl})</sub>`,
+            `The work so far is on this branch. **Just reply — here or on #${n}.** Your comment is the answer: the factory picks it up, continues on this branch and turns this into the pull request.\n\n<sub>🏭 Ship on Vercel · [run](${runUrl})</sub>`,
         });
         prUrl = draft.url;
       }
@@ -201,8 +206,25 @@ export async function ship(input: ShipInput) {
   if (issue.isPullRequest || issue.state !== 'open') {
     return { outcome: 'declined', issue: n, reason: issue.isPullRequest ? 'that is a pull request, not an issue' : 'the issue is closed' };
   }
+  // An earlier attempt handed back as a draft? Continue it, with what people answered.
+  const earlier = await findEarlierAttempt(n);
+  said = await peopleSaid(n, earlier?.number ?? null);
+  // A comment on a ticket waiting on a person: resume only if it answers what is open.
+  if (input.answer && earlier) {
+    const body = (await readPullRequest(earlier.number)).body;
+    const open = body.slice(Math.max(0, body.indexOf('## Why this stopped')), body.indexOf('The work so far') > 0 ? body.indexOf('The work so far') : undefined).trim();
+    const verdict = await judgeAnswers(open || body.slice(0, 3000), said);
+    if (!verdict.answered) {
+      await comment(earlier.number, `🏭 Not resuming yet — Jev reads the replies as not settling everything that is open` +
+        `${verdict.probability !== null ? ` (${Math.round(verdict.probability * 100)}% that they do)` : ''}. Still open:\n\n${open.replace(/^## Why this stopped\n?/, '')}\n\n` +
+        `Reply again with the missing answer, or add \`ready-for-ai\` to go ahead as things stand.`);
+      return { outcome: 'waiting', issue: n, draft: earlier.url, answered: verdict.probability };
+    }
+  }
   await setLabels(n, ['ai-working'], ['ready-for-ai', 'needs-human', 'ready-for-human']);
+  if (earlier) { await setLabels(earlier.number, [], ['ready-for-ai', 'needs-human']); prUrl = earlier.url; }
   await enter('Triage');
+  if (earlier) log(`continuing ${earlier.draft ? 'the draft' : 'pull request'} #${earlier.number} on ${earlier.head}, with ${said.length} comment${said.length === 1 ? '' : 's'} from people`);
   triage = input.size ? { size: input.size, picked: null, sure: null, why: 'asked for explicitly', ms: 0 } : await triageIssue(issue);
   log(`triage: ${triage.why}${triage.ms ? ` in ${triage.ms} ms` : ''}`);
   if (triage.size !== 'sized') profile = { ...PROFILES[triage.size], why: triage.why };
@@ -213,9 +235,12 @@ export async function ship(input: ShipInput) {
   await enter('Plan');
   await prepareSandbox(box, BASE, 'push');
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').split('-').slice(0, 5).join('-') || 'change';
-  const made = await command('branch',
-    `git fetch -q --prune origin && b="issue-${n}-${slug}"; i=2; while git ls-remote --exit-code --heads origin "$b" >/dev/null; do b="issue-${n}-${slug}-$i"; i=$((i+1)); done; ` +
-    `git checkout -q -B "$b" "origin/${BASE}" && echo "{\\"branch\\":\\"$b\\"}" > "$JOB/result.json"`);
+  const made = await command('branch', earlier
+    // Continue the earlier attempt's branch, brought up to date with the base.
+    ? `git fetch -q --prune origin && git checkout -q -B "${earlier.head}" "origin/${earlier.head}" && ` +
+      `{ git merge -q --no-edit "origin/${BASE}" >/dev/null 2>&1 || git merge --abort; } && echo '{"branch":"${earlier.head}"}' > "$JOB/result.json"`
+    : `git fetch -q --prune origin && b="issue-${n}-${slug}"; i=2; while git ls-remote --exit-code --heads origin "$b" >/dev/null; do b="issue-${n}-${slug}-$i"; i=$((i+1)); done; ` +
+      `git checkout -q -B "$b" "origin/${BASE}" && echo "{\\"branch\\":\\"$b\\"}" > "$JOB/result.json"`);
   if (!made?.branch) return handBack('Plan', 'could not make a branch from ' + BASE);
   branch = made.branch;
   await show();
@@ -223,6 +248,10 @@ export async function ship(input: ShipInput) {
   const plan = await agent('plan',
     `${ticketText(issue, [])}\n` +
     `You are the planner. Work on branch ${branch} (already checked out, from origin/${BASE}). Write no code.\n\n` +
+    (earlier ? `An earlier run of this ticket handed it back to a person, and this branch holds its work: a spec under specs/${n}-*.md and probably code and tests. ` +
+      `Read the spec and \`git log --oneline origin/${BASE}..HEAD\`. Do not start over: revise that spec so it settles what the people above answered — record each ` +
+      `answer as a Decision, and change *Where* and *How it will be proved* where the answer changes them — then commit ("docs(spec): …") and push. ` +
+      `Return the spec's existing path.\n\n` : '') +
     `First decide whether the ticket is shippable: it is not if it states no outcome a check could be written against, ` +
     `or asks for two unrelated things — then return shippable=false with the reason and stop.\n\n` +
     `Otherwise write the spec at specs/${n}-${slug}.md — half a page, this shape:\n` +
@@ -295,6 +324,8 @@ export async function ship(input: ShipInput) {
   await enter('Build');
   const built = await agent('build',
     `${ticket}\nImplement ${specPath} on branch ${branch}. Its *Where* is your map: open those files directly.\n\n` +
+    (earlier ? `This branch already holds an earlier run's work (\`git log --oneline origin/${BASE}..HEAD\`, \`git diff origin/${BASE}...HEAD\`): keep what still holds, ` +
+      `change what the revised spec and the people's answers change, and add the tests that prove it. The rules below still apply.\n\n` : '') +
     `Write the check first and confirm it fails for the reason you expect — commit it on its own, red, as "test(…)", before any fix: ` +
     `that commit is the evidence the check proves something. Then implement, \`npm test\` after every edit; Conventional Commits; push. ` +
     `Keep the docs true in the same push: \`node scripts/context.mjs for <changed files>\` names the context/engineering-context/ docs that own them — update what the change made wrong, and list a new file in its area doc's \`files\`. ` +

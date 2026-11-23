@@ -67,7 +67,7 @@ splitting it by phase. A first small ticket: about **$1** to a pull request.
 
 | You see | It means | Do this |
 | --- | --- | --- |
-| `needs-human` on the issue | Ship could not converge, or met a failure that is also on the base | Read the comment and the draft PR, answer on the issue, label `ready-for-ai` again |
+| `needs-human` on the issue | Ship could not converge, or met a failure that is also on the base, or the ticket itself is in question | **Just reply**, on the issue or the draft PR. When Jev reads your replies as settling what was open, ship resumes on the same branch and turns the draft into the pull request |
 | `harness-escape` on a PR | Review found a blocker ship's own loop missed | Worth a lesson in the docs: which lens would have caught it? |
 | `factory/verify` red | The gate failed on that commit | The status links to the run; every step's output is there |
 | Anything else | — | The Workflows tab of `nam-2026-factory` has every run, step by step |
