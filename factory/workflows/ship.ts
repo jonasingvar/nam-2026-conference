@@ -105,7 +105,7 @@ async function shipRun(input: ShipInput) {
     '',
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
       (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m.replace(/^claude-/, '')} ${dollars(c)}`).join(', ')})` : ''),
-    lines.length ? `\n<details><summary>Log</summary>\n\n${lines.filter((l) => !l.startsWith('    ↳')).map((l) => `- ${l}`).join('\n')}\n</details>` : '',
+    lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
     `<sub>Durable run [${workflowRunId}](${runUrl}) · resumes from its last finished step if anything dies</sub>`,
     '<!-- ship-on-vercel -->',
@@ -152,9 +152,7 @@ async function shipRun(input: ShipInput) {
     spend.byPhase[current] = (spend.byPhase[current] || 0) + r.costUsd;
     for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
     log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
-    // The agent's own last words go to the run's stream (not the issue): what it concluded, in its voice.
-    if (r.said) lines.push(`    ↳ ${label} said: ${r.said}`);
-    await show();
+    // The phase step already streamed this agent's result; the comment catches up at the next phase.
     return r.value;
   }
 

@@ -1,4 +1,5 @@
 import { Sandbox } from '@vercel/sandbox';
+import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
 
@@ -155,7 +156,26 @@ prepareSandbox.maxRetries = 2;
  */
 export async function advance(name: string, id: string, files: Record<string, string>, script: string): Promise<JobPoll> {
   await startJobImpl(name, id, files, script);
-  return pollJobImpl(name, id, 120_000);
+  const r = await pollJobImpl(name, id, 120_000);
+  // The run's Streams tab, written by the phase step itself (no extra span): what this job did,
+  // and — for an agent — its model, turns, cost and its own last words.
+  if (r.state === 'done') {
+    try {
+      const label = id.replace(/^\d+-/, '');
+      let line = `${label}: exit ${r.exit}`;
+      try {
+        const j = JSON.parse(r.result);
+        if (j && typeof j.total_cost_usd === 'number') {
+          const models = Object.keys(j.modelUsage || {}).map((m) => m.replace(/^claude-/, '')).join('+');
+          line = `${label}: ${j.is_error || !j.structured_output ? 'no result' : 'done'} · ${models} · ${j.num_turns} turns · ${Math.round((j.duration_ms || 0) / 1000)}s · $${j.total_cost_usd.toFixed(2)}` +
+            (typeof j.result === 'string' && j.result.trim() ? `\n    ↳ ${j.result.replace(/\s+/g, ' ').trim().slice(0, 600)}` : '');
+        }
+      } catch { /* a command's result, not an agent's */ }
+      const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+      try { await w.write(line + '\n'); } finally { w.releaseLock(); }
+    } catch { /* the log never fails the work */ }
+  }
+  return r;
 }
 
 /**
