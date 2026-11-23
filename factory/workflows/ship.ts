@@ -75,7 +75,8 @@ async function shipRun(input: ShipInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const n = input.issue;
   const BASE = input.base || 'main';
-  const box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}`;
+  // The run's sandbox. A fix after review gets a fresh one (forked, in seconds): `let`, so the agents follow it.
+  let box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}`;
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
 
   // ── State the issue comment shows ────────────────────────────────────────
@@ -574,14 +575,57 @@ async function shipRun(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   await disposeSandbox(box); // ship is done with its machine; review and QA bring their own
   await enter('Review & QA');
-  const [reviewRun, qaRun] = await Promise.all([start(review, [{ pr: pr.number }]), start(qa, [{ pr: pr.number }])]);
-  log(`review run ${reviewRun.runId}, QA run ${qaRun.runId}`);
-  const [rv, qv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null)]);
   const verdictLine = (name: string, v: any) => !v || v.verdict === 'none' ? `${name}: did not run` : `${name}: ${v.verdict === 'pass' ? `pass, ${v.confidence} confidence` : 'blocker'}${v.skipped ? ` (${v.skipped})` : ''}`;
-  log(verdictLine('review', rv));
-  log(verdictLine('QA', qv));
-  for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
-  if (!rv || rv.verdict !== 'pass' || !qv || qv.verdict === 'fail') status['Review & QA'] = 'failed';
+  // Review and QA are one more audit round: what they find, ship fixes itself — the same fixer,
+  // gate and push as before the PR — then asks them again (each re-checks only what changed).
+  // Two rounds at most; still not clean goes to a person, with the pull request left open.
+  const checks = async (round: number) => {
+    // Under ship, review leaves stale docs to ship's fixer: two workflows never push one branch at once.
+    const [reviewRun, qaRun] = await Promise.all([start(review, [{ pr: pr.number, fixDocs: false }]), start(qa, [{ pr: pr.number }])]);
+    log(`review & QA ${round ? `round ${round + 1} ` : ''}— runs ${reviewRun.runId}, ${qaRun.runId}`);
+    const [rv, qv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null)]);
+    log(verdictLine('review', rv));
+    log(verdictLine('QA', qv));
+    for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
+    const found: Finding[] = [
+      ...(rv?.blockers || []).map((b: any) => ({ severity: 'blocker', category: `review:${b.category}`, file: b.file, line: b.line, claim: b.claim, evidence: [b.how && `how: ${b.how}`, b.harm && `harm: ${b.harm}`, b.evidence].filter(Boolean).join(' · ') || 'raised by review', fix: 'resolve what the review found' })),
+      ...(rv?.docs || []).map((d: any) => ({ severity: 'blocker', category: 'docs-stale', file: d.file, line: d.line, claim: d.claim, evidence: d.evidence || 'raised by review', fix: 'make the doc say what the code does now' })),
+      ...(qv?.bugs || []).map((b: any) => ({ severity: 'blocker', category: 'qa-bug', file: 'tests/qa-probe.spec.js', claim: `${b.title}: ${b.aim}`, evidence: `on the preview — expected: ${b.expected ?? '?'} · actual: ${b.actual ?? '?'}`, fix: 'make the change behave as expected, and add a test that proves it' })),
+    ];
+    return { rv, qv, found };
+  };
+  let verdicts = await checks(0);
+  for (let round = 1; verdicts.found.length && round <= 2; round++) {
+    const open = verdicts.found;
+    log(`review & QA found ${open.length} thing${open.length === 1 ? '' : 's'} to fix — fix round ${round}`);
+    await show();
+    box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}-r${round}`;
+    await prepareSandbox(box, BASE, 'push');
+    const onBranch = await command(`branch#r${round}`, `git fetch -q --prune origin && git checkout -q -B "${branch}" "origin/${branch}" && echo '{"ok":true}' > "$JOB/result.json"`);
+    if (!onBranch) { log('could not check the branch out again'); break; }
+    const fixed = await agent(`fix#r${round}`,
+      `${ticket}\nThe pull request for this ticket, #${pr.number} on branch ${branch} (spec ${specPath}), was reviewed and tried on its preview. These were found:\n\n${list(open)}\n\n` +
+      `Fix each at its cause, and only these. A stale doc: make it say what the code does now, and \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere. ` +
+      `A QA bug: reproduce it in a test first, then fix it. Never edit an existing test to make it pass, never skip or delete one. \`npm test\` after every edit; a browser test you add or change runs alone by title. ` +
+      `Leave \`git status\` clean. Commit and push.`,
+      S.BUILT, profile.build);
+    if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); break; }
+    const ran = await command(`gate#r${round}`, gateScript(BASE, profile.gateScope));
+    const g = readGate(ran?.gate ?? '');
+    rounds.push({ round: rounds.length + 1, gate: `${g.ok ? '✅' : '❌'} ${gateLine(g)} (after review)`, raised: open.length, confirmed: open.length, covered: 'fixed what review and QA found' });
+    if (!g.ok) { log('the gate is red after the fix'); break; }
+    await command(`push#r${round}`, `git push -q origin HEAD >"$JOB/push.log" 2>&1; echo '{"ok":true}' > "$JOB/result.json"`);
+    await disposeSandbox(box);
+    await show();
+    verdicts = await checks(round);
+  }
+  await disposeSandbox(box);
+  if (verdicts.found.length) {
+    status['Review & QA'] = 'failed';
+    await setLabels(n, ['needs-human'], []);
+    await comment(pr.number, `### 🏭 Still open after ${verdicts.rv || verdicts.qv ? 'review and QA' : 'the checks'}\n\nShip fixed what it could; these remain:\n\n${list(verdicts.found)}\n\n` +
+      `The pull request stays open — merge it as it is, or reply with how to settle these and ship will pick it up.`);
+  }
   await comment(pr.number, `<sub>🏭 Ship on Vercel · AI spend for this ticket, build to review: ${dollars(spend.total)} — ${Object.entries(spend.byPhase).map(([p, c]) => `${p} ${dollars(c)}`).join(', ')}</sub>`);
 
   // ════════════════════════════════════════════════════════════════════════

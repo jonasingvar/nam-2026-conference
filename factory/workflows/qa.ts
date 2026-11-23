@@ -48,6 +48,19 @@ const probeRun = (url: string, titles: string[]) => [
 
 export async function qa(input: QaInput) {
   'use workflow';
+  try {
+    return await qaRun(input);
+  } catch (e: any) {
+    // Never leave a pull request's check at "pending": say what stopped it.
+    const why = String(e?.message || e).slice(0, 140);
+    const { workflowRunId } = getWorkflowMetadata();
+    const pr = await readPullRequest(input.pr).catch(() => null);
+    if (pr) await setStatus(pr.headSha, 'factory/qa', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
+    return { verdict: 'none', reason: why };
+  }
+}
+
+async function qaRun(input: QaInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
@@ -200,5 +213,5 @@ export async function qa(input: QaInput) {
     ],
     marker(bugs.map((b) => ({ title: b.title, aim: b.aim }))));
   await disposeSandbox(box);
-  return { verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => b.title), preview: previewUrl, spend: k.spend.total };
+  return { verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => ({ title: b.title, aim: b.aim, expected: b.expected, actual: b.actual })), preview: previewUrl, spend: k.spend.total };
 }

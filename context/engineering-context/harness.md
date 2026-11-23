@@ -80,7 +80,7 @@ request resumes the hook `pr:<repo>#<pr>` the run is waiting on. By hand:
 | Audit | lenses in parallel (browser alone, after), a skeptic per blocker, a fixer, back to Gate; stuck or out of rounds → hand back | agents |
 | Pull request | merge the base once more, refuse if code changed after the gate, push, screenshots, compose the body from what the run knows, open it | command + GitHub API |
 | Preview | wait for Vercel's preview of the PR's head (a GitHub Deployment "Preview – …") | step |
-| Review & QA | two child workflows; a stale doc review finds is fixed on the branch by respond, never a blocker | workflows |
+| Review & QA | two child workflows, run as one more audit round: what they find (review's blockers, QA's reproduced bugs, stale docs) ship fixes itself — fresh forked sandbox, fixer, gate, push — and asks them again, two rounds at most; still open → `needs-human`, PR left open | workflows + agents |
 | Merge | `createHook`, opened the moment the PR exists (a merge during review is kept, not lost) — the run sleeps, costing nothing, until the PR closes | hook |
 | Production | find the Production deployment of the merge commit, then `GET /api/health` on production | steps |
 
@@ -116,6 +116,10 @@ never ask — ship **continues the same branch**: the planner revises the spec t
 record each answer as a Decision, the builder keeps what still holds, and the
 draft becomes the pull request. Every agent sees what people said as amendments
 to the ticket.
+
+**Out of credit.** A 402 from AI Gateway is not a dead agent: `readAgent`
+throws `OUT_OF_CREDIT`, ship's crash guard says so on the issue, and review
+and QA set an `error` status with it — never a low-confidence pass.
 
 **Trust and modes.** A sandbox gets only what its workflow needs
 (`lib/policy.ts:Mode`, kept on the sandbox's disk and re-applied on every job

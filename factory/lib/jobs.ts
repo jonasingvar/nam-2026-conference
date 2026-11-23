@@ -43,13 +43,19 @@ export function agentScript(model: Model, effort?: Effort) {
   ].join('\n');
 }
 
+/** The one failure no retry fixes: the AI Gateway has no credit left. Every run stops and says so. */
+export const OUT_OF_CREDIT = 'AI Gateway is out of credit — top up in Vercel → AI Gateway → Credits, then try again';
+export const outOfCredit = (text: string) => /\b402\b|insufficient (funds|credit)|out of credit|credit balance|payment required/i.test(text);
+
 /** Read Claude Code's JSON result: the structured output, and what it cost. */
 export function readAgent(done: Done | null, schema: any): AgentRun {
   if (!done) return { value: null, costUsd: 0, byModel: {}, turns: 0, seconds: 0, error: 'the job never finished' };
   let r: any;
   try { r = JSON.parse(done.result); } catch {
+    if (outOfCredit(done.tail)) throw new Error(OUT_OF_CREDIT);
     return { value: null, costUsd: 0, byModel: {}, turns: 0, seconds: 0, error: `no result (exit ${done.exit}): ${done.tail.slice(-300)}` };
   }
+  if (r.api_error_status === 402 || (r.is_error && outOfCredit(String(r.result ?? '')))) throw new Error(OUT_OF_CREDIT);
   const byModel: Record<string, number> = {};
   for (const [m, u] of Object.entries<any>(r.modelUsage || {})) byModel[m] = (byModel[m] || 0) + (u.costUSD || 0);
   const said = typeof r.result === 'string' ? r.result.replace(/\s+/g, ' ').trim().slice(0, 600) : undefined;

@@ -22,7 +22,8 @@ import * as S from './schemas';
  * a marker the next pass reads back. Machines gate, agents advise: nothing
  * here can block a merge.
  */
-export type ReviewInput = { pr: number; notes?: string };
+/** `fixDocs: false` (ship's own review): hand stale docs back in the result for ship's fixer, instead of starting respond. */
+export type ReviewInput = { pr: number; notes?: string; fixDocs?: boolean };
 
 type Lens = { key: string; ask: string };
 const LENSES: Record<string, string> = {
@@ -38,6 +39,19 @@ const LENSES: Record<string, string> = {
 
 export async function review(input: ReviewInput) {
   'use workflow';
+  try {
+    return await reviewRun(input);
+  } catch (e: any) {
+    // Never leave a pull request's check at "pending": say what stopped it.
+    const why = String(e?.message || e).slice(0, 140);
+    const { workflowRunId } = getWorkflowMetadata();
+    const pr = await readPullRequest(input.pr).catch(() => null);
+    if (pr) await setStatus(pr.headSha, 'factory/review', 'error', why, `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`).catch(() => null);
+    return { verdict: 'none', reason: why };
+  }
+}
+
+async function reviewRun(input: ReviewInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
@@ -140,13 +154,14 @@ export async function review(input: ReviewInput) {
   const staleDocs = [...stillOpen, ...confirmed].filter(isDocs);
   const blockers = [...stillOpen, ...confirmed].filter((b) => !isDocs(b)).slice(0, 3);
   let docsRun: string | null = null;
-  if (staleDocs.length && pr.sameRepo) {
+  const handDocsBack = input.fixDocs === false;
+  if (staleDocs.length && pr.sameRepo && !handDocsBack) {
     const run = await start(respond, [{ pr: pr.number, author: 'the review', ask:
       `Bring these docs back in line with the code on this branch, and change nothing else (no code, no tests):\n` +
       staleDocs.map((d) => `- ${d.file}${d.line ? `:${d.line}` : ''} — ${d.claim}`).join('\n') +
       `\nThen \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere and fix those too.` }]);
     docsRun = run.runId;
-  } else if (staleDocs.length) {
+  } else if (staleDocs.length && !handDocsBack) {
     followUps.push(...staleDocs.map((d) => ({ ...d, severity: 'follow-up' })));
   }
   const missing = reports.some((r) => !r);
@@ -161,7 +176,7 @@ export async function review(input: ReviewInput) {
   for (const x of followUps) { if (!byPlace.has(fkey(x))) byPlace.set(fkey(x), x); }
   // Listed in the comment only — once per place, and not again on a re-review that already listed it.
   // …and never a place already raised above, as a blocker or a doc being fixed.
-  const raisedAbove = new Set([...blockers, ...(docsRun ? staleDocs : [])].map(fkey));
+  const raisedAbove = new Set([...blockers, ...(docsRun || handDocsBack ? staleDocs : [])].map(fkey));
   const toList = [...byPlace.values()].filter((x) => !filedBefore.has(fkey(x)) && !raisedAbove.has(fkey(x))).slice(0, 5);
   const callout = pass ? (confidence === 'high' ? '> [!TIP]' : confidence === 'medium' ? '> [!NOTE]' : '> [!WARNING]') : '> [!CAUTION]';
   const meter = { high: '●●●', medium: '●●○', low: '●○○' }[confidence as 'high'];
@@ -173,6 +188,7 @@ export async function review(input: ReviewInput) {
     `> ${summary || 'Nothing to report.'}`,
     '',
     ...blockers.map((b) => `**${b.category}** \`${b.file}${b.line ? ':' + b.line : ''}\` — ${b.claim}\n${b.how ? `*How:* ${b.how} · ` : ''}${b.harm ? `*Harm:* ${b.harm}` : b.evidence ? `*Evidence:* ${b.evidence}` : ''}\n`),
+    handDocsBack && staleDocs.length ? `📝 **Stale docs — ship is fixing these on this branch:**\n${staleDocs.map((d) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`).join('\n')}\n` : '',
     docsRun ? `📝 **Stale docs — being fixed on this branch now**, so the next agent does not build on them ([run](${FACTORY_DASHBOARD}/workflows/runs/${docsRun})):\n${staleDocs.map((d) => `- \`${d.file}${d.line ? ':' + d.line : ''}\` ${d.claim}`).join('\n')}\n` : '',
     toList.length ? `<details><summary>Worth a look — not blockers (${toList.length})</summary>\n\n${toList.map((x) => `- \`${x.file}${x.line ? ':' + x.line : ''}\` ${x.claim}`).join('\n')}\n</details>` : '',
     '',
@@ -183,5 +199,5 @@ export async function review(input: ReviewInput) {
   // A blocker on a pull request ship built is something ship's own loop let through.
   if (!pass && /^issue-\d+-/.test(pr.head)) await setLabels(pr.number, ['harness-escape'], []);
   await disposeSandbox(box);
-  return { verdict: pass ? 'pass' : 'fail', confidence, blockers, followUps: toList.length, spend: k.spend.total };
+  return { verdict: pass ? 'pass' : 'fail', confidence, blockers, docs: handDocsBack ? staleDocs : [], followUps: toList.length, spend: k.spend.total };
 }
