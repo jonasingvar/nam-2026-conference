@@ -2,6 +2,7 @@ import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
 import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
+import { priceUsage, short, type Catalog } from './models';
 
 /**
  * The durable steps that touch a ticket's sandbox.
@@ -168,25 +169,34 @@ prepareSandbox.maxRetries = 2;
 export async function advance(name: string, id: string, files: Record<string, string>, script: string): Promise<JobPoll> {
   await startJobImpl(name, id, files, script);
   const r = await pollJobImpl(name, id, 120_000);
-  // The run's Streams tab, written by the phase step itself (no extra span): what this job did,
-  // and — for an agent — its model, turns, cost and its own last words.
+  // The run's Streams tab, written by the phase step itself (no extra span): what this job did and how
+  // long it took, and — for an agent — its model, why that model, turns, and its cost priced from the
+  // gateway's catalog (Claude Code only guesses the price of a model that is not Anthropic's).
   if (r.state === 'done') {
     try {
-      const label = id.replace(/^\d+-/, '');
-      let line = `${label}: exit ${r.exit}`;
-      try {
-        const j = JSON.parse(r.result);
-        if (j && typeof j.total_cost_usd === 'number') {
-          const models = Object.keys(j.modelUsage || {}).map((m) => m.replace(/^claude-/, '')).join('+');
-          line = `${label}: ${j.is_error || !j.structured_output ? 'no result' : 'done'} · ${models} · ${j.num_turns} turns · ${Math.round((j.duration_ms || 0) / 1000)}s · $${j.total_cost_usd.toFixed(2)}` +
-            (typeof j.result === 'string' && j.result.trim() ? `\n    ↳ ${j.result.replace(/\s+/g, ' ').trim().slice(0, 600)}` : '');
-        }
-      } catch { /* a command's result, not an agent's */ }
       const w = getWritable<string>({ namespace: 'progress' }).getWriter();
-      try { await w.write(line + '\n'); } finally { w.releaseLock(); }
+      try { await w.write(streamLine(id, r, files['meta.json']) + '\n'); } finally { w.releaseLock(); }
     } catch { /* the log never fails the work */ }
   }
   return r;
+}
+
+/** One line for the progress stream: a command's exit and seconds, or an agent's model, pick, turns, seconds and priced cost. */
+export function streamLine(id: string, r: Extract<JobPoll, { state: 'done' }>, metaJson?: string) {
+  const label = id.replace(/^\d+-/, '');
+  let line = `${label}: exit ${r.exit}${r.seconds !== undefined ? ` · ${r.seconds}s` : ''}`;
+  try {
+    const j = JSON.parse(r.result);
+    if (j && typeof j.total_cost_usd === 'number') {
+      const meta: { model?: string; why?: string; est?: number; price?: Catalog } = metaJson ? JSON.parse(metaJson) : {};
+      const cost = priceUsage(j.modelUsage || {}, meta.price ?? null);
+      const models = Object.keys(cost.byModel).join('+') || (meta.model ? short(meta.model) : '?');
+      line = `${label}: ${j.is_error || !j.structured_output ? 'no result' : 'done'} · ${models}${meta.why ? ` (${meta.why})` : ''} · ${j.num_turns} turns · ` +
+        `${Math.round((j.duration_ms || 0) / 1000)}s · $${cost.total.toFixed(3)}${typeof meta.est === 'number' ? ` (est $${meta.est.toFixed(3)})` : ''}` +
+        (typeof j.result === 'string' && j.result.trim() ? `\n    ↳ ${j.result.replace(/\s+/g, ' ').trim().slice(0, 600)}` : '');
+    }
+  } catch { /* a command's result, not an agent's */ }
+  return line;
 }
 
 /**
@@ -213,7 +223,8 @@ async function startJobImpl(name: string, id: string, files: Record<string, stri
   ]);
   await sb.runCommand({
     cmd: 'bash',
-    args: ['-c', `cd ${REPO_DIR} && echo $$ > ${dir}/pid && JOB=${dir} bash ${dir}/run.sh > ${dir}/out.log 2>&1; echo $? > ${dir}/exit`],
+    // started/ended bracket the job, so a command's seconds are known too (an agent reports its own).
+    args: ['-c', `cd ${REPO_DIR} && echo $$ > ${dir}/pid && date +%s > ${dir}/started && JOB=${dir} bash ${dir}/run.sh > ${dir}/out.log 2>&1; rc=$?; date +%s > ${dir}/ended; echo $rc > ${dir}/exit`],
     env: { ...AGENT_ENV, JOB: dir },
     detached: true,
   });
@@ -224,7 +235,7 @@ startJob.maxRetries = 3;
 export type JobPoll =
   | { state: 'running' }
   | { state: 'lost' }
-  | { state: 'done'; exit: number; result: string; tail: string };
+  | { state: 'done'; exit: number; result: string; tail: string; seconds?: number };
 
 /** Wait up to ~40 s for a job to end; say how it stands. */
 export async function pollJob(name: string, id: string): Promise<JobPoll> {
@@ -237,11 +248,14 @@ async function pollJobImpl(name: string, id: string, waitMs: number): Promise<Jo
   const dir = `${ROOT}/${id}`;
   const until = Date.now() + waitMs;
   for (;;) {
-    const s = await sh(sb, `if [ -f ${dir}/exit ]; then echo "done $(cat ${dir}/exit)"; elif [ -f ${dir}/pid ] && kill -0 "$(cat ${dir}/pid)" 2>/dev/null; then echo running; else echo lost; fi`);
+    const s = await sh(sb, `if [ -f ${dir}/exit ]; then echo "done $(cat ${dir}/exit) $(( $(cat ${dir}/ended 2>/dev/null || echo 0) - $(cat ${dir}/started 2>/dev/null || echo 0) ))"; elif [ -f ${dir}/pid ] && kill -0 "$(cat ${dir}/pid)" 2>/dev/null; then echo running; else echo lost; fi`);
     if (s.out.startsWith('done')) {
       const result = await sh(sb, `cat ${dir}/result.json 2>/dev/null || true`);
       const tail = await sh(sb, `tail -c 3000 ${dir}/out.log 2>/dev/null || true`);
-      return { state: 'done', exit: Number(s.out.split(' ')[1]), result: result.out, tail: tail.out };
+      const [, exit, secs] = s.out.split(' ');
+      // A job started before this deployment has no `started` file: no seconds, rather than a wrong one.
+      const seconds = Number(secs);
+      return { state: 'done', exit: Number(exit), result: result.out, tail: tail.out, ...(Number.isFinite(seconds) && seconds >= 0 && seconds < 86_400 ? { seconds } : {}) };
     }
     if (s.out === 'lost') return { state: 'lost' };
     if (Date.now() > until) return { state: 'running' };

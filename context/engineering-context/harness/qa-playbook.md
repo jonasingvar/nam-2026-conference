@@ -1,8 +1,10 @@
 <!--
 The rules a QA pass follows. Not a command: the factory's `qa` workflow
-(factory/workflows/qa.ts) triages, probes the pull request's Vercel preview,
-reproduces each failure there and on the base's deployment, and publishes —
-its agents are pointed at the numbered sections here. Probes run against the
+(factory/workflows/qa.ts) triages, plans probes (one agent), has them written
+(another, cheaper one, from the plan alone), runs them on the pull request's
+Vercel preview itself — desktop and mobile — and reproduces each failure there
+and on the base's deployment before it publishes. The re-runs in §3 are the
+workflow's, not an agent's. Its agents are pointed at the numbered sections here. Probes run against the
 deployed preview (`QA_BASE_URL`, a remote Playwright config the workflow
 writes), not a local dev server: never start the app.
 -->

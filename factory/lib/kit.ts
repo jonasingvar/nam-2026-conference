@@ -1,5 +1,39 @@
-import { agentScript, readAgent, runJob, type Effort, type Model } from './jobs';
+import { agentScript, readAgent, runJob, type AgentRun } from './jobs';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
+import { describe, priceUsage, short, TIERS, type Job, type ModelBook, type Pick } from './models';
+
+/**
+ * Run one agent on the model its job is booked to, priced from the gateway's
+ * catalog. No result (a schema miss, a dead agent) climbs one tier and runs it
+ * again — once — and the book records both, so the run shows which jobs needed
+ * which tier. Shared by ship and the workflows that use `kit`.
+ */
+export async function routedAgent(o: {
+  box: string; jobId: (label: string) => string; book: ModelBook; job: Job; label: string; prompt: string; schema: any;
+  log: (s: string) => void; onRun: (r: AgentRun, cost: { total: number; byModel: Record<string, number> }, p: Pick) => void;
+}): Promise<{ value: any | null; pick: Pick }> {
+  let p = o.book.pick(o.job);
+  for (let attempt = 0; ; attempt++) {
+    const label = attempt ? `${o.label}#up` : o.label;
+    const done = await runJob(o.box, o.jobId(label),
+      { 'prompt.md': o.prompt, 'schema.json': JSON.stringify(o.schema), 'meta.json': o.book.meta(p) }, agentScript(p.model, p.effort));
+    const r = readAgent(done, o.schema);
+    // Claude Code prices a model it does not know with a guess; the catalog's price is the real one.
+    const priced = Object.keys(r.usage).length ? priceUsage(r.usage, o.book.catalog) : { total: r.costUsd, byModel: r.byModel };
+    o.book.record({ job: o.job, label, model: p.model, tier: p.tier, est: p.est, cost: priced.total, ok: !!r.value, seconds: r.seconds });
+    o.onRun(r, priced, p);
+    o.log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} — ${short(p.model)} (${TIERS[p.tier]}), ${r.turns} turns, ${r.seconds}s, ` +
+      `$${priced.total.toFixed(3)} (est $${p.est.toFixed(3)})`);
+    if (r.value || attempt >= 1) return { value: r.value, pick: p };
+    // Parallel agents of one job (review lenses, reader audits) share the book: if a sibling's failure already
+    // moved the job up, follow it instead of climbing again — one round of failures is one tier.
+    const current = o.book.pick(o.job);
+    const up = current.tier > p.tier ? current : o.book.climb(o.job, `${o.label} returned no result`);
+    if (!up) return { value: null, pick: p };
+    o.log(`${o.label}: climbing to ${describe(up)}`);
+    p = up;
+  }
+}
 
 /**
  * What every factory workflow does the same way: run an agent or a command in
@@ -34,21 +68,27 @@ export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
   const log = (s: string) => { lines.push(s); console.log(`${box} ${s}`); };
   const dollars = (x: number) => `$${x.toFixed(2)}`;
 
-  async function agent(label: string, prompt: string, schema: any, model: Model, effort?: Effort): Promise<any | null> {
-    const done = await runJob(box, id(label), { 'prompt.md': preamble + prompt, 'schema.json': JSON.stringify(schema) }, agentScript(model, effort));
-    const r = readAgent(done, schema);
-    spend.total += r.costUsd;
-    spend.agents += 1;
-    spend.byPhase[phase] = (spend.byPhase[phase] || 0) + r.costUsd;
-    for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
-    log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
-    return r.value; // its result was streamed by the phase step that ran it
+  let book: ModelBook | null = null;
+  /** An agent for a job, on the model the book gives it (its result was streamed by the phase step that ran it). */
+  async function agent(label: string, prompt: string, schema: any, job: Job): Promise<any | null> {
+    if (!book) throw new Error('kit: no models chosen yet (useModels)');
+    const { value } = await routedAgent({
+      box, jobId: id, book, job, label, prompt: preamble + prompt, schema, log,
+      onRun: (_r, cost) => {
+        spend.total += cost.total;
+        spend.agents += 1;
+        spend.byPhase[phase] = (spend.byPhase[phase] || 0) + cost.total;
+        for (const [m, c] of Object.entries(cost.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
+      },
+    });
+    return value;
   }
 
   /** A shell job whose script writes $JOB/result.json; that JSON, or null. */
   async function command(label: string, script: string): Promise<any | null> {
     const done = await runJob(box, id(label), {}, script);
     if (!done) { log(`${label}: the job never finished`); return null; }
+    if (done.seconds !== undefined) log(`${label}: ${done.seconds}s`);
     try { return JSON.parse(done.result); } catch { log(`${label}: unreadable result (exit ${done.exit}) ${done.tail.slice(-200)}`); return null; }
   }
 
@@ -56,7 +96,12 @@ export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
     `${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
     (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m.replace(/^claude-/, '')} ${dollars(c)}`).join(', ')})` : '');
 
-  return { agent, command, log, lines, spend, spendLine, dollars, setPhase: (p: string) => { phase = p; } };
+  return {
+    agent, command, log, lines, spend, spendLine, dollars, setPhase: (p: string) => { phase = p; },
+    /** The models this run's agents use (chooseModels, then modelBook). */
+    useModels: (b: ModelBook) => { book = b; },
+    get models() { return book; },
+  };
 }
 
 // ── Findings, shared by ship and review ────────────────────────────────────

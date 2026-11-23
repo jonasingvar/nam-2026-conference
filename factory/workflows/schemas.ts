@@ -154,22 +154,36 @@ export const QA_TRIAGE = {
   },
 };
 
-export const QA_PROBES = {
+/** QA's planner: what to probe, exactly enough that a cheap model can write it without exploring. */
+export const QA_PLAN = {
   type: 'object', required: ['probes', 'covered'],
   properties: {
-    covered: { type: 'string', description: 'what the probes exercised — under 15 words' },
+    covered: { type: 'string', description: 'what the probes will exercise — under 15 words' },
     probes: {
       type: 'array', maxItems: 5,
       items: {
-        type: 'object', required: ['title', 'aim', 'passedDesktop', 'passedMobile'],
+        type: 'object', required: ['title', 'aim', 'route', 'as', 'steps', 'expect'],
         properties: {
-          title: { type: 'string', description: 'the exact test title in tests/qa-probe.spec.js' },
+          title: { type: 'string', description: 'the test title, starting "qa: "' },
           aim: { type: 'string', description: 'what it checks, and the criterion or gap it serves' },
-          passedDesktop: bool, passedMobile: bool,
-          expected: str, actual: str,
+          route: { type: 'string', description: 'the path to open, e.g. /my-agenda or /schedule?view=list' },
+          as: { enum: ['jonas', 'andy', 'kenji', 'sofia', 'marcus', 'abraham'], description: 'the seeded attendee (tests/helpers.js ATTENDEES)' },
+          at: { type: 'string', description: 'the pinned clock as "<dayIndex> HH:MM" (0 is Day 1), or "" for unpinned' },
+          steps: { type: 'array', items: str, description: 'what to do, in order, naming the test id or role and accessible name of each control (read from src/)' },
+          expect: { type: 'array', items: str, description: 'each observable result to assert, naming its test id or role' },
         },
       },
     },
+  },
+};
+
+/** QA's writer: the probe file, compiled and run once. */
+export const QA_WRITTEN = {
+  type: 'object', required: ['written', 'titles'],
+  properties: {
+    written: { type: 'boolean', description: 'tests/qa-probe.spec.js holds one test per plan item and lists without errors' },
+    titles: { type: 'array', items: str, description: 'the exact test titles written' },
+    notes: { type: 'string', description: 'anything the plan could not be written as — under 40 words' },
   },
 };
 

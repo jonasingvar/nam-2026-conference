@@ -4,6 +4,7 @@ import { respond } from './respond';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, pastDismissals, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
+import { chooseModels, describe, modelBook } from '../lib/models';
 import { composeReview, isDoc, isTestGap, listed, mayBlock, settle, toCheck, wasDismissed, type Dismissed, type Raised, type SkepticVerdict } from '../lib/review-policy';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import * as S from './schemas';
@@ -42,7 +43,10 @@ export async function review(input: ReviewInput) {
   'use workflow';
   try {
     const r: any = await reviewRun(input);
-    await setAttributes({ verdict: String(r.verdict), ...(r.confidence ? { confidence: String(r.confidence) } : {}), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}) });
+    await setAttributes({
+      verdict: String(r.verdict), ...(r.confidence ? { confidence: String(r.confidence) } : {}), ...(typeof r.spend === 'number' ? { spend_usd: r.spend.toFixed(2) } : {}),
+      ...(r.models ? { models: String(r.models).slice(0, 250) } : {}), ...(typeof r.est === 'number' ? { est_usd: r.est.toFixed(2) } : {}), ...(typeof r.climbs === 'number' ? { climbs: String(r.climbs) } : {}),
+    });
     return r;
   } catch (e: any) {
     // Never leave a pull request's check at "pending": say what stopped it.
@@ -100,10 +104,15 @@ async function reviewRun(input: ReviewInput) {
     .filter((x, i, a) => a.indexOf(x) === i)
     .map((key) => ({ key, ask: LENSES[key] }));
   if (!lenses.length) lenses.push({ key: 'combined', ask: LENSES.combined });
-  const model = full ? 'opus' : 'sonnet';
-  k.log(`${lenses.map((l) => l.key).join(', ')} on ${model}; ${files.length} files, ${lines} code lines${risky ? ', risky' : ''}`);
-
   const ticket = issue ? `The ticket, #${issue.number}: ${issue.title}\n\n${issue.body}\n` : `There is no linked ticket: judge the pull request against its own description.\n`;
+  // Which model does each review job get: Jev reads the ticket and the diff's shape; the catalog prices it.
+  const size = full ? 'full' : 'small';
+  const choice = await chooseModels(`${ticket}\nPull request #${pr.number}: ${pr.title}\nFiles changed: ${files.join(', ')}\nFacts: ${f}\nLenses: ${lenses.map((l) => l.key).join(', ')}`,
+    size, ['recheck', 'reviewLens', 'skeptic']);
+  const models = modelBook(choice, size);
+  k.useModels(models);
+  k.log(`${lenses.map((l) => l.key).join(', ')} on ${describe(models.pick('reviewLens'))}; ${files.length} files, ${lines} code lines${risky ? ', risky' : ''}` +
+    ` (models in ${choice.ms} ms${choice.why ? `; ${choice.why}` : ''})`);
   const scope = previous?.commit && facts?.delta
     ? `\nThis is a re-review. The last pass reviewed ${previous.commit.slice(0, 7)}; look for NEW problems only in what changed since: ${facts.delta.join(', ') || 'nothing'} (\`git diff ${previous.commit} HEAD\`). Outside that, raise only what would have blocked a first review.\n`
     : '';
@@ -126,7 +135,7 @@ async function reviewRun(input: ReviewInput) {
     const r = await k.agent(`recheck:${b.category}`,
       `${ticket}\nOn pull request #${pr.number} (branch ${pr.head}), the last review raised this blocker at ${previous.commit.slice(0, 7)}:\n` +
       `[${b.category}] ${b.file}${b.line ? ':' + b.line : ''} — ${b.claim}\n\nIs it resolved at HEAD? Resolved means what was claimed can no longer happen. Read the lines; cite them.`,
-      S.RECHECK, 'sonnet', 'low');
+      S.RECHECK, 'recheck');
     if (!r || !r.resolved) stillOpen.push({ ...b, evidence: r?.evidence ?? 'the recheck did not finish' });
   }
 
@@ -147,8 +156,14 @@ async function reviewRun(input: ReviewInput) {
     `Give each a confidence; below 0.8 it is dropped, so leave it out. At most three findings; fewer true ones beat many plausible ones. ` +
     `Every finding cites file:line, read from the line. Each is checked by an independent skeptic, and only what it can demonstrate is reported. ` +
     `The lens's own confidence is how much of the change you could actually judge. Empty is a good answer.`;
-  const first = await Promise.all(lenses.map((l) => k.agent(`lens:${l.key}`, ask(l), S.REVIEW_LENS, model)));
-  const reports = await Promise.all(lenses.map((l, i) => first[i] ? Promise.resolve(first[i]) : k.agent(`lens:${l.key}-retry`, ask(l), S.REVIEW_LENS, model)));
+  // A lens that returns nothing is run again one tier up (routedAgent). One that could judge only a little
+  // of the change (low confidence) is a cheap model out of its depth: the lens climbs a tier, once, and those read again.
+  const reports: any[] = await Promise.all(lenses.map((l) => k.agent(`lens:${l.key}`, ask(l), S.REVIEW_LENS, 'reviewLens')));
+  const unsure = lenses.filter((_, i) => reports[i]?.confidence === 'low');
+  if (unsure.length && models.climb('reviewLens', `${unsure.map((l) => l.key).join(', ')} judged with low confidence`)) {
+    const again = await Promise.all(unsure.map((l) => k.agent(`lens:${l.key}-again`, ask(l), S.REVIEW_LENS, 'reviewLens')));
+    unsure.forEach((l, i) => { if (again[i]) reports[lenses.indexOf(l)] = again[i]; });
+  }
 
   // 3. Every finding — blocker or suggestion — faces its own skeptic: a fresh agent on another model that sees only the
   // claim, the cited line, the diff and the ticket, never the lens's reasoning. Only what it demonstrates is reported.
@@ -168,7 +183,8 @@ async function reviewRun(input: ReviewInput) {
     `Confirmed only if you demonstrated it; if you cannot show it, it is unproven — and an unproven claim is not reported. ` +
     `executed=true only if you ran something that shows it (a quote is not a run); confidence is how sure you are of your verdict. ` +
     `Only a claim you executed, at confidence 0.95 or more, can hold up a merge.`,
-    S.SKEPTIC, mayBlock(x) ? (model === 'opus' ? 'sonnet' : 'opus') : 'haiku', 'medium')));
+    // Its own session and prompt: it sees the claim, never the lens's reasoning. Jev picks its model (job 'skeptic').
+    S.SKEPTIC, 'skeptic')));
   const settled = settle(checked, judged);
   const confirmed = settled.blockers;
   // A verified stale doc is not a suggestion: it is fixed on the branch (below), so it is held apart.
@@ -221,8 +237,9 @@ async function reviewRun(input: ReviewInput) {
     extra: [
       handDocsBack && staleDocs.length ? `📝 **Stale docs — ship is fixing these on this branch:**\n${staleDocs.map(docLine).join('\n')}` : '',
       docsRun ? `📝 **Stale docs — being fixed on this branch now**, so the next agent does not build on them ([run](${FACTORY_DASHBOARD}/workflows/runs/${docsRun})):\n${staleDocs.map(docLine).join('\n')}` : '',
+      `<details><summary>Models and cost</summary>\n\n${models.table()}\n</details>`,
     ],
-    footer: `🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${model} · ${raised.length} raised · ${confirmed.length + followUps.length} survived their skeptic · ${k.spendLine()} · [run](${runUrl})`,
+    footer: `🏭 Factory review · ${lenses.map((l) => l.key).join(', ')} · ${models.summary()} · ${raised.length} raised · ${confirmed.length + followUps.length} survived their skeptic · ${k.spendLine()} · [run](${runUrl})`,
     marker,
   }));
   await setStatus(pr.headSha, 'factory/review', pass ? 'success' : 'failure', pass ? `approved, ${confidence} confidence${confidence === 'low' ? ' (unproven)' : ''}` : blockers[0].claim, runUrl);
@@ -233,6 +250,6 @@ async function reviewRun(input: ReviewInput) {
     verdict: pass ? 'pass' : 'fail', confidence, blockers, docs: handDocsBack ? staleDocs : [], followUps: toList.length,
     // Test gaps its skeptics showed: ship's fixer tightens them as polish when it is fixing anyway; they never hold a run.
     polish: settled.polish.map((x) => ({ category: x.category, file: x.file, line: x.line, claim: x.claim, evidence: x.evidence })),
-    spend: k.spend.total,
+    spend: k.spend.total, models: models.summary(), est: models.totals().est, climbs: models.totals().climbs,
   };
 }
