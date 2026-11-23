@@ -3,6 +3,7 @@ import { HookConflictError } from 'workflow/errors';
 import { ship, type ShipInput } from '@/workflows/ship';
 import { review } from '@/workflows/review';
 import { qa } from '@/workflows/qa';
+import { shots } from '@/workflows/shots';
 import { respond, type RespondInput } from '@/workflows/respond';
 import { verify, type VerifyInput } from '@/workflows/verify';
 import { warm } from '@/workflows/warm';
@@ -25,14 +26,17 @@ async function once<A extends unknown[]>(wf: (...a: A) => Promise<unknown>, args
 
 export const startShip = (input: ShipInput) => once(ship, [input], `ship:${ALLOWED_REPO}#${input.issue}`);
 
-/** Review and QA together — what a pull request gets when it opens, or on `/review`. */
+/** Review, QA and screenshots together — what a pull request gets when it opens, or on `/review`. */
 export async function startChecks(pr: number, sha: string) {
-  const [r, q] = await Promise.all([
+  const [r, q, s] = await Promise.all([
     once(review, [{ pr }], `review:${ALLOWED_REPO}#${pr}@${sha}`),
     once(qa, [{ pr }], `qa:${ALLOWED_REPO}#${pr}@${sha}`),
+    startShots(pr, sha),
   ]);
-  return { review: r, qa: q };
+  return { review: r, qa: q, shots: s };
 }
+
+export const startShots = (pr: number, sha: string) => once(shots, [{ pr }], `shots:${ALLOWED_REPO}#${pr}@${sha}`);
 
 export const startRespond = (input: RespondInput, commentId: number) =>
   once(respond, [input], `respond:${ALLOWED_REPO}#${input.pr}:${commentId}`);

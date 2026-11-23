@@ -80,6 +80,15 @@ export async function probePreview(s: string, id: string, f: Record<string, stri
   'use step';
   return advance(s, id, f, c);
 }
+// ── shots ────────────────────────────────────────────────────────────────────
+export async function listPages(s: string, id: string, f: Record<string, string>, c: string) {
+  'use step';
+  return advance(s, id, f, c);
+}
+export async function screenshot(s: string, id: string, f: Record<string, string>, c: string) {
+  'use step';
+  return advance(s, id, f, c);
+}
 export async function reproduce(s: string, id: string, f: Record<string, string>, c: string) {
   'use step';
   return advance(s, id, f, c);
@@ -122,6 +131,8 @@ reproduce.maxRetries = 5;
 reproduceOnBase.maxRetries = 5;
 cleanUp.maxRetries = 5;
 makeChange.maxRetries = 5;
+listPages.maxRetries = 5;
+screenshot.maxRetries = 5;
 job.maxRetries = 5;
 
 /** Which named step a job runs under, from its label's first word. */
@@ -133,6 +144,7 @@ export function phaseFor(label: string): Phase {
     gate, audit: codeAudit, skeptic, fix, learn, push: pushBranch,
     checkout, facts: measureDiff, recheck: recheckBlocker, lens: reviewLens,
     triage: qaTriage, probe: probePreview, again: reproduce, base: reproduceOnBase, clean: cleanUp, change: makeChange,
+    pages: listPages, shoot: screenshot,
   };
   return table[head] ?? job;
 }

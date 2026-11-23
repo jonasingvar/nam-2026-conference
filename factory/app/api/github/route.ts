@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { resumeHook } from 'workflow/api';
 import { HookNotFoundError } from 'workflow/errors';
 import { ALLOWED_REPO } from '@/lib/constants';
-import { startChecks, startRespond, startShip, startVerify, startWarm } from '@/lib/start';
+import { startChecks, startRespond, startShip, startShots, startVerify, startWarm } from '@/lib/start';
 
 /**
  * GitHub's webhook for the repository:
@@ -12,6 +12,7 @@ import { startChecks, startRespond, startShip, startVerify, startWarm } from '@/
  *   - a pull request opened, reopened or marked ready  → review and QA it
  *     (not one ship opened: ship runs its own, and waits for them)
  *   - `/review` on a pull request                      → verify, review and QA it again
+ *   - `/screenshots` on a pull request                 → screenshot what it changes, on its preview
  *   - `@claude …` on a pull request                    → respond: make the change asked for
  *   - a pull request closed (merged or not)            → wake the ship run waiting on it, tidy its issue
  *   - a push to a pull request                         → verify: the gate, as CI
@@ -117,6 +118,10 @@ export async function POST(req: Request) {
     if (body.includes('<!-- factory') || body.includes('<!-- ship-on-vercel')) return Response.json({ ignored: 'the factory\'s own comment' });
     const shipOf = /(^|\s)\/ship\b/i.test(body) ? await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json()).then((pr) => /^issue-(\d+)-/.exec(pr.head?.ref ?? '')?.[1]) : null;
     if (shipOf) return Response.json(await startShip({ issue: Number(shipOf), notes: body.replace(/(^|\s)\/ship\b/gi, ' ').trim() || undefined }));
+    if (/(^|\s)\/screenshots?\b/i.test(body)) {
+      const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
+      return Response.json({ shots: await startShots(p.issue.number, pr.head.sha) });
+    }
     if (/(^|\s)(\/review|@claude\s+review)\b/i.test(body)) {
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
       const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');

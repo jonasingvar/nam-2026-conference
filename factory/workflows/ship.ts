@@ -2,6 +2,8 @@ import { createHook, getWorkflowMetadata, setAttributes, sleep } from 'workflow'
 import { start } from 'workflow/api';
 import { review } from './review';
 import { qa } from './qa';
+import { shots } from './shots';
+import { pinPreview } from '../lib/shots-steps';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
@@ -574,7 +576,7 @@ async function shipRun(input: ShipInput) {
     await sleep('20s');
     preview = await previewForPr(pr.number);
   }
-  if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); }
+  if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null); }
   else { status.Preview = 'failed'; log(`preview ${preview.state}${preview.url ? `: ${preview.url}` : ''}`); }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -589,11 +591,13 @@ async function shipRun(input: ShipInput) {
   // Two rounds at most; still not clean goes to a person, with the pull request left open.
   const checks = async (round: number) => {
     // Under ship, review leaves stale docs to ship's fixer: two workflows never push one branch at once.
-    const [reviewRun, qaRun] = await Promise.all([start(review, [{ pr: pr.number, fixDocs: false }]), start(qa, [{ pr: pr.number }])]);
-    log(`review & QA ${round ? `round ${round + 1} ` : ''}— runs ${reviewRun.runId}, ${qaRun.runId}`);
-    const [rv, qv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null)]);
+    // Screenshots ride along: every round's push is a new preview, so the comment shows what will merge.
+    const [reviewRun, qaRun, shotsRun] = await Promise.all([start(review, [{ pr: pr.number, fixDocs: false }]), start(qa, [{ pr: pr.number }]), start(shots, [{ pr: pr.number }])]);
+    log(`review & QA ${round ? `round ${round + 1} ` : ''}— runs ${reviewRun.runId}, ${qaRun.runId} · screenshots ${shotsRun.runId}`);
+    const [rv, qv, sv]: any[] = await Promise.all([reviewRun.returnValue.catch(() => null), qaRun.returnValue.catch(() => null), shotsRun.returnValue.catch(() => null)]);
     log(verdictLine('review', rv));
     log(verdictLine('QA', qv));
+    log(`screenshots: ${sv?.outcome === 'posted' ? `${sv.pages} page${sv.pages === 1 ? '' : 's'} — ${sv.url}` : sv?.outcome ?? 'did not run'}`);
     for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
     const found: Finding[] = [
       ...(rv?.blockers || []).map((b: any) => ({ severity: 'blocker', category: `review:${b.category}`, file: b.file, line: b.line, claim: b.claim, evidence: [b.how && `how: ${b.how}`, b.harm && `harm: ${b.harm}`, b.evidence].filter(Boolean).join(' · ') || 'raised by review', fix: 'resolve what the review found' })),
