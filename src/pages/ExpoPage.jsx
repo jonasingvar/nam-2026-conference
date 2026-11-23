@@ -3,7 +3,7 @@ import { useConference, useFetch } from '../lib/store.jsx';
 import * as api from '../lib/api.js';
 import { filterSponsors, plural } from '../lib/format.js';
 import { SearchInput } from '../components/FilterBar.jsx';
-import { Chip, EmptyState, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
+import { Button, Chip, EmptyState, ErrorState, SectionHeader, Skeleton, cx } from '../components/ui.jsx';
 import { GeneratedCover } from '../components/GeneratedCover.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
 
@@ -101,7 +101,8 @@ export function ExpoPage() {
       {loading && <div className="grid gap-4 sm:grid-cols-2">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-40" />)}</div>}
 
       {!loading && !error && searching && shown.length === 0 && (
-        <EmptyState icon="search" title={`No sponsors match “${q.trim()}”`} description="Check the spelling, or try a shorter part of the name." />
+        <EmptyState icon="search" title={`No sponsors match “${q.trim()}”`} description="Check the spelling, or try a shorter part of the name."
+          action={<Button size="sm" onClick={() => setQ('')}>Clear search</Button>} />
       )}
 
       {TIERS.map((tier) => {

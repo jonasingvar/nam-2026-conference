@@ -19,7 +19,7 @@ The Expo page (`/expo`) gets a search box. Typing part of a sponsor's name narro
 
 ## Decisions
 - Match on the sponsor name only (not blurb, perk or booth), as the ticket says "by name"?
-- Should the empty state offer a "Clear search" button like the speakers page's "Show everyone"?
+- The empty state offers a "Clear search" button (added on PR review), like the schedule's "Clear filters".
 - Should the header's "N companies" count stay at the total rather than the filtered count?
 
 ## Out of scope

@@ -32,7 +32,8 @@ test.describe('Expo search', () => {
     await search.fill('zzqx');
     await expect(page.getByRole('heading', { name: 'No sponsors match “zzqx”' })).toBeVisible();
 
-    await search.fill('');
+    await page.getByRole('button', { name: 'Clear search' }).click();
+    await expect(search).toHaveValue('');
     await expect(page.getByRole('heading', { level: 3 })).toHaveCount(sponsors.length);
     for (const t of new Set(sponsors.map((s) => s.tier.toLowerCase()))) {
       await expect(page.getByTestId(`tier-${t}`)).toHaveCount(1);
