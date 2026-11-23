@@ -121,8 +121,9 @@ model it does not know with a guess (`costBasis: unknown`).
 (`pid`, `exit`, `out.log`, `result.json`); `lib/jobs.ts:runJob` polls it
 across durable `sleep('20s')`s. An agent is a job running `claude -p` with
 `--json-schema` (`workflows/schemas.ts`) and `--output-format json`;
-`readAgent` takes `structured_output` and the run's real cost
-(`total_cost_usd`, `modelUsage`). A missing required field is a dead agent.
+`readAgent` takes `structured_output` and the run's token usage
+(`modelUsage`), which the factory prices from AI Gateway's catalog —
+Claude Code's own `total_cost_usd` guesses for models it does not know. A missing required field is a dead agent.
 
 **Resuming.** The sandbox is persistent: when it hits its timeout (45 minutes
 on Hobby) or dies, its disk is kept and the next step resumes it. `pollJob`

@@ -25,7 +25,10 @@ export async function routedAgent(o: {
     o.log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} — ${short(p.model)} (${TIERS[p.tier]}), ${r.turns} turns, ${r.seconds}s, ` +
       `$${priced.total.toFixed(3)} (est $${p.est.toFixed(3)})`);
     if (r.value || attempt >= 1) return { value: r.value, pick: p };
-    const up = o.book.climb(o.job, `${o.label} returned no result`);
+    // Parallel agents of one job (review lenses, reader audits) share the book: if a sibling's failure already
+    // moved the job up, follow it instead of climbing again — one round of failures is one tier.
+    const current = o.book.pick(o.job);
+    const up = current.tier > p.tier ? current : o.book.climb(o.job, `${o.label} returned no result`);
     if (!up) return { value: null, pick: p };
     o.log(`${o.label}: climbing to ${describe(up)}`);
     p = up;

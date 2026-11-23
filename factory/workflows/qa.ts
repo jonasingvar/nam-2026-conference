@@ -159,7 +159,8 @@ async function qaRun(input: QaInput) {
   const f = String(facts?.facts || '');
   const files: string[] = facts?.files ?? [];
   const size = (/--size=(\w+)/.exec(f) || [])[1] || 'large';
-  const marker = (bugs: any[]) => ({ pass: 'qa', commit: co.head, bugs });
+  // `probed` tells review this pass exercised the preview; a skip or a run whose probes never ran is no evidence.
+  const marker = (bugs: any[], probed = false) => ({ pass: 'qa', commit: co.head, bugs, probed });
 
   // Nothing an attendee can meet changed: the harness, tests and docs are code review's.
   if (/--app-change=no/.test(f)) {
@@ -246,6 +247,9 @@ async function qaRun(input: QaInput) {
     const [d, m] = await Promise.all([k.command(`run:desktop${tag}`, probeRun(previewUrl, [], 'desktop')), k.command(`run:mobile${tag}`, probeRun(previewUrl, [], 'mobile'))]);
     return { results: [...(d?.results ?? []), ...(m?.results ?? [])] as Ran[], errors: [...(d?.errors ?? []), ...(m?.errors ?? [])] as string[] };
   };
+  // The writer checks and runs its file with the factory's preview config, so it must exist before the writer starts
+  // (probeRun writes it too, but only after the writer is done).
+  await k.command('config', `cat > ${CONFIG} <<'CFG'\n${remoteConfig()}\nCFG\necho '{"ok":true}' > "$JOB/result.json"`);
   const [, firstWrite] = await Promise.all([warming.then((w) => w && k.log(`warm: ${w.ok}/${w.requests} ok, slowest ${Number(w.slowest).toFixed(1)}s`)), write()]);
   let written = firstWrite;
   let ran = await runBoth('');
@@ -261,7 +265,8 @@ async function qaRun(input: QaInput) {
     }
   }
   const probes = tally(plan, ran.results);
-  if (!written && !ran.results.length) {
+  if (!ran.results.length) {
+    // Nothing ran on either viewport — whatever the writer said, nothing was exercised.
     await publish(true, 'low', 'The probes did not run — nothing here was exercised.', [], marker([]));
     await disposeSandbox(box);
     return outcome({ verdict: 'pass', confidence: 'low' });
@@ -317,7 +322,7 @@ async function qaRun(input: QaInput) {
       `#### Probed\n${probes.map((p) => `- ${mark(p)} ${p.title}`).join('\n')}`,
       `\n🔎 Preview: ${previewUrl}`,
     ],
-    marker(bugs.map((b) => ({ title: b.title, aim: b.aim }))));
+    marker(bugs.map((b) => ({ title: b.title, aim: b.aim })), ranBoth > 0));
   await disposeSandbox(box);
   return outcome({ verdict: pass ? 'pass' : 'fail', confidence, bugs: bugs.map((b) => ({ title: b.title, aim: b.aim, expected: b.expected, actual: b.actual })), preview: previewUrl });
 }
