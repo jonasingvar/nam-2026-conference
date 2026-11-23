@@ -26,7 +26,9 @@ export async function verify(input: VerifyInput) {
   const ran = await k.command('gate', [
     `git checkout -q --detach ${input.sha}`,
     `GATE=$(${input.fast ? 'GATE_SCOPE=branch ' : ''}GATE_BASE=origin/${base} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
-    `GATE="$GATE" node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",JSON.stringify({gate:process.env.GATE}))'`,
+    // The factory checks itself too, when a commit touches it: typecheck and its own tests.
+    `FACTORY=skip; if git diff --name-only origin/${base}...HEAD 2>/dev/null | grep -q '^factory/'; then (cd factory && npm ci --no-audit --no-fund >/dev/null 2>&1 && npx tsc --noEmit -p . && npm test) >"$JOB/factory.log" 2>&1 && FACTORY=ok || FACTORY=failed; fi`,
+    `GATE="$GATE" FACTORY="$FACTORY" node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",JSON.stringify({gate:process.env.GATE,factory:process.env.FACTORY}))'`,
   ].join('\n'));
   await disposeSandbox(box);
   let g: any = null;
@@ -35,7 +37,8 @@ export async function verify(input: VerifyInput) {
     await setStatus(input.sha, 'factory/verify', 'error', 'The gate did not report', runUrl);
     return { ok: false, reason: 'no gate result' };
   }
-  const line = `unit ${g.unit.passed}${g.unit.failed ? ` (${g.unit.failed} failed)` : ''} · browser ${g.browser.passed}${g.browser.failed.length ? ` (${g.browser.failed.length} failed)` : ''}${g.scope === 'branch' ? ' · specs this change reaches' : ''}`;
+  if (ran.factory === 'failed') { g.ok = false; g.browser.failed.unshift({ test: 'factory: typecheck or tests' }); }
+  const line = `unit ${g.unit.passed}${g.unit.failed ? ` (${g.unit.failed} failed)` : ''} · browser ${g.browser.passed}${g.browser.failed.length ? ` (${g.browser.failed.length} failed)` : ''}${g.scope === 'branch' ? ' · specs this change reaches' : ''}${ran.factory === 'ok' ? ' · factory ok' : ''}`;
   await setStatus(input.sha, 'factory/verify', g.ok ? 'success' : 'failure', g.ok ? line : `${g.browser.failed[0]?.test || 'npm test'} — ${line}`, runUrl);
   return { ok: g.ok, line, failed: g.browser.failed.map((f: any) => f.test) };
 }

@@ -35,6 +35,8 @@ files:
   - context/engineering-context/index.md
   - specs/README.md
 tests:
+  - factory/test/policy.test.ts
+  - factory/test/agent.test.ts
   - tests/unit/gate.test.js
   - tests/unit/red-check.test.js
   - tests/unit/qa-facts.test.js

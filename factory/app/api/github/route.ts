@@ -64,6 +64,8 @@ export async function POST(req: Request) {
     const v = shipOpened ? null : await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast });
     if (p.action === 'synchronize') return Response.json({ verify: v });
     if (pr.draft) return Response.json({ verify: v, ignored: 'draft' });
+    // A bot's pull request (Dependabot) gets CI, not a paid review and QA.
+    if (pr.user?.type === 'Bot') return Response.json({ verify: v, ignored: 'a bot opened it: verify only' });
     if (shipOpened) return Response.json({ ignored: 'ship opened it, and runs its own gate, review and QA' });
     return Response.json({ verify: v, checks: await startChecks(pr.number, pr.head.sha) });
   }

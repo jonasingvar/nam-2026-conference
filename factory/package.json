@@ -8,7 +8,7 @@
     "dev": "next dev --port 4800",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types \"test/*.test.ts\""
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.152",

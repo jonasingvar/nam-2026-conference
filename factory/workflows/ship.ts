@@ -535,6 +535,11 @@ export async function ship(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   // 10. Production — merged means deployed; check it really is.
   // ════════════════════════════════════════════════════════════════════════
+  if (BASE !== 'main') {
+    status.Production = 'skipped';
+    await show(`merged into ${BASE} — production deploys from main`);
+    return { outcome: 'merged', issue: n, pr: prUrl, preview: previewUrl, base: BASE, spend: spend.total };
+  }
   await enter('Production');
   let prod = await findDeployment(outcome.sha || final.head, 'Production');
   for (let i = 0; i < 60 && (prod.state === 'pending' || prod.state === 'none'); i++) {
