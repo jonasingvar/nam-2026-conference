@@ -45,6 +45,16 @@ const DECK = [DECK_SPEC, 'src/components/presentation/', 'src/pages/Presentation
   'src/pages/ProductPresentationPage.jsx', 'src/lib/presentation.js'];
 
 /** Playwright's JSON report → counts and the tests that failed. */
+/**
+ * `node --test`'s totals, from either reporter: TAP (`# pass 12`, the default
+ * off a terminal on Node 22) or spec (`ℹ pass 12`, the default on Node 24).
+ * Empty when neither is there.
+ */
+export function unitTotals(stdout = '') {
+  const m = /^(?:#|ℹ) pass (\d+)[\s\S]*?^(?:#|ℹ) fail (\d+)/m.exec(stdout || '');
+  return m ? [m[0], m[1], m[2]] : [];
+}
+
 export function summarise(report) {
   const failed = [];
   // Named, not just counted: a flake in the test the branch just added is a
@@ -407,7 +417,7 @@ function main() {
   const dirty = isDirty(git('status', '--porcelain', '--untracked-files=all'), pinned);
 
   const unit = spawnSync('npm', ['test', '--silent'], { cwd: ROOT, encoding: 'utf8' });
-  const unitCounts = /# pass (\d+)[\s\S]*?# fail (\d+)/.exec(unit.stdout || '') || [];
+  const unitCounts = unitTotals(unit.stdout);
 
   // GATE_BASE: what the branch is judged against — main, unless it stacks on
   // another pull request.
@@ -464,7 +474,10 @@ function main() {
   try { testDiff = git('diff', `${base}...HEAD`, '--', 'tests/'); } catch { /* no base */ }
   browser.failed.push(...neverRanAdded(browser.neverRan || [], addedTests(testDiff)));
 
-  const unitFailed = unit.status !== 0;
+  // No count at all is not a pass: a reporter the gate cannot read once
+  // turned every unit test into "0 passed" and the gate green (Node 24's
+  // default reporter is spec, not TAP).
+  const unitFailed = unit.status !== 0 || !unitCounts.length;
   const result = {
     // A run whose only failures then passed alone still exited non-zero.
     ok: !unitFailed && (pw.status === 0 || alone.length > 0) && browser.failed.length === 0 && !dirty,

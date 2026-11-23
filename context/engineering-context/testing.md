@@ -10,9 +10,6 @@ files:
   - scripts/lane.mjs
   - scripts/shot.mjs
   - scripts/show.mjs
-  - scripts/ci-summary.mjs
-  - scripts/ci-summary-node.mjs
-  - .github/workflows/verify.yml
 tests:
   - tests/unit/lane.test.js
   - tests/unit/lanes.test.js
@@ -123,13 +120,10 @@ Everything takes injectable `root`, `worktree`, `free`, `exists` — that is how
 `WEB_PORT` is not answering, writes `.screenshots/<route>[.mobile].png`, and exits 1 if the
 page logged a console error.
 
-**CI** (`.github/workflows/verify.yml`, on push to `main`, every pull request, manual):
-job `test` runs `npm run test:ci` (spec + JUnit to `test-results/node-tests.xml`) then
-`ci-summary-node.mjs`; job `playwright` is a matrix over `desktop`/`mobile`, runs
-`npm run build` (build check only — the suite still runs `npm run dev`), installs Chromium,
-runs `npm run verify -- --project=<p>`, then `ci-summary.mjs <p>` and uploads
-`playwright-report/` + `test-results/` as `playwright-report-<p>`. Both summary scripts
-print a markdown table to `$GITHUB_STEP_SUMMARY` and exit 0 even with no report.
+**CI** is the factory's `verify` workflow (`factory/workflows/verify.ts`, harness doc): every push to a
+pull request and to `main` runs `node scripts/gate.mjs` in a Vercel Sandbox forked from the warm one, and
+reports the commit status `factory/verify`. A `ship:fast` pull request runs `GATE_SCOPE=branch` (the browser
+specs its change reaches); `main` always runs the whole suite. There are no GitHub Actions.
 
 ## Invariants
 
@@ -206,7 +200,7 @@ once on mobile.
 - **A browser test the branch added that skips on every project fails the gate** (`neverRanAdded` in
   `scripts/gate.mjs`): it never ran, so it proves nothing. Make its precondition hold — a lane, a
   slot, a pinned clock — rather than letting `test.skip(!target, …)` fire.
-- **Never open `data/orbit.db` to learn the seed** — `node -e "require('better-sqlite3')…"` from an
+- **Never open `data/orbit.db` to learn the seed** — `node -e "require('libsql')…"` from an
   agent's shell crashed on #78 and #70. Read `context/engineering-context/seed.md`, or ask the API: `attendedSession()`
   in `tests/api/harness.js`, `bookableFor()` in `tests/helpers.js`, or `curl localhost:$PORT/api/…`.
 - `tests/unit/lanes.test.js` fails `npm test` when two panes share an attendee and day

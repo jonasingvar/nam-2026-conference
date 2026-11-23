@@ -5,6 +5,10 @@ read_when: adding an endpoint, a column, a page or a route; touching useConferen
 files:
   - server/index.js
   - server/db.js
+  - server/remote-db.js
+  - server/publish-seed.js
+  - api/index.js
+  - vercel.json
   - server/lib/query.js
   - server/routes/meta.js
   - src/main.jsx
@@ -15,6 +19,7 @@ tests:
   - tests/api/contracts.test.js
   - tests/api/endpoints.test.js
   - tests/unit/query.test.js
+  - tests/unit/remote-db.test.js
 related: [seats, agenda, clock, schedule, speakers, venues, seed, testing]
 ---
 
@@ -47,12 +52,20 @@ reads `err.payload` on a 409 to get the clash. Server side, `index.js` ends with
 for any unmatched `/api/*` (`"No route for GET /api/…"`) and an error handler that answers
 `err.status ?? 500` with `{ error: err.message }` — so a malformed JSON body from
 `express.json()` is a 400, not a 500. `GET /api/health` returns `{ ok, sessions }`.
-**Production serving.** `npm start` (seed, then `node server/index.js`) is one process: when
-`DIST_DIR` exists (`ORBIT_DIST_DIR` or `<repo>/dist`, from `npm run build`) `index.js` mounts
-`express.static` after the `/api` 404, then a `GET *` fallback sending `index.html` for
-extension-less paths (client routes like `/speakers/12`); a missed path with an extension is a
-plain 404. No `dist/` (`npm run dev`) mounts nothing. Railway sets `PORT`; `ORBIT_PUBLIC_URL`
-sets the `.ics` host.
+**On Vercel.** Production is `main`, a preview is every pull request. `vercel.json` builds with
+`npm run build:vercel` (Vite into `dist/`, then `server/publish-seed.js`) and rewrites every `/api/*`
+request to one Function, `api/index.js`, which imports `app` from `server/index.js`; everything else
+is the static `dist/`, with `/index.html` as the client-route fallback. **Production's database is
+Turso**: the integration sets `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` on production only, and
+`db.js` then opens `server/remote-db.js:openRemote` — the same `prepare`/`run`/`get`/`all`/
+`transaction` surface, reopening the connection after Turso drops an idle stream. A production
+build reseeds Turso in one transaction (`publish-seed.js`: seed a local file, send it as one
+batch), so Day 1 is the day you deploy. **A preview has no Turso variables**: each function
+instance seeds a private SQLite file in `/tmp` on its first request (`api/index.js`), so a pull
+request can never write to production and every preview starts from the same conference.
+`ORBIT_DB` always wins over Turso (tests, previews, sandboxes). `npm start` (seed, then
+`node server/index.js`, serving `dist/` when it exists) still runs the whole app as one process
+locally; `ORBIT_PUBLIC_URL` sets the `.ics` host.
 `index.js` only calls `listen` when run directly; tests import `app` (see testing).
 
 **Database** (`server/db.js`). `DB_PATH` is `ORBIT_DB` or `data/orbit.db`; WAL and

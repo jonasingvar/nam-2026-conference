@@ -1,9 +1,10 @@
 <!--
-The rules a QA pass follows. Not a command: `/qa <pr>` runs the workflow
-(.claude/workflows/qa.js) — plan, probe, reproduce on the branch and its base,
-publish — and its agents are pointed at the numbered sections here. The
-workflow composes the comment and the verdict line (§4–§5) from what
-reproduced, so where this says "you" write them, it does.
+The rules a QA pass follows. Not a command: the factory's `qa` workflow
+(factory/workflows/qa.ts) triages, probes the pull request's Vercel preview,
+reproduces each failure there and on the base's deployment, and publishes —
+its agents are pointed at the numbered sections here. Probes run against the
+deployed preview (`QA_BASE_URL`, a remote Playwright config the workflow
+writes), not a local dev server: never start the app.
 -->
 
 # QA a change

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "ORBIT '26 \u2014 the conference companion app",
+  "description": "ORBIT '26 — the conference companion app",
   "scripts": {
     "dev": "npm run db:seed && concurrently -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "start": "npm run db:seed && node server/index.js",
@@ -14,17 +14,17 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test \"tests/unit/*.test.js\" \"tests/api/*.test.js\"",
-    "test:ci": "mkdir -p test-results && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results/node-tests.xml \"tests/unit/*.test.js\" \"tests/api/*.test.js\"",
     "verify": "npm run db:seed && playwright test",
     "verify:ui": "npm run db:seed && playwright test --ui",
     "shot": "node scripts/shot.mjs",
     "show": "node scripts/show.mjs",
-    "avatars": "node scripts/fetch-avatars.mjs"
+    "avatars": "node scripts/fetch-avatars.mjs",
+    "build:vercel": "vite build && node server/publish-seed.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "libsql": "0.5.29",
     "motion": "^12.43.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

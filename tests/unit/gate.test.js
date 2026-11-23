@@ -378,3 +378,11 @@ describe("fast's answer when the change could reach any page", () => {
     assert.deepEqual(ciSpecs(['src/components/Layout.jsx'], repo, false), ['tests/seats.spec.js', 'tests/smoke.spec.js']);
   });
 });
+
+test('unit totals are read from the TAP reporter and the spec reporter alike, and nothing is not a pass', async () => {
+  const { unitTotals } = await import('../../scripts/gate.mjs');
+  assert.deepEqual(unitTotals('ok 1 - a\n# tests 3\n# suites 1\n# pass 3\n# fail 0\n').slice(1), ['3', '0']);
+  assert.deepEqual(unitTotals('✔ a (1ms)\nℹ tests 638\nℹ suites 114\nℹ pass 637\nℹ fail 1\n').slice(1), ['637', '1']);
+  assert.deepEqual(unitTotals('npm error something went wrong\n'), []);
+  assert.deepEqual(unitTotals(''), []);
+});

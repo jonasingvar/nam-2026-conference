@@ -1,59 +1,23 @@
-# Workshop quickstart — using the harnesses
+# Quickstart — from an idea to a deployed change
 
-Not set up yet? Paste the prompt from the [README](../../../README.md) into Claude
-Code: it follows [ONBOARD_CLAUDE.md](../../../ONBOARD_CLAUDE.md). Once you're set
-up, run everything below from Claude in your fork's folder. Every step in detail:
-[How the harness works](index.md).
+## The product harness: a conversation to tickets
 
-## The product harness: from a conversation to tickets
+In Claude Code, in this repository: `/create-tasks <what you want>` writes one
+GitHub issue with a **Done when** list; `/winnow <transcript>` sorts a meeting
+into decisions (recorded in `context/`) and tickets. Try
+`/winnow context/winnow-transcripts/demo-transcript.txt`.
 
-You stay in the conversation. The skills ask questions, and nothing is written
-until you agree. There are three levels; each one adds a step in front of the
-one before.
+## The engineering harness: a ticket to production
 
-1. **Write a ticket directly:** `/create-tasks Add a page that lists every
-   sponsor`. It checks for similar issues, asks about anything unclear, and
-   opens a GitHub issue that states the goal and has a **Done when** list.
-2. **Process a transcript:** `/winnow`, then paste the transcript or give a
-   file path. It sorts what was said into decisions, work and noise, and asks
-   about gaps and contradictions. Nothing to hand it? Try
-   `/winnow context/winnow-transcripts/demo-transcript.txt`. When you say go, it records the
-   decisions in the docs (`update-context`) and raises the issues
-   (`create-tasks`). Use the full transcript, not an AI summary: a summary
-   drops who said what, and which decision replaced which.
-3. **Listen live** (needs the audio setup): `/listen-to-meeting`. It transcribes
-   on your machine and flags contradictions and gaps during the meeting. Say
-   "meeting's over" to stop it; it then offers to run `winnow` on the
-   transcript.
+1. **Label the issue `ready-for-ai`** — or comment `/ship` on it (`/ship --fast`,
+   `--small` or `--full` to choose the size yourself; otherwise Jev chooses).
+2. **Watch the issue.** One comment fills in as it goes: the size and why, the
+   branch and spec, each gate and audit round, the spend.
+3. **Review the pull request.** It has the spec, the proof, the audit rounds,
+   a link to its Vercel preview, and the review and QA verdicts. Ask for a
+   change with `@claude …` on the PR.
+4. **Merge it.** The run wakes up, waits for the production deployment, and
+   checks `/api/health` — the issue says when it is live.
 
-**You should end up with:** new issues on your fork, and possibly edits to
-`context/` for you to review and commit.
-
-## The engineering harness: from a ticket to a pull request
-
-The engineering harness runs on its own. You give it a ticket, then come back
-to a pull request.
-
-1. **Pick an issue** that has a **Done when** list. One the product harness
-   just created works.
-2. **Ship it:** ask Claude to ship issue 42, and pick a run. **Fast** — the
-   default, for the workshop — plans, writes a failing test and the code, runs
-   only the browser tests for the pages it changed and takes one audit. The
-   pull request's CI repeats those tests on a clean machine; the rest run on
-   main after you merge, so a break elsewhere shows up there. **Full** (`/ship 42 --full`) runs every test on desktop and
-   mobile and audits until the work is clean, which takes far longer. You can
-   watch the progress on the issue.
-3. **Review the pull request** like any other. It has the plan, the test
-   evidence, every audit round and the cost. Merge it, or comment `@claude …` to
-   ask for a change.
-
-`/ship 42 43 44` runs several tickets in parallel, each in its own worktree on
-its own ports. If a ticket will not come together, you get a **draft** pull
-request labelled `needs-human` that lists what is still open.
-
-## On GitHub Actions instead
-
-The same agents can run in the cloud — label an issue `ready-for-ai` and one
-ships it. The workshop demos that on the main repo. A fork needs an API key for
-it, set up as in [github.md](github.md); without one, the fork guard blocks the
-label on purpose, and you ship from Claude instead.
+A ticket that cannot converge comes back as a **draft** pull request labelled
+`needs-human`, with what is still open written down.

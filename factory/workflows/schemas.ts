@@ -1,0 +1,181 @@
+/**
+ * What each agent must return. Claude Code enforces these (`--json-schema`);
+ * the workflow reads `structured_output` and nothing else an agent writes.
+ */
+const str = { type: 'string' };
+const bool = { type: 'boolean' };
+const int = { type: 'integer' };
+
+export const PLAN = {
+  type: 'object',
+  required: ['shippable', 'reason'],
+  properties: {
+    shippable: bool,
+    reason: { type: 'string', description: 'why not, if not shippable; else one line on the ticket' },
+    doneWhen: { type: 'array', items: str, description: 'each Done-when criterion, verbatim' },
+    spec: {
+      type: 'object',
+      required: ['path', 'summary'],
+      properties: {
+        path: str,
+        summary: { type: 'string', description: 'two sentences: the approach and how it will be proved' },
+        decisions: { type: 'array', items: str, description: 'choices the ticket left open, each as a yes/no question for the reviewer' },
+      },
+    },
+    facts: {
+      type: 'object',
+      required: ['areas', 'files', 'changesApi', 'changesRule', 'changesData', 'openQuestions', 'uiInteraction', 'layoutFit', 'why'],
+      properties: {
+        areas: { type: 'array', items: { enum: ['ui', 'server-routes', 'server-rules', 'schema-seed', 'harness', 'tests', 'docs'] } },
+        files: { type: 'integer', description: 'roughly how many app files (src/, server/) the change edits or adds' },
+        changesApi: bool, changesRule: bool, changesData: bool,
+        openQuestions: int, uiInteraction: bool, layoutFit: bool,
+        why: { type: 'string', description: 'one line: what the change touches' },
+      },
+    },
+  },
+};
+
+export const SPEC_REVISED = { type: 'object', required: ['path', 'summary'], properties: { path: str, summary: str } };
+
+export const FINDINGS = {
+  type: 'object',
+  required: ['findings', 'covered', 'ran'],
+  properties: {
+    ran: { enum: ['nothing', 'unit', 'browser', 'unit+browser'], description: 'which suites or probes YOU executed — reading is not running' },
+    covered: { type: 'string', description: 'what you were able to judge — under 12 words' },
+    findings: {
+      type: 'array',
+      maxItems: 5,
+      items: {
+        type: 'object',
+        required: ['severity', 'category', 'file', 'claim', 'evidence', 'fix'],
+        properties: {
+          severity: { enum: ['blocker', 'minor'] },
+          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'browser', 'spec-gap', 'scope', 'gate', 'docs-stale'], description: 'unasked: a change the ticket did not ask for; scope: the ticket itself is contradictory or unbuildable' },
+          file: str, line: int,
+          claim: { type: 'string', description: 'what is wrong, in one sentence' },
+          evidence: { type: 'string', description: 'the quoted line, the input and wrong output, or the repro' },
+          fix: { type: 'string', description: 'what would resolve it, in one sentence' },
+        },
+      },
+    },
+  },
+};
+
+export const REFUTATION = { type: 'object', required: ['refuted', 'why'], properties: { refuted: bool, why: str } };
+
+export const BUILT = {
+  type: 'object',
+  required: ['ok', 'summary'],
+  properties: {
+    ok: bool,
+    summary: { type: 'string', description: 'two or three sentences for the pull request: why it was needed, then what an attendee or developer sees now' },
+    ui: { type: 'boolean', description: 'did anything an attendee sees in a browser change' },
+    browserTest: { type: 'boolean', description: 'did you add or change a Playwright test that drives the changed behaviour' },
+    tryIt: { type: 'string', description: 'how a reviewer sees it in a step or two: a path with ?at=YYYY-MM-DDTHH:MM and which attendee to pick, or a command' },
+    keyFiles: {
+      type: 'array', maxItems: 3,
+      items: { type: 'object', required: ['file', 'why'], properties: { file: str, why: str } },
+    },
+  },
+};
+
+export const LESSON = {
+  type: 'object',
+  required: ['lessons'],
+  properties: { lessons: { type: 'array', items: { type: 'object', required: ['pattern', 'proposal'], properties: { pattern: str, proposal: str } } } },
+};
+
+export const REVIEW = {
+  type: 'object',
+  required: ['verdict', 'confidence', 'summary', 'findings'],
+  properties: {
+    verdict: { enum: ['pass', 'fail'] },
+    confidence: { enum: ['high', 'medium', 'low'], description: 'how much of the change you could judge' },
+    summary: { type: 'string', description: 'one or two sentences: what you checked and what you found' },
+    findings: {
+      type: 'array', maxItems: 3,
+      items: {
+        type: 'object', required: ['severity', 'file', 'claim'],
+        properties: { severity: { enum: ['blocker', 'follow-up'] }, file: str, line: int, claim: str, how: { type: 'string', description: 'who reaches it, and what they lose' } },
+      },
+    },
+  },
+};
+
+export const RECHECK = {
+  type: 'object', required: ['resolved', 'evidence'],
+  properties: { resolved: bool, evidence: { type: 'string', description: 'the lines at HEAD that settle it' } },
+};
+
+export const REVIEW_LENS = {
+  type: 'object',
+  required: ['findings', 'covered', 'confidence'],
+  properties: {
+    confidence: { enum: ['high', 'medium', 'low'], description: 'how much of the change you could actually judge — coverage, not feeling' },
+    covered: { type: 'string', description: 'what you judged — under 15 words' },
+    findings: {
+      type: 'array', maxItems: 3,
+      items: {
+        type: 'object', required: ['severity', 'category', 'file', 'claim', 'evidence'],
+        properties: {
+          severity: { enum: ['blocker', 'follow-up'] },
+          category: { enum: ['criterion-unmet', 'unasked', 'claude-md', 'logic', 'test-proves-nothing', 'test-weakened', 'actions', 'docs', 'orchestration'] },
+          file: str, line: int, claim: str, evidence: str,
+          how: { type: 'string', description: 'the route through normal use that reaches it — who does what, where' },
+          harm: { type: 'string', description: 'what that person loses or sees go wrong' },
+        },
+      },
+    },
+  },
+};
+
+export const SKEPTIC = {
+  type: 'object', required: ['verdict', 'why'],
+  properties: { verdict: { enum: ['confirmed', 'refuted', 'contrived'] }, why: str },
+};
+
+export const QA_TRIAGE = {
+  type: 'object', required: ['mode', 'criteria', 'gaps'],
+  properties: {
+    mode: { enum: ['enough', 'focused', 'explore'], description: 'enough: the tests the PR adds pin every criterion; focused: specific gaps; explore: open exploration needed' },
+    criteria: {
+      type: 'array',
+      items: { type: 'object', required: ['criterion', 'testFile'], properties: { criterion: str, testFile: { type: 'string', description: 'the test file in this diff that pins it, or "" if none' } } },
+    },
+    gaps: { type: 'array', items: str, description: 'what the tests leave unproven, one probe each' },
+  },
+};
+
+export const QA_PROBES = {
+  type: 'object', required: ['probes', 'covered'],
+  properties: {
+    covered: { type: 'string', description: 'what the probes exercised — under 15 words' },
+    probes: {
+      type: 'array', maxItems: 5,
+      items: {
+        type: 'object', required: ['title', 'aim', 'passedDesktop', 'passedMobile'],
+        properties: {
+          title: { type: 'string', description: 'the exact test title in tests/qa-probe.spec.js' },
+          aim: { type: 'string', description: 'what it checks, and the criterion or gap it serves' },
+          passedDesktop: bool, passedMobile: bool,
+          expected: str, actual: str,
+        },
+      },
+    },
+  },
+};
+
+export const RESPONSE = {
+  type: 'object', required: ['changed', 'reply'],
+  properties: {
+    changed: { type: 'boolean', description: 'did you commit and push a change' },
+    reply: { type: 'string', description: 'the reply to post: what you changed and why, or the answer — short, in plain words' },
+  },
+};
+
+export const BASE_SAME = {
+  type: 'object', required: ['preExisting', 'why'],
+  properties: { preExisting: { type: 'boolean', description: 'true only if the base fails it for the same reason' }, why: str },
+};

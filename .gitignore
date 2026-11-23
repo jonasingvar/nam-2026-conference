@@ -30,3 +30,5 @@ apm_modules/
 # Python bytecode from the winnow skills' scripts
 __pycache__/
 *.pyc
+.vercel
+.env*

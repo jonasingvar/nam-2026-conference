@@ -40,7 +40,7 @@ starts the app on its lane and opens the page.
 
 ## Stack
 
-Node 22 · Express · better-sqlite3 · React 18 · Vite 6 · React Router 6 ·
+Node 22 · Express · libsql (SQLite locally, Turso in production) · React 18 · Vite 6 · React Router 6 ·
 Tailwind CSS v4 · Playwright. No state library, no ORM, no component library —
 if you are reaching for one, you are probably solving the wrong problem.
 
@@ -174,33 +174,20 @@ attendee sees → spec. (how: `context/engineering-context/testing.md`)
 **Claim a lane before you run anything** in a worktree
 (`eval "$(node scripts/lane.mjs claim 42)"`). Without one, Playwright reuses any
 app on the web port — another worktree's — and your specs pass against the
-*other* branch's code. CI runs the same commands.
+*other* branch's code. CI — the factory's `verify` workflow — runs the same gate in a sandbox.
 
 ## Where work is tracked
 
-**Tickets are GitHub Issues** — of the fork you are working in, never the upstream's.
-That is the repository `origin` points at (`git remote get-url origin`); `upstream`
-is the repo the fork came from and is never where work goes.
+**Tickets are GitHub Issues of `jonasingvar/nam-2026-conference`** — this
+repository, never the workshop's original (`EqualExperts/nam-2026-conference`),
+which nothing here writes to: the factory refuses any other repository, and its
+sandboxes' network answers anything under `EqualExperts/` with a 403.
 
-`gh` does not follow `origin` on its own: without a terminal it prefers a remote
-named `upstream`, and `gh repo clone` of a fork adds one. Pin it once per clone —
-`gh repo set-default "$(git remote get-url origin)"` — or every `gh` call reads and
-writes the upstream. Ship, code review and QA do this themselves on a laptop.
+Reach issues with the authenticated `gh` CLI (`gh issue list`, `gh issue view 42`),
+a GitHub MCP server or the REST API; none is preferred. To confirm access, probe
+read-only — never create a test ticket to find out.
 
-**Attendees never write to the original workshop repo** (the one forks are made
-from; `scripts/fork-guard.mjs` names it). A hook in `.claude/settings.json` runs
-that script before any tool call that creates an issue or pull request, and
-blocks one aimed at the original unless the signed-in account maintains it; ship's setup runs the same guard before it
-claims a ticket. Blocked means the wrong checkout — do not route around it.
-Setting a person up from scratch: `ONBOARD_CLAUDE.md`.
-
-Reach it with the authenticated `gh` CLI (`gh issue list`, `gh issue view 42`). A
-GitHub MCP server or the REST API with a token reach the same issues; none is
-preferred, so use whichever is available. To confirm access, probe read-only —
-list or read an existing issue — and never create a test ticket to find out.
-
-Labels and workflow conventions live in `context/engineering-context/harness/github.md` and
-`context/engineering-context/harness.md`; they are not repeated here.
+Labels, the webhook and the commit statuses: `context/engineering-context/harness/github.md`.
 
 ## Data model
 
@@ -208,79 +195,43 @@ Four days from the day you seed, ~140 sessions, 110 speakers, **two venues 6.2
 miles apart**, no authentication. Schema: `context/engineering-context/data-model.md`; the seeded
 attendees: `context/engineering-context/seed.md`.
 
-## Setting this up on a fork
+## Where it runs
 
-Actions → **Set up the harness** → Run workflow. A fork inherits the workflows
-but not the labels. Keys, tokens and triggers: `context/engineering-context/harness/github.md`.
-
-**In a workshop fork, ship from Claude, not the label.** `ready-for-ai` starts
-ship on GitHub Actions, which needs an `ANTHROPIC_API_KEY` secret a workshop
-fork does not have — so the fork guard blocks adding it, on purpose, and says
-why. Ask Claude to ship the issue (`/ship <n>`) instead.
+**Everything runs on Vercel.** The app: project `nam-2026-conference`, `main` →
+production (https://nam-2026-conference.vercel.app, Turso), every branch → a
+preview whose function instances each seed their own SQLite file — so on a
+preview, a seat taken can be missing on a request another instance serves;
+"moves `seats_taken` for everybody" holds in production, not across a
+preview's instances. The factory: project `nam-2026-factory`
+(`factory/`), whose Vercel Workflows build, check and review this repository in
+Vercel Sandboxes. There are no GitHub Actions. (how:
+`context/engineering-context/architecture.md` § On Vercel, `context/engineering-context/harness.md`)
 
 ## What happens to a ticket
 
-1. **Ship** — `ready-for-ai` (or `@claude` on an issue) runs `/ship`, where
-   every phase is a fresh agent. **Asked in a chat to ship an issue** without
-   a size flag, first ask which run with AskUserQuestion — four options, in
-   this order, each with its benefit:
-   - *Fast — for the workshop* (`--fast`): the quickest — about six minutes
-     for a small ticket (#219, a modal and a route), more for a bigger one or
-     when the audit sends it round a fix; one audit, and only the browser tests
-     for the pages the change reaches, here and in the pull request's CI; the
-     whole suite runs on main after merge.
-   - *Sized — let ship decide* (`--sized`): reads the ticket and picks small
-     or full, adding the checks what it touches needs.
-   - *Small* (`--small`): Sonnet, one combined audit and the whole suite.
-   - *Full — best quality* (`--full`): Opus, spec audits, three code
-     auditors, up to four rounds; the slowest.
+1. **Ship** — the `ready-for-ai` label, or `/ship` / `@claude` on the issue,
+   starts the factory's `ship` workflow. Jev sizes it (`fast`, `small`, `full`;
+   a `ship:fast` / `ship:full` label or `--fast`/`--small`/`--full` in the
+   comment is a person's call and wins), a sandbox forks the warm one, and every
+   phase is a fresh agent: spec (the first commit) → failing test → change →
+   gate ⇄ independent audit with a skeptic on every blocker → pull request. No
+   pull request until the gate is green and no blocker survives; one that will
+   not converge — or meets a failure that is also on the base — goes to a
+   person as a **draft** labelled `needs-human`. Progress is one comment on the
+   issue; every step is in the factory's Workflows tab.
+2. **Preview** — Vercel builds the pull request; the run waits for it.
+3. **Review and QA** — two more workflows, in parallel: review reads the diff
+   with lenses picked by what it touches; QA probes the gaps the PR's own tests
+   leave, **on its preview**, desktop and mobile. Each posts a verdict with a
+   **confidence** meaning coverage, not feeling, and a commit status; a low one
+   reads *unproven*. `@claude …` on the PR asks for a change; `/review` asks again.
+4. **A human merges.** Nothing is a required check. The ship run, asleep since
+   the pull request opened, wakes on the merge, waits for production, and checks
+   `/api/health` before it calls the issue done.
 
-   **Several tickets at once** (`/ship 2 3 4`): ask the size **once for the
-   batch**, and say before starting that they run side by side. A ticket whose
-   **Depends on** names another in flight **stacks** on it: it builds on that
-   branch, its pull request says *merge #n first*, and when #n merges it is
-   moved to main and updated automatically. Tickets that change the same page
-   or file without a **Depends on** between them still conflict: give the later
-   one a **Depends on** so it stacks, or run them one after another. Never
-   start a run — one or many — before the person has picked the size.
-
-   **While ship runs**, the chat that started it stays with the person: the
-   run is in the background, and only `/workflows` shows its steps. Straight
-   after starting it, start a monitor (the Monitor tool) on
-   `node scripts/ship-progress.mjs watch <n>`. It prints one plain line per
-   step — the plan ready, the tests running, the review, the pull request —
-   and exits after the last. Post each line as its own short message, as it
-   is: no agent names, no rounds, nothing added. **Never say how a run is going
-   without just having read it** — the feed, the issue's progress comment
-   (`gh issue view <n> --comments`), or the workflow's state. "It's
-   progressing" from memory has been wrong.
-
-   **When ship finishes**, the chat that asked for it gets the hand-off, not
-   a log. Lead with the pull request link (`pr`), then one line with how long
-   it took (the workflow's completion notice gives its duration) and what it
-   cost (`spend`), then what to try (`tryIt`).
-   Then offer to open it — *"Want me to open it in your browser?"* — and on a
-   yes run the returned `show` command (`npm run show -- <the run's branch>`)
-   in the background: it serves **that branch** from ship's own worktree and
-   opens the page, never `main` or whatever this checkout is on. Never
-   check the branch out to do this — ship's own worktree already has it, and a
-   checkout here would move the person's main folder off `main`. Leave out
-   the rounds and lessons unless asked. End with the person's next step:
-   *review it, then click **Squash and merge** on GitHub*. A draft
-   (`needs-human`) gets its link and what is still open instead.
-
-   Quote only that one time; the others are slower in that order, Full the
-   slowest, and no time for them has been measured since — so do not put a
-   number on them. Then start it with that flag. A run with no flag is fast. Setup sizes the ticket: most are **small**
-   (one auditor per stage, two rounds, Sonnet); `ship:full` gets the whole
-   loop on Opus. No pull request until the gate is green and no
-   auditor blocker survives a skeptic; one that will not converge goes to a
-   person as a **draft**.
-2. **Code review**, 3. **QA** — on the opened, non-draft pull request, each with
-   a **confidence** meaning coverage, not feeling; a low one reads *unproven*.
-4. **A human merges.** Nothing is a required check.
-
-(how: `context/engineering-context/harness.md`, `context/engineering-context/harness/ship-playbook.md`)
+**Asked in a chat to ship an issue**, do not build it here: label it
+`ready-for-ai`, or comment `/ship` on it (`gh issue comment <n> --body "/ship"`),
+and give the person the issue link — the factory takes it from there.
 
 ## Every change starts with a spec
 

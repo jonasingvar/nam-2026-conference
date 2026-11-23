@@ -1,0 +1,9 @@
+data
+test-results
+playwright-report
+.screenshots
+.claude/worktrees
+.env*
+factory/node_modules
+factory/.next
+factory/.env*
