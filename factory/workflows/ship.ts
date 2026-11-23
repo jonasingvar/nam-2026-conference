@@ -391,7 +391,6 @@ async function shipRun(input: ShipInput) {
     `also a moment before it applies (Day 1 08:00 — the seed's morning is already attended). A browser test you added runs once, alone, before you hand over ` +
     `(\`npx playwright test <file> -g "<title>" --project=desktop\`); do NOT run the whole suite — the gate does. ` +
     (profile.size === 'fast' ? 'This is a fast run: unit and API tests first, at most one browser test (none if nothing an attendee sees changes). ' : '') +
-    `If something an attendee sees changed, call \`await shotForPR(page, '<what it shows>')\` (tests/helpers.js) in the browser test at the moment the change is on screen. ` +
     `Leave \`git status\` clean.` +
     (carried.length ? `\n\nThe plan audit left these for the build to resolve:\n${list(carried)}` : ''),
     S.BUILT, 'implement');
@@ -554,11 +553,9 @@ async function shipRun(input: ShipInput) {
     `if ! git merge --no-edit origin/${BASE} >"$JOB/merge.log" 2>&1; then git merge --abort; echo '{"ok":false,"why":"conflict"}' > "$JOB/result.json"; exit 0; fi`,
     `AFTER=$(git log --name-only --format= ${gate.sha}..HEAD | grep -vE '^(context/|specs/)|\\.md$' | grep -v '^$' | sort -u | paste -sd, -)`,
     `git push -q -u origin HEAD >"$JOB/push.log" 2>&1 || { echo '{"ok":false,"why":"push failed"}' > "$JOB/result.json"; exit 0; }`,
-    `SHOTS=""; if [ "${built.ui ? 1 : 0}" = 1 ]; then TITLES=$(git diff origin/${BASE}...HEAD -- tests/ | grep -oE "^\\+\\s*test\\('[^']+'" | sed -E "s/^\\+\\s*test\\('//; s/'$//" | paste -sd'|' -); ` +
-      `if [ -n "$TITLES" ]; then FILES=$(git diff --name-only origin/${BASE}...HEAD -- 'tests/*.spec.js' | paste -sd' ' -); rm -rf .screenshots/pr; PR_SHOTS=1 npx playwright test $FILES -g "$TITLES" --project=desktop >"$JOB/shots.log" 2>&1; ` +
-      `ls .screenshots/pr/*.png >/dev/null 2>&1 && SHOTS=$(GITHUB_REPOSITORY=${ALLOWED_REPO} node scripts/pr-media.mjs ${n} .screenshots/pr/*.png 2>>"$JOB/shots.log"); fi; fi`,
-      `STAT=$(git diff --stat origin/${BASE}...HEAD | tail -40)`,
-    `SHOTS="$SHOTS" STAT="$STAT" AFTER="$AFTER" HEAD_SHA=$(git rev-parse HEAD) node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({ok:true,head:e.HEAD_SHA,shots:e.SHOTS,stat:e.STAT,codeAfterGate:(e.AFTER||"").split(",").filter(Boolean)}))'`,
+    // Screenshots are the shots workflow's (before and after, on the preview), not a media branch.
+    `STAT=$(git diff --stat origin/${BASE}...HEAD | tail -40)`,
+    `STAT="$STAT" AFTER="$AFTER" HEAD_SHA=$(git rev-parse HEAD) node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({ok:true,head:e.HEAD_SHA,stat:e.STAT,codeAfterGate:(e.AFTER||"").split(",").filter(Boolean)}))'`,
   ].join('\n'));
   if (!final?.ok) return handBack('Pull request', final?.why === 'conflict' ? `conflicts with ${BASE} after the gate` : 'could not push the branch');
   if (final.codeAfterGate?.length) return handBack('Pull request', `code changed after the gate passed: ${final.codeAfterGate.join(', ')}`);
@@ -571,30 +568,30 @@ async function shipRun(input: ShipInput) {
     ...(!profile.reaudit && rounds.some((r) => r.confirmed) ? ['the fix for what the audit found was re-gated, not re-audited'] : []),
     ...(gate.browser.flakyTests?.length ? [`${gate.browser.flakyTests.length} test(s) flaky, passed on retry`] : []),
   ];
+  // Read top-down in ten seconds: what it does, whether it is proven, what needs a person — the rest folded.
+  const oneLine = (t: string) => { const l = String(t).split('\n')[0].trim(); return l.length > 160 ? `${l.slice(0, 157)}…` : l; };
+  const fold = (summary: string, inner: string) => `\n<details><summary>${summary}</summary>\n\n${inner}\n</details>`;
   const body = [
-    `Closes #${n} · 📄 [Spec](https://github.com/${ALLOWED_REPO}/blob/${branch}/${specPath})`,
+    `Closes #${n} · 📄 [Spec](https://github.com/${ALLOWED_REPO}/blob/${branch}/${specPath}) · screenshots and the preview link arrive on this pull request once it builds`,
     '',
-    '## What changes',
     built.summary,
-    final.shots ? `\n${final.shots}` : '',
-    built.tryIt ? `\n## 🧪 Try it\n${built.tryIt}\n\nOpen it on this pull request's Vercel preview (link below once it builds).` : '',
     '',
-    '## ✅ Done when',
-    ...doneWhen.map((c) => `- [x] ${c}`),
-    plan.spec.decisions?.length ? `\n## 🤔 Decisions for you\n${plan.spec.decisions.map((d: string) => `- ${d}`).join('\n')}` : '',
-    built.keyFiles?.length ? `\n## 👀 Where to look\n${built.keyFiles.map((k: any) => `- \`${k.file}\` — ${k.why}`).join('\n')}` : '',
-    '',
-    '## 🛡️ Checks',
-    [`Tests pass — ${gateLine(gate)}${gate.scope === 'branch' ? ' (the specs this change reaches)' : ', desktop and mobile'}`,
+    `**🛡️ Checks:** ` + [`Tests pass — ${gateLine(gate)}${gate.scope === 'branch' ? ' (the specs this change reaches)' : ', desktop and mobile'}`,
       ...(red && red.checked && red.failedOnBase ? ['the new tests fail without the change'] : []),
       `independent audit: ${fixedCount ? `${fixedCount} problem${fixedCount === 1 ? '' : 's'} found and fixed, ` : ''}clean after ${rounds.length} round${rounds.length === 1 ? '' : 's'}`].join(' · '),
     notVerified.length ? `\n**Not verified:** ${notVerified.join('; ')}.` : '',
-    minors.length ? `\n<details><summary>Worth a closer look</summary>\n\n${list(minors)}\n</details>` : '',
-    `\n<details><summary>Every file changed</summary>\n\n\`\`\`\n${final.stat}\n\`\`\`\n</details>`,
-    `\n<details><summary>Audit rounds</summary>\n\n| Round | Gate | Audit | Covered |\n| --- | --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed | ${r.covered || '—'} |`).join('\n')}` +
-      (lessons.length ? `\n\nLessons written to the docs: ${lessons.map((l) => l.proposal).join('; ')}` : '') + '\n</details>',
+    // Decisions the ticket left open are the person's to check: they stay in view.
+    plan.spec.decisions?.length ? `\n**🤔 Decisions for you**\n${plan.spec.decisions.map((d: string) => `- ${d}`).join('\n')}` : '',
+    fold(`✅ Done when (${doneWhen.length})`, doneWhen.map((c) => `- [x] ${oneLine(c)}`).join('\n')),
+    built.tryIt ? fold('🧪 Try it', built.tryIt) : '',
+    built.keyFiles?.length ? fold('👀 Where to look', built.keyFiles.map((k: any) => `- \`${k.file}\` — ${k.why}`).join('\n')) : '',
+    minors.length ? fold('Worth a closer look', list(minors)) : '',
+    fold('Every file changed', `\`\`\`\n${final.stat}\n\`\`\``),
+    fold('Audit rounds', `| Round | Gate | Audit | Covered |\n| --- | --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed | ${r.covered || '—'} |`).join('\n')}` +
+      (lessons.length ? `\n\nLessons written to the docs: ${lessons.map((l) => l.proposal).join('; ')}` : '')),
     '',
-    `<sub>🏭 Built by Ship on Vercel · ${profile.size}${profile.escalated ? ', escalated' : ''} · ${triage.why} · ${dollars(spend.total)} of AI · [durable run](${runUrl})</sub>`,
+    // An HTML link: GitHub renders no markdown link inside a <sub> line.
+    `<sub>🏭 Built by Ship on Vercel · ${profile.size}${profile.escalated ? ', escalated' : ''} · ${triage.why} · ${dollars(spend.total)} of AI · <a href="${runUrl}">durable run</a></sub>`,
   ].filter((l) => l !== '').join('\n');
   const pr = await openPullRequest({ head: branch, base: BASE, title: issueTitle, body, draft: false, labels: [`ship:${profile.size}`] });
   // Listen for the merge from the moment the pull request exists: a person may
