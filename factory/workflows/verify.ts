@@ -119,10 +119,14 @@ async function verifyRun(input: VerifyInput) {
 
   // ── run: the two shards, the factory's checks, the docs check, main's map — side by side ──
   const kmFor = async () => { await prepMobile; return km; };
-  const [shards, factory, docs, map] = await Promise.all([
+  // Main's map is started here and awaited only after the status is posted: it never holds the verdict up,
+  // and a failure to build it is no failure of the commit.
+  const mapBuilt = onMain && ch.classified.app ? buildMap(input.sha, box.map).catch(() => null) : Promise.resolve(null);
+  const [shards, factory, docs] = await Promise.all([
     c.app
       ? runShards(sel, {
-        base, full: sel.mode === 'full', unit: !unitDone,
+        // Everything, by the gate's own whole suite — unless ship already ran part of it: then exactly the rest.
+        base, full: sel.mode === 'full' && !reused, unit: !unitDone,
         run: async (p: Project, label, script) => (p === 'desktop' ? k : await kmFor()).command(label, script),
       })
       : Promise.resolve(null),
@@ -136,7 +140,6 @@ async function verifyRun(input: VerifyInput) {
     c.context
       ? k.command('docs', `R=failed; node scripts/context.mjs check >"$JOB/docs.log" 2>&1 && R=ok; echo "{\\"docs\\":\\"$R\\"}" > "$JOB/result.json"`)
       : Promise.resolve(null),
-    onMain && ch.classified.app ? buildMap(input.sha, box.map) : Promise.resolve(null),
   ]);
   await Promise.all([disposeSandbox(box.desktop), disposeSandbox(box.mobile)]);
 
@@ -165,7 +168,9 @@ async function verifyRun(input: VerifyInput) {
     const escaped = await recordEscapes(input.sha, g.browser.failed.map((f: any) => f.test)).catch(() => []);
     if (escaped.length) await setAttributes({ escapes: String(escaped.length) });
   }
+  const map = await mapBuilt;
   if (map) k.log(`test map: ${JSON.stringify(map).slice(0, 200)}`);
+  else if (onMain && ch.classified.app) await disposeSandbox(box.map);
   return { ok, line, failed: g?.browser.failed.map((f: any) => f.test) ?? [] };
 }
 

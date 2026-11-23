@@ -267,7 +267,7 @@ export function statusLine(c: Classified, s: Selection, r: { unit?: string; fact
   const parts: string[] = [];
   if (c.app) {
     // Each test runs on desktop and mobile, one shard each: counted once.
-    const ran = s.mode === 'full' ? `ran all ${s.ran || s.total} browser tests` : `ran ${s.ran} of ${s.total} browser tests`;
+    const ran = s.mode === 'full' && !r.reused ? `ran all ${s.ran || s.total} browser tests` : `ran ${s.ran} of ${s.total} browser tests`;
     parts.push(s.mode === 'full' ? `${ran}${r.label ? ' (full-suite label)' : ''}` : `${ran} (${breakdownLine(s).replaceAll(' · ', ', ')}) · ${s.mode}: ${s.reason}`);
     if (r.reused) parts.push(`${r.reused} green in ship's gate`);
     parts.push(`unit/API ${r.unit ?? 'all'}`);

@@ -182,6 +182,30 @@ test('mergeShards: one verdict from two; a shard that did not report is a named 
   assert.equal(mergeShards({ desktop: g(true, 0, [], false, [skip]), mobile: g(true, 0, [], true, [skip]) }).ok, false);
 });
 
+test('a test the map knows that this commit renamed takes its whole spec, not nothing', () => {
+  const renamed = map({ desktop: { 'tests/agenda.spec.js': ['My Agenda › an old title'] }, mobile: {} });
+  const s = decideSelection(app, facts({ map: renamed }), sure);
+  assert.ok(s.tests.desktop.includes('tests/agenda.spec.js › My Agenda › lists upcoming'));
+  assert.ok(s.tests.desktop.includes('tests/agenda.spec.js › My Agenda › flags a clash'));
+  assert.equal(s.breakdown.map, 2);
+});
+
+test('a smoke test renamed away takes its whole spec, rather than leaving a hole', () => {
+  const gone = ONE.filter((t) => t.title !== 'Home renders cleanly');
+  const s = decideSelection(app, facts({ tests: { desktop: gone, mobile: gone }, map: map({ desktop: {}, mobile: {}, reach: {} }) }), sure);
+  assert.ok(s.tests.desktop.includes('tests/smoke.spec.js › Schedule renders cleanly'));
+});
+
+test('after ship ran everything green, a full selection has nothing left — and the status does not claim it ran', () => {
+  const f = facts({ branch: null, map: null });
+  const full = decideSelection(app, f, sure);
+  assert.equal(full.mode, 'full');
+  const left = withoutRan(full, f, full.tests);
+  assert.equal(left.ran, 0);
+  assert.deepEqual(left.args, { desktop: [], mobile: [] });
+  assert.match(statusLine(app, left, { reused: full.ran }), new RegExp(`^ran 0 of ${SUITE} browser tests · ${SUITE} green in ship's gate`));
+});
+
 test('mapProblem: none for a current map', () => {
   assert.equal(mapProblem(map()), null);
   assert.equal(mapProblem(null), 'no test map yet');
