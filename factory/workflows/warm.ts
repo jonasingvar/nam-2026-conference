@@ -1,3 +1,4 @@
+import { setAttributes } from 'workflow';
 import { refreshWarm } from '../lib/sandbox-steps';
 
 /**
@@ -7,5 +8,6 @@ import { refreshWarm } from '../lib/sandbox-steps';
  */
 export async function warm(input: { ref?: string } = {}) {
   'use workflow';
+  await setAttributes({ ref: input.ref || 'main' });
   return await refreshWarm(input.ref || 'main');
 }

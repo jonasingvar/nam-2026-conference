@@ -87,7 +87,7 @@ export async function POST(req: Request) {
     const trusted = pr.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && WRITERS.has(pr.author_association);
     const shipOpened = p.action === 'opened' && /^issue-\d+-/.test(pr.head.ref);
     const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
-    const v = shipOpened ? null : await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast });
+    const v = shipOpened ? null : await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast, pr: pr.number });
     if (p.action === 'synchronize') return Response.json({ verify: v });
     if (pr.draft) return Response.json({ verify: v, ignored: 'draft' });
     // A bot's pull request (Dependabot) gets CI, not a paid review and QA.
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     if (/(^|\s)(\/review|@claude\s+review)\b/i.test(body)) {
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
       const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
-      const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast }), startChecks(p.issue.number, pr.head.sha)]);
+      const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast, pr: pr.number }), startChecks(p.issue.number, pr.head.sha)]);
       return Response.json({ verify: v, checks });
     }
     if (/(^|\s)@claude\b/i.test(body)) {

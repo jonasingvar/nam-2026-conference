@@ -1,4 +1,4 @@
-import { getWorkflowMetadata } from 'workflow';
+import { getWorkflowMetadata, setAttributes } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, readPullRequest } from '../lib/github-steps';
@@ -17,6 +17,7 @@ export async function respond(input: RespondInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
+  await setAttributes({ pr: String(pr.number), ...(pr.issue ? { issue: String(pr.issue) } : {}) });
   if (pr.state !== 'open') return { outcome: 'skipped', reason: 'not open' };
   const box = `respond-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `answering a request on pull request #${pr.number}`);

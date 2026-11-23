@@ -70,6 +70,7 @@ export async function ship(input: ShipInput) {
 }
 
 async function shipRun(input: ShipInput) {
+  await setAttributes({ issue: String(input.issue) });
 
   const { workflowRunId } = getWorkflowMetadata();
   const n = input.issue;

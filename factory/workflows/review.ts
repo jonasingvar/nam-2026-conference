@@ -1,4 +1,4 @@
-import { getWorkflowMetadata } from 'workflow';
+import { getWorkflowMetadata, setAttributes } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, readIssue, readMarker, readPullRequest, setLabels, setStatus } from '../lib/github-steps';
@@ -39,6 +39,8 @@ export async function review(input: ReviewInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
+  // Filterable in Vercel's run list: every run for a pull request, or for the ticket behind it.
+  await setAttributes({ pr: String(pr.number), sha: pr.headSha.slice(0, 12), ...(pr.issue ? { issue: String(pr.issue) } : {}) });
   if (pr.state !== 'open' || pr.draft) return { verdict: 'none', reason: pr.draft ? 'draft' : 'not open' };
   const box = `review-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `reviewing pull request #${pr.number}`, 'read');

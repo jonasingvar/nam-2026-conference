@@ -1,4 +1,4 @@
-import { getWorkflowMetadata, sleep } from 'workflow';
+import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, findDeployment, previewForPr, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
@@ -51,6 +51,7 @@ export async function qa(input: QaInput) {
   const { workflowRunId } = getWorkflowMetadata();
   const runUrl = `${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId}`;
   const pr = await readPullRequest(input.pr);
+  await setAttributes({ pr: String(pr.number), sha: pr.headSha.slice(0, 12), ...(pr.issue ? { issue: String(pr.issue) } : {}) });
   if (pr.state !== 'open' || pr.draft) return { verdict: 'none', reason: pr.draft ? 'draft' : 'not open' };
   const box = `qa-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `QA of pull request #${pr.number}`, 'read');
