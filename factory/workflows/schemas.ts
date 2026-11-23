@@ -171,6 +171,7 @@ export const QA_PLAN = {
           at: { type: 'string', description: 'the pinned clock as "<dayIndex> HH:MM" (0 is Day 1), or "" for unpinned' },
           steps: { type: 'array', items: str, description: 'what to do, in order, naming the test id or role and accessible name of each control (read from src/)' },
           expect: { type: 'array', items: str, description: 'each observable result to assert, naming its test id or role' },
+          stateful: { type: 'boolean', description: 'true if the probe writes state (books or releases a seat, joins a waitlist, checks in, rates, follows) and then reads it back — it runs on the branch\'s own app, since a preview\'s instances each keep their own database' },
         },
       },
     },
@@ -195,7 +196,17 @@ export const RESPONSE = {
   },
 };
 
+/** Where it ran, not what it ran: preview instances with their own databases, the sandbox's network, a cold start. */
+const ENVIRONMENT = { type: 'boolean', description: 'true if the failure comes from where the probe ran — a preview function instance without state another instance wrote, a host the sandbox cannot reach, a cold start or timeout — rather than from the code' };
+
 export const BASE_SAME = {
-  type: 'object', required: ['preExisting', 'why'],
-  properties: { preExisting: { type: 'boolean', description: 'true only if the base fails it for the same reason' }, why: str },
+  type: 'object', required: ['preExisting', 'environment', 'why'],
+  properties: { preExisting: { type: 'boolean', description: 'true only if the base fails it for the same reason' }, environment: ENVIRONMENT, why: str },
+};
+
+/** QA's skeptic: the review skeptic's verdict, plus whether the environment explains the failure. */
+export const QA_SKEPTIC = {
+  ...SKEPTIC,
+  required: [...SKEPTIC.required, 'environment'],
+  properties: { ...SKEPTIC.properties, environment: ENVIRONMENT },
 };

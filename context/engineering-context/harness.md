@@ -172,7 +172,11 @@ placeholder tokens (`AGENT_ENV`); the sandbox proxy injects the real GitHub
 token and Gateway key on the way out, so no credential exists inside the
 sandbox. Anything under `EqualExperts/` on github.com or api.github.com is
 answered 403 by the proxy itself. Claude Code reaches models through
-`https://ai-gateway.vercel.sh/claude-code`.
+`https://ai-gateway.vercel.sh/claude-code`. A preview QA probes is named host
+by host, and every request to it carries `x-vercel-skip-toolbar: 1`: a
+preview's HTML otherwise loads `vercel.live`'s toolbar script, which the
+sandbox cannot reach, and the console error failed every probe that watches
+the console.
 
 **Observability.** Three views of every run. **The trace** (the run in the
 factory's Workflows tab): each phase is its own durable step — `spec`,
@@ -200,6 +204,15 @@ expected results — a cheap writer (`qaWrite`) turns it into
 the factory runs the file itself, desktop and mobile in parallel
 (`run:desktop`, `run:mobile`). While triage reads the diff, `warm` hits the
 preview's pages and API so its function instances seed their SQLite first.
+A probe the plan marks `stateful` (or whose steps book, check in or rate —
+`isStateful`) runs instead on the branch's own app in the sandbox (`run:app`:
+the repository's Playwright config with its webServer, a claimed lane, one
+worker), because a preview's instances each keep their own database; its base
+comparison runs in a worktree of the base (`/vercel/.factory/qa-base`).
+`classify` settles each failure as a bug, pre-existing, the environment's or a
+question; the environment's are listed ⚪ apart, never fail the pass and do
+not count towards confidence (`coverage`). Everything in the comment has its
+terminal colour codes stripped (`stripAnsi`).
 
 ## Invariants
 
