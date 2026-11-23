@@ -189,7 +189,7 @@ finding is two lines: what breaks, and when.
 
 ```markdown
 > [!TIP]
-> ### Code review · high confidence &nbsp; `●●●`
+> ### Code review · approved with 2 suggestions `●●●`
 > Every criterion traced to what satisfies it. 40 lines, one file.
 ```
 

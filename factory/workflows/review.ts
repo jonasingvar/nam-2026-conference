@@ -110,7 +110,9 @@ async function reviewRun(input: ReviewInput) {
 
   // What else is known: QA's verdict on this commit's preview, and the findings people dismissed as wrong.
   const qaMarker = await readMarker(pr.number, 'factory-verdict:qa');
-  const qaPassed = !!qaMarker && qaMarker.commit === co.head && !(qaMarker.bugs ?? []).length;
+  // Only a QA pass whose probes actually ran counts. QA writes the same bug-free marker when it skipped the
+  // pull request or its probes never ran, so it says so with `probed: true`; a marker without it is no evidence.
+  const qaPassed = !!qaMarker && qaMarker.commit === co.head && qaMarker.probed === true && !(qaMarker.bugs ?? []).length;
   const qaNote = qaPassed ? `\nQA already probed this commit on its preview and found no bug: a concern you only reason your way to from the diff is not a blocker unless you can show it happening anyway.\n` : '';
   const dismissed = await pastDismissals().catch(() => [] as Dismissed[]);
   const dismissedNote = dismissed.length
