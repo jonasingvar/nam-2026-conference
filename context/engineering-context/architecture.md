@@ -5,6 +5,10 @@ read_when: adding an endpoint, a column, a page or a route; touching useConferen
 files:
   - server/index.js
   - server/db.js
+  - server/remote-db.js
+  - server/publish-seed.js
+  - api/index.js
+  - vercel.json
   - server/lib/query.js
   - server/routes/meta.js
   - src/main.jsx
@@ -15,6 +19,7 @@ tests:
   - tests/api/contracts.test.js
   - tests/api/endpoints.test.js
   - tests/unit/query.test.js
+  - tests/unit/remote-db.test.js
 related: [seats, agenda, clock, schedule, speakers, venues, seed, testing]
 ---
 
