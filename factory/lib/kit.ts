@@ -1,5 +1,6 @@
 import { agentScript, readAgent, runJob, type Effort, type Model } from './jobs';
 import { ALLOWED_REPO, REPO_DIR } from './constants';
+import { streamLog } from './github-steps';
 
 /**
  * What every factory workflow does the same way: run an agent or a command in
@@ -42,13 +43,15 @@ export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
     spend.byPhase[phase] = (spend.byPhase[phase] || 0) + r.costUsd;
     for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
     log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
+    // The run's Streams tab: each agent, its cost, and its own last words.
+    await streamLog([lines[lines.length - 1], ...(r.said ? [`    ↳ ${label} said: ${r.said}`] : [])]);
     return r.value;
   }
 
   /** A shell job whose script writes $JOB/result.json; that JSON, or null. */
   async function command(label: string, script: string): Promise<any | null> {
     const done = await runJob(box, id(label), {}, script);
-    if (!done) { log(`${label}: the job never finished`); return null; }
+    if (!done) { log(`${label}: the job never finished`); await streamLog([lines[lines.length - 1]]); return null; }
     try { return JSON.parse(done.result); } catch { log(`${label}: unreadable result (exit ${done.exit}) ${done.tail.slice(-200)}`); return null; }
   }
 

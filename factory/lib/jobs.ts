@@ -1,5 +1,6 @@
 import { sleep } from 'workflow';
-import { pollJob, startJob, type JobPoll } from './sandbox-steps';
+import type { JobPoll } from './sandbox-steps';
+import { phaseFor } from './phases';
 
 /**
  * Workflow-level helpers (no directive: they run inside the workflow and call
@@ -10,16 +11,17 @@ import { pollJob, startJob, type JobPoll } from './sandbox-steps';
 export type Done = Extract<JobPoll, { state: 'done' }>;
 
 export async function runJob(sandbox: string, id: string, files: Record<string, string>, script: string): Promise<Done | null> {
+  // The step it runs under is named for its phase (the label's first word): the trace reads spec, implement, gate…
+  const phase = phaseFor(id.replace(/^\d+-/, ''));
   // A job is `lost` when its sandbox stopped under it (timeout, restart): the
   // disk is back, the process is not. Start it again, twice at most.
   for (let attempt = 1; attempt <= 3; attempt++) {
     const jid = attempt === 1 ? id : `${id}~${attempt}`;
-    await startJob(sandbox, jid, files, script);
-    for (let polls = 0; polls < 200; polls++) {
-      const r = await pollJob(sandbox, jid);
+    for (let waits = 0; waits < 60; waits++) {
+      const r = await phase(sandbox, jid, files, script);
       if (r.state === 'done') return r;
       if (r.state === 'lost') break;
-      await sleep('20s');
+      await sleep('10s');
     }
   }
   return null;
@@ -29,7 +31,7 @@ export type Model = 'opus' | 'sonnet' | 'haiku';
 export type Effort = 'low' | 'medium' | 'high';
 
 export type AgentCall = { label: string; model: Model; effort?: Effort; schema: object };
-export type AgentRun = { value: any | null; costUsd: number; byModel: Record<string, number>; turns: number; seconds: number; error?: string };
+export type AgentRun = { value: any | null; costUsd: number; byModel: Record<string, number>; turns: number; seconds: number; error?: string; said?: string };
 
 /** The bash that runs one headless Claude Code agent with a typed result. */
 export function agentScript(model: Model, effort?: Effort) {
@@ -50,7 +52,8 @@ export function readAgent(done: Done | null, schema: any): AgentRun {
   }
   const byModel: Record<string, number> = {};
   for (const [m, u] of Object.entries<any>(r.modelUsage || {})) byModel[m] = (byModel[m] || 0) + (u.costUSD || 0);
-  const base = { costUsd: r.total_cost_usd || 0, byModel, turns: r.num_turns || 0, seconds: Math.round((r.duration_ms || 0) / 1000) };
+  const said = typeof r.result === 'string' ? r.result.replace(/\s+/g, ' ').trim().slice(0, 600) : undefined;
+  const base = { costUsd: r.total_cost_usd || 0, byModel, turns: r.num_turns || 0, seconds: Math.round((r.duration_ms || 0) / 1000), said };
   const v = r.structured_output;
   const missing = (schema.required || []).filter((k: string) => v == null || !(k in v));
   if (r.is_error || v == null || missing.length) {

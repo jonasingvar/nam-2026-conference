@@ -1,3 +1,4 @@
+import { getWritable } from 'workflow';
 import { ALLOWED_REPO, APP_PROJECT } from './constants';
 
 /**
@@ -190,3 +191,33 @@ export async function setLabels(issue: number, add: string[], remove: string[]) 
   }
   return true;
 }
+
+/**
+ * The run's progress: edit the issue comment, and append what happened since
+ * the last call to the run's `progress` stream — the Streams tab of the run in
+ * Vercel, a live log of every phase and agent (its model, turns, cost, and its
+ * own final answer).
+ */
+export async function progress(issue: number, commentId: number | null, body: string, lines: string[]) {
+  'use step';
+  if (lines.length) {
+    const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+    try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
+  }
+  if (commentId) {
+    await gh(`/issues/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body: marked(body) }) });
+    return commentId;
+  }
+  const c = await gh(`/issues/${issue}/comments`, { method: 'POST', body: JSON.stringify({ body: marked(body) }) });
+  return c.id as number;
+}
+progress.maxRetries = 3;
+
+/** Append lines to the run's `progress` stream (the run's Streams tab in Vercel). */
+export async function streamLog(lines: string[]) {
+  'use step';
+  const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+  try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
+  return lines.length;
+}
+streamLog.maxRetries = 3;

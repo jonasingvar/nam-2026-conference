@@ -12,6 +12,7 @@ files:
   - factory/lib/policy.ts
   - factory/lib/constants.ts
   - factory/lib/start.ts
+  - factory/lib/phases.ts
   - factory/app/api/github/route.ts
   - factory/app/api/ship/route.ts
   - context/engineering-context/harness/index.md
@@ -36,6 +37,7 @@ files:
   - specs/README.md
 tests:
   - factory/test/policy.test.ts
+  - factory/test/phases.test.ts
   - factory/test/agent.test.ts
   - tests/unit/gate.test.js
   - tests/unit/red-check.test.js
@@ -120,6 +122,17 @@ token and Gateway key on the way out, so no credential exists inside the
 sandbox. Anything under `EqualExperts/` on github.com or api.github.com is
 answered 403 by the proxy itself. Claude Code reaches models through
 `https://ai-gateway.vercel.sh/claude-code`.
+
+**Observability.** Three views of every run. **The trace** (the run in the
+factory's Workflows tab): each phase is its own durable step — `spec`,
+`planAudit`, `implement`, `gate`, `codeAudit`, `skeptic`, `fix`, `learn`,
+`pushBranch`, `openPullRequest`, … (`lib/phases.ts:phaseFor` maps a job's label
+to its step; an unknown label falls back to `job`) — each starting its job if
+needed and waiting up to two minutes, with a durable `sleep` between waits.
+**Attributes** on the run: `issue`, `phase`, `size`, `pr`, so runs can be
+filtered by ticket or phase. **The `progress` stream** (the run's Streams
+tab): every phase change, and after every agent its model, turns, seconds,
+cost and its own final answer.
 
 **Progress.** One issue comment (`<!-- ship-on-vercel -->`), edited at every
 phase: the phases, the profile and why, the branch and spec, each round, the

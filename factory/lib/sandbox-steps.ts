@@ -149,11 +149,25 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
 prepareSandbox.maxRetries = 2;
 
 /**
+ * Start a job if it is not running yet, then wait up to two minutes for it.
+ * Not a step itself: the named steps in phases.ts call it, so the trace shows
+ * which phase was waiting. Safe to repeat — a started job is never restarted.
+ */
+export async function advance(name: string, id: string, files: Record<string, string>, script: string): Promise<JobPoll> {
+  await startJobImpl(name, id, files, script);
+  return pollJobImpl(name, id, 120_000);
+}
+
+/**
  * Start one job, detached. Safe to repeat: a job that already started (this
  * step retried after starting it) is left alone.
  */
 export async function startJob(name: string, id: string, files: Record<string, string>, script: string) {
   'use step';
+  return startJobImpl(name, id, files, script);
+}
+
+async function startJobImpl(name: string, id: string, files: Record<string, string>, script: string) {
   const sb = await Sandbox.get({ name });
   // Re-applied on every start: a resumed sandbox must never come back open.
   await sb.updateNetworkPolicy(await policyFor(sb));
@@ -184,9 +198,13 @@ export type JobPoll =
 /** Wait up to ~40 s for a job to end; say how it stands. */
 export async function pollJob(name: string, id: string): Promise<JobPoll> {
   'use step';
+  return pollJobImpl(name, id, 40_000);
+}
+
+async function pollJobImpl(name: string, id: string, waitMs: number): Promise<JobPoll> {
   const sb = await Sandbox.get({ name });
   const dir = `${ROOT}/${id}`;
-  const until = Date.now() + 40_000;
+  const until = Date.now() + waitMs;
   for (;;) {
     const s = await sh(sb, `if [ -f ${dir}/exit ]; then echo "done $(cat ${dir}/exit)"; elif [ -f ${dir}/pid ] && kill -0 "$(cat ${dir}/pid)" 2>/dev/null; then echo running; else echo lost; fi`);
     if (s.out.startsWith('done')) {

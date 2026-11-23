@@ -1,11 +1,11 @@
-import { createHook, getWorkflowMetadata, sleep } from 'workflow';
+import { createHook, getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { start } from 'workflow/api';
 import { review } from './review';
 import { qa } from './qa';
 import { agentScript, readAgent, runJob, type AgentRun, type Effort, type Model } from '../lib/jobs';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, openPullRequest, previewForPr, productionHealth, readIssue, setLabels, upsertComment, type Issue,
+  comment, findDeployment, openPullRequest, previewForPr, productionHealth, progress, readIssue, setLabels, type Issue,
 } from '../lib/github-steps';
 import { triageIssue, type Size, type Triage } from '../lib/triage';
 import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
@@ -88,17 +88,25 @@ export async function ship(input: ShipInput) {
     '',
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
       (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m.replace(/^claude-/, '')} ${dollars(c)}`).join(', ')})` : ''),
-    lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
+    lines.length ? `\n<details><summary>Log</summary>\n\n${lines.filter((l) => !l.startsWith('    ↳')).map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
     `<sub>Durable run [${workflowRunId}](${runUrl}) · resumes from its last finished step if anything dies</sub>`,
     '<!-- ship-on-vercel -->',
   ].filter((l) => l !== '').join('\n');
 
-  const show = async (headline = current) => { commentId = await upsertComment(n, commentId, render(headline)); };
+  // Every call publishes the comment and streams the lines logged since the last one.
+  let streamed = 0;
+  const show = async (headline = current) => {
+    const fresh = lines.slice(streamed);
+    streamed = lines.length;
+    commentId = await progress(n, commentId, render(headline), [`— ${headline}`, ...fresh]);
+  };
   const enter = async (phase: string) => {
     for (const p of PHASES) if (status[p] === 'running') status[p] = 'done';
     status[phase] = 'running';
     current = phase;
+    // Searchable in Vercel's run list: which ticket, what size, where it is now.
+    await setAttributes({ issue: String(n), phase, ...(profile ? { size: profile.size } : {}), ...(prUrl ? { pr: prUrl.split('/').pop()! } : {}) });
     await show();
   };
   const log = (s: string) => { lines.push(s); console.log(`#${n} ${s}`); };
@@ -127,6 +135,9 @@ export async function ship(input: ShipInput) {
     spend.byPhase[current] = (spend.byPhase[current] || 0) + r.costUsd;
     for (const [m, c] of Object.entries(r.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
     log(`${label}: ${r.value ? 'done' : `no result — ${r.error}`} (${model}, ${r.turns} turns, ${r.seconds}s, ${dollars(r.costUsd)})`);
+    // The agent's own last words go to the run's stream (not the issue): what it concluded, in its voice.
+    if (r.said) lines.push(`    ↳ ${label} said: ${r.said}`);
+    await show();
     return r.value;
   }
 
