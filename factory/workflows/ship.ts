@@ -54,6 +54,22 @@ const STUCK_AFTER = 2;
 
 export async function ship(input: ShipInput) {
   'use workflow';
+  try {
+    return await shipRun(input);
+  } catch (e: any) {
+    // Anything unexpected — a step that failed for good, a deployment mid-rollout — must never
+    // leave a ticket sitting at "ai-working" with nobody told. Say so on the issue, hand it to a person.
+    const { workflowRunId } = getWorkflowMetadata();
+    const why = String(e?.message || e).slice(0, 400);
+    await disposeSandbox(`ship-${input.issue}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
+    await setLabels(input.issue, ['needs-human'], ['ai-working', 'ready-for-ai']).catch(() => null);
+    await comment(input.issue, `### 🏭 Ship on Vercel · the run crashed\n\n\`${why}\`\n\nNothing is lost: the work so far is on its branch. Reply here (or add \`ready-for-ai\`) to try again.\n\n` +
+      `<sub>[run](${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId})</sub>`).catch(() => null);
+    return { outcome: 'crashed', issue: input.issue, reason: why };
+  }
+}
+
+async function shipRun(input: ShipInput) {
 
   const { workflowRunId } = getWorkflowMetadata();
   const n = input.issue;
