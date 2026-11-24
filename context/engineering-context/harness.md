@@ -253,6 +253,16 @@ spend by model against what was expected, a *Models* table (per job: the
 model, why, expected and actual cost, climbs), a log, and a link to the run in
 the Workflows tab. Review and QA put the same table in their verdict comments.
 
+**Time.** `lib/timing.ts` times a ship run by its phases, three ways: *working*
+(wall-clock, every phase but the wait for a person's merge), *waiting for you*
+(the Merge phase), and *agents ran* (each agent's own running time added up —
+agents side by side each count, so it can exceed the working time; review and
+QA return theirs as `seconds`). The clock is the workflow's own `Date.now()`:
+the time its last step result or hook arrived, the same on every replay. The
+progress comment carries a *Time* line; the pull request's spend line adds the
+working time by phase; and once the ticket is merged (and, on `main`, live) the
+pull request gets one closing line with the money, the work and the wait.
+
 **QA** (`workflows/qa.ts`) splits thinking from typing: a planner (`qaPlan`)
 writes an exact probe plan — route, attendee, pinned clock, steps by test id,
 expected results — a cheap writer (`qaWrite`) turns it into

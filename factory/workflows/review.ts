@@ -250,6 +250,6 @@ async function reviewRun(input: ReviewInput) {
     verdict: pass ? 'pass' : 'fail', confidence, blockers, docs: handDocsBack ? staleDocs : [], followUps: toList.length,
     // Test gaps its skeptics showed: ship's fixer tightens them as polish when it is fixing anyway; they never hold a run.
     polish: settled.polish.map((x) => ({ category: x.category, file: x.file, line: x.line, claim: x.claim, evidence: x.evidence })),
-    spend: k.spend.total, models: models.summary(), est: models.totals().est, climbs: models.totals().climbs,
+    spend: k.spend.total, seconds: k.spend.seconds, models: models.summary(), est: models.totals().est, climbs: models.totals().climbs,
   };
 }

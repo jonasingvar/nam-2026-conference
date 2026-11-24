@@ -6,6 +6,7 @@ import { shots } from './shots';
 import { pinPreview } from '../lib/shots-steps';
 import { runJob } from '../lib/jobs';
 import { routedAgent } from '../lib/kit';
+import { stopwatch, timeLine } from '../lib/timing';
 import { chooseModels, describe, modelBook, type Job, type ModelBook } from '../lib/models';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
@@ -102,6 +103,9 @@ async function shipRun(input: ShipInput) {
   const lines: string[] = [];
   const rounds: { round: number; gate: string; raised: number; confirmed: number; covered: string }[] = [];
   const spend = { total: 0, agents: 0, byModel: {} as Record<string, number>, byPhase: {} as Record<string, number> };
+  // Time, kept apart from the wait for a person's merge. `Date.now()` in a workflow is the run's logical clock
+  // (when the last step result or hook arrived), the same on every replay.
+  const time = stopwatch(Date.now(), 'Triage', ['Merge']);
   let current = 'Triage';
   let commentId: number | null = null;
   let profile: Profile | null = null;
@@ -126,6 +130,7 @@ async function shipRun(input: ShipInput) {
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
       (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m} ${dollars(c)}`).join(', ')})` : '') +
       (models && models.attempts.length ? ` · expected ${dollars(models.totals().est)}${models.climbs.length ? ` · ${models.climbs.length} climb${models.climbs.length === 1 ? '' : 's'}` : ''}` : ''),
+    `**Time:** ${timeLine(time.read(Date.now()))}`,
     models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
@@ -145,6 +150,7 @@ async function shipRun(input: ShipInput) {
     for (const p of PHASES) if (status[p] === 'running') status[p] = 'done';
     status[phase] = 'running';
     current = phase;
+    time.enter(phase, Date.now());
     // Searchable in Vercel's run list: which ticket, what size, where it is now.
     // On the run in Vercel, searchable: which ticket, where it is, what it has cost so far (review and QA included).
     await setAttributes({
@@ -180,9 +186,10 @@ async function shipRun(input: ShipInput) {
   async function agent(label: string, prompt: string, schema: any, job: Job): Promise<any | null> {
     const { value, pick } = await routedAgent({
       box, jobId, book: models!, job, label, prompt: PREAMBLE + prompt, schema, log,
-      onRun: (_r, cost) => {
+      onRun: (r, cost) => {
         spend.total += cost.total;
         spend.agents += 1;
+        time.agent(r.seconds);
         spend.byPhase[current] = (spend.byPhase[current] || 0) + cost.total;
         for (const [m, c] of Object.entries(cost.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
       },
@@ -253,6 +260,7 @@ async function shipRun(input: ShipInput) {
     if (chosen.asked) {
       models!.record({ job: 'testSelect', label: `select${tag}`, model: p.model, tier: p.tier, est: p.est, cost: chosen.cost, ok: !!chosen.answer, seconds: chosen.seconds });
       spend.total += chosen.cost;
+      time.agent(chosen.seconds);
     }
     const sel = chosen.selection;
     log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests [${breakdownLine(sel)}]${sel.notes.length ? ` (${sel.notes.join('; ')})` : ''}${chosen.error ? ` — selector failed: ${chosen.error}` : ''}`);
@@ -745,6 +753,7 @@ async function shipRun(input: ShipInput) {
     for (const [name, v] of [['review', rv], ['QA', qv]] as const) if (v?.models) log(`${name} ran on ${v.models} — $${Number(v.spend || 0).toFixed(3)} (expected $${Number(v.est || 0).toFixed(3)})`);
     log(`screenshots: ${sv?.outcome === 'posted' ? `${sv.pages} page${sv.pages === 1 ? '' : 's'} — ${sv.url}` : sv?.outcome ?? 'did not run'}`);
     for (const v of [rv, qv]) if (v?.spend) { spend.total += v.spend; spend.byPhase['Review & QA'] = (spend.byPhase['Review & QA'] || 0) + v.spend; }
+    for (const v of [rv, qv]) time.agent(v?.seconds);
     const found: Finding[] = [
       ...(rv?.blockers || []).map((b: any) => ({ severity: 'blocker', category: `review:${b.category}`, file: b.file, line: b.line, claim: b.claim, evidence: [b.how && `how: ${b.how}`, b.harm && `harm: ${b.harm}`, b.evidence].filter(Boolean).join(' · ') || 'raised by review', fix: 'resolve what the review found' })),
       ...(rv?.docs || []).map((d: any) => ({ severity: 'blocker', category: 'docs-stale', file: d.file, line: d.line, claim: d.claim, evidence: d.evidence || 'raised by review', fix: 'make the doc say what the code does now' })),
@@ -792,12 +801,15 @@ async function shipRun(input: ShipInput) {
     await comment(pr.number, `### 🏭 Still open after ${verdicts.rv || verdicts.qv ? 'review and QA' : 'the checks'}\n\nShip fixed what it could; these remain:\n\n${list(verdicts.found)}\n\n` +
       `The pull request stays open — merge it as it is, or reply with how to settle these and ship will pick it up.`);
   }
-  await comment(pr.number, `<sub>🏭 Ship on Vercel · AI spend for this ticket, build to review: ${dollars(spend.total)} — ${Object.entries(spend.byPhase).map(([p, c]) => `${p} ${dollars(c)}`).join(', ')}</sub>`);
+  await comment(pr.number, `<sub>🏭 Ship on Vercel · AI spend for this ticket, build to review: ${dollars(spend.total)} — ${Object.entries(spend.byPhase).map(([p, c]) => `${p} ${dollars(c)}`).join(', ')}<br>` +
+    `⏱ Time, label to review: ${timeLine(time.read(Date.now()), { phases: true })}</sub>`);
 
   // ════════════════════════════════════════════════════════════════════════
   // 9. Merge — a person's click. The run sleeps until GitHub says so.
   // ════════════════════════════════════════════════════════════════════════
   await enter('Merge');
+  // The ticket's whole bill, once it is over: the money, the work, and the wait for the merge beside it.
+  const wrapUp = (to: string) => comment(pr.number, `<sub>🏭 Ship on Vercel · this ticket, label to ${to}: ${dollars(spend.total)} of AI · ⏱ ${timeLine(time.read(Date.now()))}</sub>`).catch(() => null);
   await show('waiting for you to review and merge');
   const outcome = await decision;
   if (!outcome.merged) {
@@ -812,6 +824,7 @@ async function shipRun(input: ShipInput) {
   if (BASE !== 'main') {
     status.Production = 'skipped';
     await show(`merged into ${BASE} — production deploys from main`);
+    await wrapUp('merge');
     return { outcome: 'merged', issue: n, pr: prUrl, preview: previewUrl, base: BASE, spend: spend.total };
   }
   await enter('Production');
@@ -825,6 +838,7 @@ async function shipRun(input: ShipInput) {
   log(`production ${prod.state}; health ${health.ok ? `ok (${health.sessions} sessions)` : `failing (${health.status})`}`);
   await show(status.Production === 'done' ? `live on ${PRODUCTION_URL}` : 'merged, but production is not healthy');
   if (status.Production === 'done') await setLabels(n, [], ['ready-for-human']);
+  await wrapUp('production');
   return { outcome: 'shipped', issue: n, pr: prUrl, preview: previewUrl, production: status.Production === 'done', spend: spend.total };
 
   // ── helpers that need the run's state ─────────────────────────────────────
