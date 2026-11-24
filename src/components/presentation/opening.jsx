@@ -1,4 +1,4 @@
-import { at, Show, Replay, IssueCard, Kicker, Tick, Vercel, later } from './kit.jsx';
+import { at, Show, Replay, IssueCard, Kicker, Vercel, later } from './kit.jsx';
 import { GH, GhOpenIcon, GitHub } from './apps.jsx';
 import { ISSUE_140 } from './issue.js';
 
@@ -81,8 +81,7 @@ function TitleScene() {
 }
 
 /* ------------------------------------------------------------------ *
- * The promise — one label, then everything that happens without you;
- * then what it replaced.
+ * The promise — one label, then everything that happens without you.
  * ------------------------------------------------------------------ */
 
 const TIMELINE_AT = 1700;
@@ -96,19 +95,11 @@ const AFTER_THE_LABEL = [
   ['🔀', 'A pull request opens on its own preview, with screenshots, a review and QA', 'a link you can click and try'],
 ];
 
-const VERSUS = [
-  ['It dies with the terminal, or with the CI job’s timeout', 'Durable: every step is recorded, and a crash resumes at the last one finished'],
-  ['One vendor’s models, picked by hand in a prompt file', 'Any model on AI Gateway, picked per job by Jev — cheapest that will do'],
-  ['Tokens and keys sit on the machine running the agent’s code', 'Sandboxes hold placeholders; a proxy adds the real keys on the way out'],
-  ['Waiting on a person costs a runner by the minute', 'A waiting run is asleep. It costs nothing until you merge'],
-  ['“Did it work?” means reading a terminal', 'A live trace, one progress comment, a preview link and screenshots'],
-];
-
-function PromiseScene({ step }) {
+function PromiseScene() {
   return (
     <>
       {/* the last thing you do for a while */}
-      <Replay on={step === 0} from="left" style={at(80, 64, 640, 540)}>
+      <Replay on from="left" style={at(80, 64, 640, 540)}>
         <GitHub tab="Issues" className="h-full">
           <div className="px-6 py-4">
             <div className="text-[23px] leading-tight">Keep sessions in view on mobile <span className={GH.muted}>#{ISSUE_140.number}</span></div>
@@ -150,7 +141,7 @@ function PromiseScene({ step }) {
         </GitHub>
       </Replay>
 
-      <Replay on={step === 0} from="right" delay={200} style={at(780, 64, 740, 540)} className="flex flex-col">
+      <Replay on from="right" delay={200} style={at(780, 64, 740, 540)} className="flex flex-col">
         <Kicker>Then, with nobody at a keyboard</Kicker>
         <div className="mt-3 flex flex-1 flex-col justify-center">
           <div className="relative space-y-[9px]">
@@ -176,32 +167,6 @@ function PromiseScene({ step }) {
         <div className="pz-appear mt-3 flex items-baseline gap-4 rounded-2xl border border-hairline bg-surface px-5 py-2.5" style={later(TIMELINE_AT + 4300)}>
           <span className="font-display text-[40px] leading-none text-ink">$0.93</span>
           <span className="text-[15px] leading-snug text-muted">of AI from label to reviewed pull request — ticket #38 in this repository, a fast run</span>
-        </div>
-      </Replay>
-
-      {/* what it replaced */}
-      <Replay on={step === 1} from="up" style={at(80, 64, 1440, 540)} className="flex flex-col">
-        <div className="grid grid-cols-2 gap-6">
-          <div className="flex items-center gap-3 rounded-t-2xl border border-b-0 border-hairline bg-surface px-6 py-3">
-            <span className="text-[26px]">💻</span>
-            <div><div className="font-display text-[24px] text-muted">A script on a laptop or a CI runner</div><div className="text-[14px] text-faint">where this harness started</div></div>
-          </div>
-          <div className="flex items-center gap-3 rounded-t-2xl border border-b-0 border-violet-400/50 bg-raised px-6 py-3">
-            <Vercel className="size-6 text-ink" />
-            <div><div className="font-display text-[24px] text-ink">A factory on Vercel</div><div className="text-[14px] text-violet-200/80">where it runs today</div></div>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-2.5">
-          {VERSUS.map(([before, after], i) => (
-            <div key={before} className="grid flex-1 grid-cols-2 gap-6">
-              <div className="pz-appear flex items-center gap-4 rounded-xl border border-hairline bg-surface/70 px-6 text-[21px] leading-snug text-muted" style={later(300 + i * 320)}>
-                <Tick ok={false} />{before}
-              </div>
-              <div className="pz-appear flex items-center gap-4 rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-6 text-[21px] leading-snug text-ink" style={later(480 + i * 320)}>
-                <Tick />{after}
-              </div>
-            </div>
-          ))}
         </div>
       </Replay>
     </>
@@ -287,14 +252,9 @@ export const OPENING = [
     id: 'promise', name: 'One label', accent: 'text-emerald-300', tone: 'emerald',
     beats: [
       {
-        kicker: '1 · The promise',
+        kicker: 'The promise',
         title: 'Label an issue. Vercel picks it up from there',
         body: 'One label reaches the factory’s webhook, and a durable workflow takes the ticket: sized, planned, built test-first, gated, audited, deployed to a preview, photographed, reviewed and tested. Your part is the ticket and the merge.',
-      },
-      {
-        kicker: '1 · What changed',
-        title: 'It began as a script on a laptop. Now it is a platform',
-        body: 'The way of working is the one this harness always had: a spec, a failing test, a gate, independent audits. What changed is where it runs, and that turns out to change what you can trust it with.',
       },
     ],
     Scene: PromiseScene,
@@ -303,7 +263,7 @@ export const OPENING = [
     id: 'issue', name: 'The ticket', accent: 'text-emerald-300', tone: 'emerald',
     beats: [
       {
-        kicker: '2 · The ticket',
+        kicker: 'The ticket',
         title: 'It starts with a GitHub issue a test can check',
         body: 'The product harness turned a conversation into this: why, what should change, and the Done when list every later agent is judged against. It arrives carrying its context — the docs the agents read instead of the source.',
       },

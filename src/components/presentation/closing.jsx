@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { animate, motion } from 'motion/react';
 import { at, Show, Replay, Code, Label, Kicker, Vercel, PrIcon, later, box } from './kit.jsx';
 import { Orbits } from './opening.jsx';
-import { GH, GhOpenIcon, GitHub } from './apps.jsx';
+import { GH } from './apps.jsx';
 
 /** A number that counts up to `to` as it appears. */
 function Count({ to, prefix = '', decimals = 0, delay = 0 }) {
@@ -65,7 +65,7 @@ function OnTheRecord() {
             <tbody>
               {MODEL_ROWS.map(([job, m, tier, jev, est, actual], i) => (
                 <tr key={job} className={`pz-appear border-b ${GH.line}`} style={later(400 + i * 180)}>
-                  <td className="py-[10px]">{job}</td>
+                  <td className="py-[7px]">{job}</td>
                   <td><code className="rounded bg-black/[0.06] px-1.5 py-0.5 font-mono text-[12.5px]">{{ deepseek: 'deepseek-v4.1-flash', glm: 'glm-5.3-flash', sonnet: 'sonnet-5.5' }[m]}</code></td>
                   <td className={GH.muted}>{tier}</td>
                   <td className="text-right">{jev}</td>
@@ -75,7 +75,7 @@ function OnTheRecord() {
               ))}
             </tbody>
           </table>
-          <div className={`pz-appear mt-3 text-[14px] ${GH.muted}`} style={later(1700)}>Picked per job by Jev from AI Gateway’s live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</div>
+          <div className={`pz-appear mt-3 text-[14px] ${GH.muted}`} style={later(1700)}>Picked per job by Jev from AI Gateway’s live catalog: the cheapest tier likely to be enough.</div>
           <div className="pz-appear mt-2 text-[15px]" style={later(1900)}><b>AI spend, build to review:</b> $0.93</div>
         </div>
       </div>
@@ -279,212 +279,17 @@ function RoleScene({ step }) {
   );
 }
 
-/* ------------------------------------------------------------------ *
- * Now you — a ticket of your own, start to finish, without leaving
- * GitHub.
- * ------------------------------------------------------------------ */
-
-const LAB_STEPS = [
-  ['🎫', 'Write the ticket', 'a GitHub issue with a Done when list'],
-  ['🏷️', 'Label it ready-for-ai', 'then watch its one comment fill in'],
-  ['👀', 'Try it, then merge', 'the preview, the screenshots, the verdicts'],
-];
-
-/** The turn from talk to demo. */
-function YourTurn() {
-  return (
-    <div className="flex size-full flex-col items-center justify-center text-center">
-      <Kicker className="pz-appear">That was the tour</Kicker>
-      <div className="pz-appear mt-5 font-display text-[110px] leading-none text-ink" style={later(200)}>
-        Now <span className="pz-shine bg-clip-text text-transparent">watch it run</span>
-      </div>
-      <div className="pz-appear mt-6 max-w-[980px] text-[26px] leading-snug text-muted" style={later(600)}>
-        One ticket, all the way to production — and you never leave GitHub.
-      </div>
-      <div className="mt-12 flex gap-5">
-        {LAB_STEPS.map(([icon, title, sub], i) => (
-          <div key={title} className="pz-appear w-[370px] rounded-2xl border border-hairline bg-surface px-6 py-5 text-left" style={later(1100 + i * 250)}>
-            <div className="font-mono text-[14px] text-emerald-300">step {i + 1}</div>
-            <div className="mt-1 text-[22px] font-semibold text-ink">{icon} {title}</div>
-            <div className="text-[16px] text-muted">{sub}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LabScene({ step: beat }) {
-  // beat 0 is the turn to the room; the three steps follow it
-  const step = beat - 1;
-  return (
-    <>
-      <Show on={beat === 0} from="scale" style={at(80, 60, 1440, 780)}><YourTurn /></Show>
-
-      <Show on={beat > 0} from="left" style={at(80, 80, 440, 520)} className="flex flex-col gap-4">
-        {LAB_STEPS.map(([icon, title, sub], i) => (
-          <div key={title} className={`flex items-center gap-4 rounded-2xl border px-5 py-5 transition-all duration-500
-            ${i === step ? 'pz-glow border-emerald-400/60 bg-raised' : 'border-hairline bg-surface'} ${i > step ? 'opacity-45' : ''}`}>
-            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-overlay font-display text-[24px] text-ink">{i < step ? '✓' : i + 1}</span>
-            <div>
-              <div className="text-[22px] font-semibold text-ink">{icon} {title}</div>
-              <div className="text-[16px] text-muted">{sub}</div>
-            </div>
-          </div>
-        ))}
-      </Show>
-
-      {/* 1 · a new issue, written so a test can check it */}
-      <Replay on={step === 0} from="right" style={at(570, 80, 950, 520)} className="flex flex-col gap-4">
-        <GitHub tab="Issues" className="min-h-0 flex-1">
-          <div className="px-6 py-4">
-            <div className="text-[24px] leading-tight">Pick more than one track on the schedule <span className={GH.muted}>#42</span></div>
-            <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full ${GH.green} px-3 py-1 text-[14px] font-semibold text-white`}><GhOpenIcon /> Open</span>
-            <div className="mt-3 grid grid-cols-[1fr_180px] gap-5">
-              <div className="overflow-hidden rounded-md border border-[#54aeff]/60">
-                <div className="flex items-center gap-2 border-b border-[#54aeff]/40 bg-[#ddf4ff] px-4 py-2 text-[14px]">
-                  <span className="size-5 rounded-full bg-violet-300" aria-hidden="true" />
-                  <b>you</b><span className={GH.muted}>opened just now</span>
-                </div>
-                <div className="px-4 py-3">
-                  <div className={`text-[15px] ${GH.muted}`}><b className={GH.ink}>Why:</b> people follow two tracks and have to flip between them.</div>
-                  <div className={`mt-2 border-b ${GH.line} pb-1 text-[18px] font-semibold`}>Done when</div>
-                  <ul className="mt-2 space-y-1.5 text-[15px]">
-                    {['The schedule’s track filter takes more than one track', 'It shows sessions in any of the tracks picked', 'The choice survives a reload'].map((d, i) => (
-                      <li key={d} className="pz-appear flex items-center gap-2" style={later(500 + i * 220)}>
-                        <span className={`size-4 shrink-0 rounded border ${GH.line}`} />{d}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className={`pz-appear mt-3 text-[15px] ${GH.muted}`} style={later(1300)}><b className={GH.ink}>Out of scope:</b> the speakers page</div>
-                </div>
-              </div>
-              <div className="space-y-3 text-[14px]">
-                <div className={`border-b ${GH.line} pb-2`}><div className={`font-semibold ${GH.muted}`}>Assignees</div><div className={GH.muted}>No one</div></div>
-                <div className={`border-b ${GH.line} pb-2`}><div className={`font-semibold ${GH.muted}`}>Labels</div><div className={GH.muted}>None yet</div></div>
-              </div>
-            </div>
-          </div>
-        </GitHub>
-        <div className={`${box} pz-appear flex items-center gap-4 px-5 py-3`} style={later(1700)}>
-          <span className="text-[24px]">💡</span>
-          <span className="text-[17px] text-muted">Or let the product harness write it: <Code>/create-tasks pick more than one track</Code> in Claude Code raises the same shape of ticket.</span>
-        </div>
-      </Replay>
-
-      {/* 2 · the label, and the one comment that fills in */}
-      <Replay on={step === 1} from="right" style={at(570, 80, 950, 520)} className="flex flex-col gap-4">
-        <GitHub tab="Issues" className="min-h-0 flex-1">
-          <div className="px-6 py-4">
-            <div className="flex items-center gap-3 text-[20px]">Pick more than one track on the schedule <span className={GH.muted}>#42</span>
-              <span className="pz-pop ml-auto rounded-full bg-[#d8b4fe] px-2.5 py-0.5 text-[13px] font-semibold text-[#3b0764]" style={later(400)}>ready-for-ai</span>
-            </div>
-            <div className={`pz-appear mt-3 overflow-hidden rounded-md border ${GH.line}`} style={later(1100)}>
-              <div className={`flex items-center gap-2 border-b ${GH.line} bg-[#f6f8fa] px-4 py-1.5 text-[14px]`}>
-                <span className="size-5 rounded-full bg-violet-300" aria-hidden="true" /><b>the factory</b><span className={GH.muted}>commented · edited a moment ago</span>
-              </div>
-              <div className="space-y-1.5 px-4 py-3 text-[15px]">
-                <div className="text-[18px] font-semibold">🏭 Ship on Vercel · Build</div>
-                <div className={GH.muted}>
-                  {['Triage', 'Plan'].map((p, i) => <span key={p} className="pz-appear" style={later(1500 + i * 500)}>✅ {p} → </span>)}
-                  <b className={`pz-appear ${GH.ink}`} style={later(2500)}>⏳ Build</b>
-                  <span> → Gate → Audit → Pull request → Preview → Review &amp; QA → Merge → Production</span>
-                </div>
-                <div className="pz-appear" style={later(1700)}><b>Size:</b> small — Jev, 78% sure</div>
-                <div className="pz-appear" style={later(2100)}><b>Branch:</b> <code className="rounded bg-black/[0.06] px-1.5 font-mono text-[13px]">issue-42-pick-more-than-one-track</code> · 📄 <span className={GH.link}>Spec</span></div>
-                <div className="pz-appear" style={later(2700)}><b>AI spend so far:</b> $0.19 over 1 agent run</div>
-                <div className={`pz-appear ${GH.muted}`} style={later(2900)}>▸ <b>Models</b> — which job runs on what, and what it costs</div>
-              </div>
-            </div>
-          </div>
-        </GitHub>
-        <div className="pz-appear grid grid-cols-2 gap-4" style={later(3000)}>
-          <div className={`${box} px-5 py-3`}>
-            <Kicker>Prefer a comment?</Kicker>
-            <div className="mt-1 text-[17px] text-muted"><Code>/ship</Code> on the issue does the same; <Code>/ship --full</Code> picks the size yourself.</div>
-          </div>
-          <div className={`${box} px-5 py-3`}>
-            <Kicker>While it runs</Kicker>
-            <div className="mt-1 text-[17px] text-muted">Read the spec. It lands first, and it is the cheapest place to catch a misreading.</div>
-          </div>
-        </div>
-      </Replay>
-
-      {/* 3 · the pull request: try it, read the verdicts, merge */}
-      <Replay on={step === 2} from="right" style={at(570, 80, 950, 520)} className="flex flex-col gap-4">
-        <GitHub tab="Pull requests" className="min-h-0 flex-1">
-          <div className="px-6 py-3.5">
-            <div className="text-[21px] leading-tight">Pick more than one track on the schedule <span className={GH.muted}>#44</span></div>
-            <div className="mt-1.5 flex items-center gap-2 text-[14px]">
-              <span className={`inline-flex items-center gap-1.5 rounded-full ${GH.green} px-3 py-1 font-semibold text-white`}><PrIcon /> Open</span>
-              <span className={GH.muted}>wants to merge into <span className="rounded bg-[#ddf4ff] px-1 font-mono text-[13px] text-[#0969da]">main</span> · Closes #42</span>
-            </div>
-            <div className="pz-appear mt-2.5 rounded-md border-l-4 border-[#1a7f37] bg-[#dafbe1] px-3 py-1.5 text-[14px]" style={later(300)}>
-              <b>🔎 Try it:</b> <span className={GH.link}>nam-2026-conference-4f7a….vercel.app</span> — this pull request’s Vercel preview
-            </div>
-            <div className="mt-2 space-y-1.5">
-              {[
-                ['📸', 'Screenshots', '/schedule — before and after, desktop and mobile', null],
-                ['🔍', 'Code review', 'approved with 1 suggestion', '●●●'],
-                ['🧪', 'QA', 'two tracks picked on desktop and phone — both show', '●●●'],
-              ].map(([icon, who, what, meter], i) => (
-                <div key={who} className={`pz-appear flex items-center gap-2 rounded-md border ${GH.line} px-3 py-1.5 text-[14px]`} style={later(800 + i * 350)}>
-                  <span>{icon}</span><b>{who}</b><span className={`truncate ${GH.muted}`}>{what}</span>
-                  {meter && <span className="ml-auto rounded-full bg-[#dafbe1] px-2 font-semibold text-[#1a7f37]">{meter}</span>}
-                </div>
-              ))}
-            </div>
-            <div className="pz-appear mt-2 flex items-center gap-3" style={later(2000)}>
-              <span className={`text-[13px] ${GH.muted}`}>Want it different? Say so:</span>
-              <span className="rounded-2xl bg-[#f0eee6] px-3 py-1 text-[14px]">@claude keep the chosen tracks in the URL</span>
-            </div>
-          </div>
-        </GitHub>
-        <div className="pz-appear grid grid-cols-[1fr_1fr] gap-4" style={later(2400)}>
-          <div className="flex items-center gap-4 rounded-2xl border border-emerald-400/50 bg-emerald-500/10 px-5 py-3">
-            <span className="text-[30px]">🟣</span>
-            <span className="text-[17px] text-ink">Happy? <b>Squash and merge.</b> The run checks production and closes the ticket.</span>
-          </div>
-          <div className="rounded-2xl border-2 border-dashed border-amber-400/60 bg-amber-500/10 px-5 py-3">
-            <Label name="needs-human" />
-            <div className="mt-1 text-[16px] text-muted">A question came back? Answer it in a comment. It resumes by itself.</div>
-          </div>
-        </div>
-      </Replay>
-    </>
-  );
-}
-
-const LAB_BEATS = [
-  null,
-  {
-    kicker: '10 · Now you · step 1',
-    title: 'Write a ticket a test could check',
-    body: 'Why, what should change, and a Done when list. That list is the contract: the planner maps each line to a check, the auditors judge against it, and QA probes whatever it leaves uncovered.',
-  },
-  {
-    kicker: '10 · Now you · step 2',
-    title: 'Add one label — then let it run',
-    body: 'ready-for-ai reaches the webhook and a ship run starts at once. One comment on the issue fills in as it goes: the size and why, the branch and the spec, each round, the models and what they cost.',
-  },
-  {
-    kicker: '10 · Now you · step 3',
-    title: 'Click the preview, read the verdicts, merge',
-    body: 'The pull request arrives with a running app, before-and-after screenshots, a review and a QA pass. Ask for a change with @claude, or merge — and the run that built it confirms it is live.',
-  },
-];
-
 export const CLOSING = [
   {
     id: 'receipts', name: 'On the record', accent: 'text-cyan-300', tone: 'sky',
     beats: [
       {
-        kicker: '8 · On the record',
+        kicker: 'On the record',
         title: 'Every run says what it did, on which model, for how much',
         body: 'This is a real run from this repository. Each job shows the model Jev picked, how sure it was, what it expected to pay and what it paid — on the issue, on the run’s attributes, and on a page that lists every ticket.',
       },
       {
-        kicker: '8 · What it costs',
+        kicker: 'What it costs',
         title: 'About a dollar a ticket — and every dial is yours',
         body: 'Real receipts from this repository. Routing each job to the cheapest model that could do it cut the same ticket from $4.59 to $1.80 — and most of what is left pays for judgement, which is where you want it.',
       },
@@ -495,7 +300,7 @@ export const CLOSING = [
     id: 'scale', name: 'Many at once', accent: 'text-sky-300', tone: 'sky',
     beats: [
       {
-        kicker: '9 · Don’t babysit one ticket — hand it ten',
+        kicker: 'Don’t babysit one ticket — hand it ten',
         title: 'Ten labels, ten sandboxes, ten previews',
         body: 'Nothing about a run needs you watching, and nothing about it runs on your machine. Each ticket gets its own sandbox, its own branch and its own preview. The limit is how many pull requests you can review well.',
       },
@@ -506,7 +311,7 @@ export const CLOSING = [
     id: 'role', name: 'Your role', accent: 'text-violet-300', tone: 'violet',
     beats: [
       {
-        kicker: '9 · Your role',
+        kicker: 'Your role',
         title: 'You are the tech lead of a team of agents',
         body: 'None of this replaces engineering judgement; it moves it to where it counts. And trust comes from what you can check — a spec, a failing test, a preview, a verdict that had to be proven — not from the model.',
       },
@@ -514,5 +319,4 @@ export const CLOSING = [
     ],
     Scene: RoleScene,
   },
-  { id: 'lab', name: 'Now you', accent: 'text-emerald-300', tone: 'emerald', beats: LAB_BEATS, Scene: LabScene },
 ];

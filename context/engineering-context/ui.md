@@ -198,28 +198,31 @@ re-mounts each time it becomes current, so its entrance replays. `enter: 'cut'`
 swaps the fly-through for a crossfade, for a chapter that continues the scene
 before it.
 
-**The engineering talk** (`components/presentation/chapters.js`) is four files,
-in order:
+**The engineering talk** (`components/presentation/chapters.js`) is four files.
+Its spine is one ship run: after a short opening the rail of the run's eleven
+phases stays on screen to the end of the walkthrough, the #140 ticket riding it,
+so the room always knows where it is — and each Vercel piece is taught at the
+station where it happens, not in a chapter of its own.
 
 - `opening.jsx` — the title (`Orbits`, the seven workflows around the Vercel
-  mark, reused behind the closing line), the promise (one label, then
-  everything that happens without you; then the laptop script against the
-  factory on Vercel) and the ticket with its context docs.
-- `platform.jsx` — one Vercel piece per chapter: the map of both projects, the
-  webhook's switchboard and the seven workflows; Vercel Workflows (a trace that
-  survives a redeploy, the merge hook's free wait); Vercel Sandbox (forking
-  `orbit-warm`, the proxy that holds the keys, the three modes); AI Gateway
-  and Jev (sizing, the tier ladder, the measured models and the climb). `Wf`
-  is a workflow chip.
-- `ship.jsx` — one ship run as a rail of eleven stations, the run's own
-  `PHASES`, with the #140 ticket riding from Triage to Production. `STOPS` maps
-  each beat to its station and detail panel; the gate, the audit and Review &
-  QA each stop twice. The same `LineScene` is four chapters: `SHIP`, then
-  (after `NEEDS_HUMAN` breaks in where it happens, after the loop) `SHIP_ON`'s
-  pull request, review and QA, and merge and production, joined by `cut`.
+  mark, reused behind the closing line), the promise (one label, Vercel picks
+  the ticket up, and everything that then happens without you) and the ticket
+  with its context docs.
+- `platform.jsx` — the factory floor (the map of both projects, the seven
+  workflows) as a chapter, and the panels the rail shows: `Switchboard` (the
+  webhook), `Sizing` and `Ladder` (Jev, AI Gateway), `Fork` and `Network`
+  (Vercel Sandbox), `Durable` and `Asleep` (Vercel Workflows), `Climb`. Each is
+  laid out for the rail's 1440×460 panel. `Wf` is a workflow chip.
+- `ship.jsx` — the rail. `STOPS` is one entry per beat: the station the ticket
+  is at and the panel shown under it (`PANEL`); `LINE_BEATS` is its caption, in
+  the same order. The first stop frames it — a ticket goes in, a feature comes
+  out — and Production closes it with the feature live. `SHIP` cuts the one
+  `LineScene` into a chapter per stretch of the rail (`stretch`), joined by
+  `cut`, so the chrome names the station. Plan audit shows as skipped: #140 is
+  a small ticket. Needs-human is two stops at Audit.
 - `closing.jsx` — on the record (the progress comment's Models table, the
   `/runs` page) and what it costs, ten tickets at once, your role and the
-  closing line, and a three-step *Now you* that never leaves GitHub.
+  closing line.
 
 `kit.jsx` has the primitives both talks share (`Show`, `Replay`, `Token` — the
 #140 ticket — `Flip`, `Terminal`, `Model` and `MODELS`, the factory's ladder,

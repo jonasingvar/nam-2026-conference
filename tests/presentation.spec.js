@@ -124,7 +124,7 @@ test.describe('The harness presentation', () => {
     const caption = page.getByTestId('presentation-caption');
     const stage = page.getByTestId('presentation');
 
-    // three frames are bare — the title, the closing line and the turn to the room; every other beat is captioned
+    // two frames are bare — the title and the closing line; every other beat is captioned
     const bare = [];
     let said = '';
     for (let at = 1; at <= total; at++) {
@@ -134,8 +134,7 @@ test.describe('The harness presentation', () => {
       else bare.push(at);
       said += ` ${await stage.innerText()}`;
     }
-    expect(bare.length, `bare beats: ${bare.join(', ')}`).toBe(3);
-    expect(bare[0]).toBe(1);
+    expect(bare, 'the bare beats are the title and the closing line').toEqual([1, total]);
 
     // what the factory is made of is named…
     for (const name of ['Vercel Workflows', 'Vercel Sandbox', 'AI Gateway', 'Jev', 'ready-for-ai', '/api/github', 'orbit-warm', 'Production']) {

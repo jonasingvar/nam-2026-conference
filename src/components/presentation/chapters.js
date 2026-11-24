@@ -1,6 +1,6 @@
 import { OPENING } from './opening.jsx';
 import { PLATFORM } from './platform.jsx';
-import { SHIP, NEEDS_HUMAN, SHIP_ON } from './ship.jsx';
+import { SHIP } from './ship.jsx';
 import { CLOSING } from './closing.jsx';
 
 /**
@@ -8,9 +8,9 @@ import { CLOSING } from './closing.jsx';
  * `{ id, name, accent, tone, beats, Scene, enter? }`: one caption per beat
  * (null for none), and a Scene drawn for a `step`.
  *
- * The promise and the ticket first; then the platform, one Vercel piece per
- * chapter; then one ship run from Triage to Production, with needs-human
- * breaking in where it happens (after the loop, before the pull request); then
- * what it costs, your role, and a ticket of your own.
+ * The promise and the ticket; the factory floor (the map, the seven
+ * workflows); then the spine: one ship run followed along its rail from
+ * Triage to Production, each Vercel piece taught at the station where it
+ * happens; then what it costs, running many at once, and your role.
  */
-export const CHAPTERS = [...OPENING, ...PLATFORM, ...SHIP, ...NEEDS_HUMAN, ...SHIP_ON, ...CLOSING];
+export const CHAPTERS = [...OPENING, ...PLATFORM, ...SHIP, ...CLOSING];
