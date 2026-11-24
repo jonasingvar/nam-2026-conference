@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { resumeHook } from 'workflow/api';
 import { HookNotFoundError } from 'workflow/errors';
-import { ALLOWED_REPO } from '@/lib/constants';
+import { ALLOWED_REPO, FULL_SUITE_LABEL } from '@/lib/constants';
 import { startChecks, startRespond, startShip, startShots, startVerify, startWarm } from '@/lib/start';
 
 /**
@@ -16,7 +16,8 @@ import { startChecks, startRespond, startShip, startShots, startVerify, startWar
  *   - `@claude …` on a pull request                    → respond: make the change asked for
  *   - `/dismiss <n>` on a pull request                  → nothing now: the next review reads it and drops that finding for good
  *   - a pull request closed (merged or not)            → wake the ship run waiting on it, tidy its issue
- *   - a push to a pull request                         → verify: the gate, as CI
+ *   - a push to a pull request (or one ship opened)    → verify: the tests the change needs, as CI
+ *   - `full-suite` put on a pull request               → verify it again, running everything
  *   - a push to main                                   → verify it, and re-warm the sandbox runs fork
  * Comments count only from someone with write access.
  * Anything from another repository is refused, before anything is parsed.
@@ -81,7 +82,14 @@ export async function POST(req: Request) {
     return Response.json({ verify: v, warm: w });
   }
 
-  // CI on every push to a pull request. The push ship's gate already proved is not run twice.
+  // `full-suite` put on a pull request: verify its head again, running everything.
+  if (event === 'pull_request' && p.action === 'labeled' && p.label?.name === FULL_SUITE_LABEL) {
+    const pr = p.pull_request;
+    return Response.json({ verify: await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, pr: pr.number, full: true }) });
+  }
+
+  // CI on every push to a pull request — one ship opened too: verify finds what ship's gate ran
+  // green at that commit and runs only the rest, so the pull request still gets its status.
   // verify holds no credential, so it runs for anyone's pull request; review and QA spend
   // money and read untrusted code, so they run by themselves only for a branch of this
   // repository opened by someone with write access — anyone else's need a maintainer's /review.
@@ -89,8 +97,8 @@ export async function POST(req: Request) {
     const pr = p.pull_request;
     const trusted = pr.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && WRITERS.has(pr.author_association);
     const shipOpened = p.action === 'opened' && /^issue-\d+-/.test(pr.head.ref);
-    const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
-    const v = shipOpened ? null : await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast, pr: pr.number });
+    const full = (pr.labels || []).some((l: any) => l.name === FULL_SUITE_LABEL);
+    const v = await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, full, pr: pr.number });
     if (p.action === 'synchronize') return Response.json({ verify: v });
     if (pr.draft) return Response.json({ verify: v, ignored: 'draft' });
     // A bot's pull request (Dependabot) gets CI, not a paid review and QA.
@@ -126,8 +134,8 @@ export async function POST(req: Request) {
     }
     if (/(^|\s)(\/review|@claude\s+review)\b/i.test(body)) {
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
-      const fast = (pr.labels || []).some((l: any) => l.name === 'ship:fast');
-      const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, fast, pr: pr.number }), startChecks(p.issue.number, pr.head.sha)]);
+      const full = (pr.labels || []).some((l: any) => l.name === FULL_SUITE_LABEL);
+      const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, full, pr: pr.number }), startChecks(p.issue.number, pr.head.sha)]);
       return Response.json({ verify: v, checks });
     }
     if (/(^|\s)@claude\b/i.test(body)) {

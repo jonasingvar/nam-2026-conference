@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { API, visit, momentOn, laneFor, bookableFor, shotForPR, failOnPageErrors, ATTENDEES } from './helpers.js';
 
 
