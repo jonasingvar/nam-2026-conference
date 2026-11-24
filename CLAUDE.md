@@ -224,7 +224,7 @@ Vercel Sandboxes. There are no GitHub Actions. (how:
    with lenses picked by what it touches; QA probes the gaps the PR's own tests
    leave, **on its preview**, desktop and mobile. Each posts a verdict with a
    **confidence** meaning coverage, not feeling, and a commit status; a low one
-   reads *unproven*. `@claude …` on the PR asks for a change; `/review` asks again.
+   reads *unproven*. `/fix …` (or `@claude …`) on the PR asks for a change; `/review` asks again.
 4. **A human merges.** Nothing is a required check. The ship run, asleep since
    the pull request opened, wakes on the merge, waits for production, and checks
    `/api/health` before it calls the issue done.

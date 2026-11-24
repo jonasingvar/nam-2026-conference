@@ -131,7 +131,7 @@ function Map() {
 const ROUTES = [
   { icon: '🏷️', event: <>an issue gets <Label name="ready-for-ai" className="mx-1 text-[14px]" /> or <Code>/ship</Code></>, to: ['ship'] },
   { icon: '🔀', event: <>a pull request opens, or <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'] },
-  { icon: '✍️', event: <><Code>@claude …</Code> on a pull request</>, to: ['respond'] },
+  { icon: '✍️', event: <><Code>/fix make the heading smaller</Code> on a pull request</>, to: ['respond'] },
   { icon: '🟣', event: 'a pull request is merged', to: [], wake: 'wakes the sleeping ship run' },
   { icon: '⬆️', event: <>a push to <Code>main</Code></>, to: ['verify', 'warm'] },
 ];
@@ -178,7 +178,7 @@ const SEVEN = [
   { name: 'review', mode: 'read', when: 'a pull request opens · /review', does: 'reads the diff, proves what it flags' },
   { name: 'qa', mode: 'read', when: 'with review', does: 'tries to break it on the preview' },
   { name: 'screenshots', mode: 'none', when: 'with review · /screenshots', does: 'before and after, on the pull request' },
-  { name: 'respond', mode: 'push', when: '@claude … on a pull request', does: 'makes the change you ask for' },
+  { name: 'respond', mode: 'push', when: '/fix … on a pull request', does: 'makes the change you ask for' },
   { name: 'verify', mode: 'none', when: 'every push', does: 'runs the tests, with no credential' },
   { name: 'warm', mode: null, when: 'push to main · daily', does: 'rebuilds the sandbox every run forks' },
 ];
