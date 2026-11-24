@@ -1,33 +1,40 @@
 ---
 area: agenda
-summary: The attendee's own conference — the My Agenda placeholder page, and the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), none of which has a UI yet.
+summary: The attendee's own conference — the My Agenda page (what is still to come, with clashes and impossible cross-town hops) and the endpoints it is built on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports).
 read_when: touching My Agenda, an attendee's day or schedule, suggestions, clashes or booked-hours totals, a speaker's own sessions, or calendar export
 files:
   - server/lib/agenda.js
   - server/lib/ical.js
+  - src/lib/agenda.js
   - src/pages/MyAgendaPage.jsx
 tests:
+  - tests/agenda.spec.js
   - tests/home.spec.js
   - tests/api/agenda.test.js
   - tests/api/calendar.test.js
+  - tests/unit/agenda.test.js
   - tests/unit/ical.test.js
 related: [seats, attendance, clock, venues, schedule, speakers, ui]
 ---
 
 # Agenda
 
-**My Agenda is a placeholder.** `/my-agenda` (`MyAgendaPage`, still in the nav,
-`/my-plan` redirects there) renders a `SectionHeader` and a "Coming soon" panel
-(`agenda-coming-soon`) with a `Browse the schedule` button — nothing else. Workshop
-teams design the page from scratch. Everything underneath it is built and tested:
-adding a session takes a seat (seats doc), and the payloads below are served,
-with matching functions in `src/lib/api.js`. What a day is made of is decided in
-`server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
+**My Agenda is the attendee's own conference.** `/my-agenda` (`MyAgendaPage`, in
+the nav; `/my-plan` redirects there) lists the sessions they still have ahead of
+them, day by day, each saying seat or waitlist place — and flags the two ways the
+plan can fall apart: two sessions at once, and a cross-town hop that will not fit.
+It is built on `GET /api/users/:id/schedule`, re-filtered through the store on
+every render, so removing a seat updates the rows *and* their flags at once.
+Deliberately not there: hours totals, free-slot suggestions, the calendar export
+button. Everything underneath is built and tested: adding a session takes a seat
+(seats doc), and the payloads below are served, with matching functions in
+`src/lib/api.js`. What a day is made of is decided in `server/lib/agenda.js`;
+routes in `server/routes/users.js` only validate and call it.
 
 ## How it works
 
 **`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
+Client: `api.getSchedule(userId)` — its one caller is `MyAgendaPage`.
 `agenda.js:scheduleFor` returns one entry per day that has any reservation:
 `{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
 waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)
@@ -38,15 +45,34 @@ mean hours you hold a chair for.
 statuses) → `{ type: 'overlap', sessionIds: [a, b] }`. `venuesVisited` is venue
 `shortName`s.
 
-**Building on it.** The store, not the fetched payload, is the source of truth for
-the attendee's own reservations (CLAUDE.md § There is exactly one action). A page
-that lists the schedule must re-filter each day through `reservationFor(s.id)` and
-recompute `conflicts`, both minute totals and `venuesVisited` client-side (dropping
-empty days), or a removed session stays on screen until a refresh. Per-session
-attendance for a row is `SessionCard variant="row"`'s `attendance` prop
-(`{ ended: hasEnded(s, clock), checkedIn, myStars }`, schedule doc); booked hours
-under a waitlist caveat fit `Stat`'s `note` (ui doc); a cross-town hop between two
-seats is `travel.js:assessTravel` (venues doc); export is `api.agendaCalendarUrl`.
+**What the page is made of — `src/lib/agenda.js:upcomingDays({ days, reservationFor,
+clock, travel })`.** Pure; proved in `tests/unit/agenda.test.js` with no helpers.
+It drops a session the store no longer holds (`reservationFor(s.id)` — the store,
+not the fetched payload, is the source of truth for your own reservations, CLAUDE.md
+§ There is exactly one action) and one that has ended (`hasEnded`), drops a day left
+empty, and sorts each day by start time. Each session comes back with `reservation`
+from the store, plus two flags:
+
+- `clashesWith` — ids of that day's other sessions it overlaps in time, seat or
+  waitlist place. The seat rules refuse two confirmed seats in one slot, so what
+  turns up is a waitlist place beside something you hold.
+- `hop` — `{ fromId, gapMinutes, travelMinutes }`, on the session you are travelling
+  *to*, when `travel.js:assessTravel` between it and the previous **confirmed** seat
+  is `impossible`. `travelMinutes` is `fastest.total` (quickest non-walking route
+  plus the walk to the room). A waitlisted neighbour never triggers one — it may
+  never come good — and the day's first confirmed seat has no hop into it.
+
+**`MyAgendaPage`** renders that with `useFetch(() => api.getSchedule(currentUserId))`
+and `useConference()` for `clock`, `reservationFor` and `travel`, recomputing
+`upcomingDays` in a `useMemo`. Test ids: `agenda-day-<date>`, `agenda-row-<id>` (time,
+title, room, venue, a `SeatButton`, and `agenda-status` reading "Seat" or "Waitlist"),
+`agenda-clash-<id>` and `agenda-hop-<id>` (both naming the session they are about,
+looked up among that day's), and `agenda-empty` with a link to `/schedule`. Hours,
+suggestions and export are not on it. A page that also wants booked hours re-filters
+for `totalMinutes`/`waitlistedMinutes` (keep the two apart) or shows attendance with
+`SessionCard variant="row"`'s `attendance` prop (`{ ended, checkedIn, myStars }`,
+schedule doc); booked hours under a waitlist caveat fit `Stat`'s `note` (ui doc);
+export is `api.agendaCalendarUrl`.
 
 **`GET /api/users/:id/today?day=&time=`** → `users.js` checks the user exists (404)
 and `day` is present (400), then `agenda.js:todayFor(userId, { day, time })`.
@@ -101,6 +127,8 @@ local `DTSTART`/`DTEND`, `UID:orbit-session-<id>@orbitconf.dev`, LOCATION
 - Agenda feed = confirmed only; `calendar.test.js` asserts waitlist places are absent.
 - Anything "today" keys off `clock.day`/`clock.time` (`useConference().clock`),
   never `days[0]` or `new Date()`.
+- What is on the agenda is derived, never stored: the page keeps no copy, so it
+  cannot disagree with `reservationFor` after a swap, an undo or a promotion.
 
 ## Gotchas
 
@@ -121,10 +149,11 @@ local `DTSTART`/`DTEND`, `UID:orbit-session-<id>@orbitconf.dev`, LOCATION
 
 ## Where to change…
 
-- The My Agenda page: `MyAgendaPage.jsx`; replace `tests/home.spec.js`'s
-  "My Agenda is a blank canvas" test when the placeholder goes.
+- The My Agenda page: `MyAgendaPage.jsx` and, for what it shows, `src/lib/agenda.js:upcomingDays`
+  (`tests/unit/agenda.test.js` for the rules, `tests/agenda.spec.js` for the rows and flags —
+  the spec books its own clashing, cross-town pair, from the `agenda.page` lane).
 - A new field on the day payload → `agenda.js:todayFor`; prove it in `tests/api/` with `startApi()`.
 - Suggestion ranking → `agenda.js:suggestionsFor` / `myTopics` / `openInSlot`.
 - Clash or total rules → `agenda.js:scheduleFor`/`clashesIn`, and any client
-  recomputation a page does.
+  recomputation a page does (`src/lib/agenda.js`).
 - Calendar fields → `ical.js:event`; escaping/folding tests in `tests/unit/ical.test.js`.

@@ -22,9 +22,9 @@ test.describe('My Agenda', () => {
     /*
      * Two consecutive slots this attendee holds nothing in, where the trip from
      * the one to the next does not fit the gap between them — plus a sold-out
-     * session in one of them, to take a waitlist place on. A 30-minute gap into
-     * a Foundry room is 18 minutes of rideshare plus the walk to the room, and
-     * never fits.
+     * session in one of them, to take a waitlist place on. Over to the Foundry
+     * is 18 minutes by rideshare plus the walk to the room at that end, so a
+     * 30-minute gap never fits there, and a 15-minute one is hopeless anywhere.
      */
     const slots = [...new Set(sessions.map((s) => s.startsAt))].sort();
     let target = null;
@@ -76,11 +76,6 @@ test.describe('My Agenda', () => {
     expect(await rows.evaluateAll((els) => els.map((e) => e.dataset.testid)))
       .toEqual(upcoming.map((s) => `agenda-row-${s.id}`));
 
-    // Sessions that have already finished are not listed — and there are some.
-    const ended = mine.filter((s) => hasEnded(s, clock));
-    expect(ended.length, 'nothing of theirs has ended at this hour').toBeGreaterThan(0);
-    for (const s of ended) await expect(page.getByTestId(`agenda-row-${s.id}`), s.title).toHaveCount(0);
-
     // Each row says when it is, what it is and where — and whether it is a seat
     // or a place in the queue.
     const row = (s) => page.getByTestId(`agenda-row-${s.id}`);
@@ -116,6 +111,12 @@ test.describe('My Agenda', () => {
     await expect(row(partner)).toBeVisible();
     await expect(hop).toBeVisible();
     await expect(page).toHaveURL(/\/my-agenda$/);
+
+    // A session that is over leaves the list: at a clock past the first one's
+    // end it is gone, and the one after it is still there to go to.
+    await visit(page, '/my-agenda', { as: lane.user, at: `${lane.day}T${from.endsAt}` });
+    await expect(page.getByTestId(`agenda-row-${from.id}`), `${from.title} has ended`).toHaveCount(0);
+    await expect(page.getByTestId(`agenda-row-${to.id}`)).toBeVisible();
 
     // Give back what is left. The waitlist place went through the page itself.
     for (const s of [from, to]) await request.delete(`${API}/users/${lane.user}/reservations/${s.id}`);

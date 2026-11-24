@@ -11,8 +11,8 @@ import { SESSION_SELECT, hydrateSessions, toMinutes } from './query.js';
  *  - `schedule` — every seat and waitlist place, grouped by day, with the
  *    clashes and totals an agenda page needs.
  *
- * No page renders either yet: My Agenda is a placeholder that workshop teams
- * build on these.
+ * `schedule` is what My Agenda renders, through `src/lib/agenda.js`, which
+ * re-filters it on the client so a removed seat leaves the page at once.
  * The clock comes from the client, because conference time is simulated.
  */
 
