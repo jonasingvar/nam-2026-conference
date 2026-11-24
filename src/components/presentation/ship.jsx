@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { at, Show, Replay, Code, Label, Model, Kicker, Tick, Token, Flip, Meter, Vercel, IssueIcon, PrIcon, MergeIcon, later, box } from './kit.jsx';
 import { Wf, Switchboard, Sizing, Ladder, Sandbox, Durable, Climb, Asleep } from './platform.jsx';
@@ -788,6 +788,13 @@ const STOPS = [
 ];
 function LineScene({ step }) {
   const active = STOPS[step]?.at ?? -1;
+  const [left, setLeft] = useState(null);
+  const was = useRef(step);
+  useEffect(() => {
+    if (was.current === step) return;
+    setLeft(was.current);
+    was.current = step;
+  }, [step]);
   return (
     <>
       <Stations active={active} />
@@ -835,7 +842,10 @@ function LineScene({ step }) {
         </div>
       </Show>
 
-      {STOPS.map(({ Detail }, i) => Detail && (
+      {/* Only the panel on screen is mounted, with the one it replaced kept just long
+          enough to fade out: twenty panels of running animations at once made the
+          deck slow enough to time out its own test under load. */}
+      {STOPS.map(({ Detail }, i) => Detail && (i === step || i === left) && (
         <Replay key={i} on={step === i} from="up" style={PANEL}>
           <Detail />
         </Replay>
