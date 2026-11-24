@@ -6,10 +6,10 @@ import { ISSUE_140 } from './issue.js';
  * Title — the factory, and the seven workflows in orbit around it.
  * ------------------------------------------------------------------ */
 
-export function Orbits({ style = at(940, 20, 640, 640), className = '' }) {
+export function Orbits({ style = at(940, 90, 640, 640), className = '' }) {
   const rings = [
-    { r: 120, dur: '26s', words: ['ship', 'verify'] },
-    { r: 200, dur: '38s', words: ['review', 'qa', 'screenshots'] },
+    { r: 140, dur: '26s', words: ['ship', 'verify'] },
+    { r: 210, dur: '38s', words: ['review', 'qa', 'screenshots'] },
     { r: 280, dur: '54s', words: ['respond', 'warm', 'sandbox', 'Jev'] },
   ];
   return (
@@ -21,9 +21,10 @@ export function Orbits({ style = at(940, 20, 640, 640), className = '' }) {
           <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <circle cx="320" cy="320" r="78" fill="url(#pz-core)" />
+      <circle cx="320" cy="320" r="104" fill="url(#pz-core)" />
       {/* the Vercel mark at the centre: everything here runs on it */}
-      <path d="M320 292 L352 346 L288 346 Z" fill="#f5f3ff" />
+      <path d="M320 270 L362 342 L278 342 Z" fill="#ffffff" />
+      <text x="320" y="376" textAnchor="middle" fill="#ffffff" fontSize="24" fontWeight="600" fontFamily="Inter, system-ui, sans-serif" letterSpacing="-0.5">Vercel</text>
       {rings.map((ring, i) => (
         <g key={ring.r}>
           <circle cx="320" cy="320" r={ring.r} fill="none" stroke="#333950" strokeDasharray={i === 1 ? '4 8' : undefined} />
@@ -52,26 +53,28 @@ function TitleScene() {
   return (
     <>
       <Orbits />
-      <div style={at(110, 120, 900, 520)}>
+      <div style={at(110, 150, 900, 600)}>
         <Kicker className="pz-appear">ORBIT &rsquo;26 · AI across the software delivery lifecycle</Kicker>
-        <h1 className="pz-appear mt-6 font-display text-[112px] leading-[0.92] text-ink" style={later(120)}>
+        <h1 className="pz-appear mt-5 font-display text-[104px] leading-[0.92] text-ink" style={later(120)}>
           The software<br />
           <span className="pz-shine bg-clip-text text-transparent">factory</span>
         </h1>
-        <p className="pz-appear mt-7 max-w-[780px] text-[27px] leading-snug text-muted" style={later(260)}>
-          A GitHub issue goes in. A reviewed, tested, deployed change comes out — and nobody sits at a terminal.
+        <div className="pz-appear mt-5 flex items-center gap-4 font-display text-[50px] leading-none text-ink" style={later(220)}>
+          <span className="text-muted">built on</span><Vercel className="size-11" /><span>Vercel</span>
+        </div>
+        <p className="pz-appear mt-6 max-w-[780px] text-[25px] leading-snug text-muted" style={later(320)}>
+          A GitHub issue goes in. A reviewed, tested, deployed change comes out — and every part of that runs on Vercel.
         </p>
-        <div className="pz-appear mt-6 flex items-center gap-2.5" style={later(600)}>
-          <span className="inline-flex items-center gap-2 rounded-full border border-hairline bg-ground/70 px-3.5 py-1 text-[16px] text-ink"><Vercel className="size-3.5" /> All of it on Vercel</span>
+        <div className="pz-appear mt-5 flex items-center gap-2.5" style={later(600)}>
           {PRIMITIVES.map((p, i) => (
-            <span key={p} className="pz-pop rounded-full border border-violet-400/40 bg-violet-500/10 px-3.5 py-1 font-mono text-[15px] text-violet-200" style={later(800 + i * 110)}>{p}</span>
+            <span key={p} className="pz-pop inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/50 px-4 py-1.5 text-[17px] font-medium text-ink" style={later(800 + i * 110)}><Vercel className="size-3" />{p}</span>
           ))}
         </div>
-        <div className="pz-appear mt-8 space-y-1.5 whitespace-nowrap text-[19px] text-faint" style={later(1100)}>
+        <div className="pz-appear mt-6 space-y-1 whitespace-nowrap text-[17px] text-faint" style={later(1100)}>
           <div>🎙️ Product harness: a conversation → a ticket <span className="ml-2 text-emerald-300">✓</span></div>
           <div className="text-muted"><span className="mr-3 text-violet-300">↳</span>🏭 <b className="text-ink">Engineering harness</b>: the ticket → production</div>
         </div>
-        <div className="pz-appear mt-6 flex items-center gap-3 text-[16px] text-faint" style={later(1400)}>
+        <div className="pz-appear mt-4 flex items-center gap-3 text-[16px] text-faint" style={later(1400)}>
           <img src="/avatars/attendee-001.jpg" alt="Jonas" width={30} height={30} className="size-[30px] shrink-0 rounded-full object-cover ring-2 ring-hairline" />
           <span>Jonas Claesson · Equal Experts</span>
         </div>
@@ -87,12 +90,13 @@ function TitleScene() {
 const TIMELINE_AT = 1700;
 
 const AFTER_THE_LABEL = [
-  ['▲', 'Vercel picks the ticket up', 'a webhook starts a durable workflow'],
-  ['🧮', 'Jev sizes it and picks a model for every job', 'a small decision model · a third of a second'],
+  ['▲', 'Vercel picks the ticket up — in 3 seconds', 'webhook answered in 0.7 s · no queue, no runner to boot'],
+  ['🧮', 'Jev sizes it and picks a model for every step', 'two decisions · 300 ms each'],
   ['📄', 'A spec is the branch’s first commit', 'the intent, before the diff'],
   ['🧪', 'A failing test, then the change', 'in a sandbox forked for this run'],
   ['🚦', 'The gate passes, auditors find nothing', 'scripts decide, agents advise'],
-  ['🔀', 'A pull request on its own preview', 'with screenshots, a review and QA'],
+  ['🔀', 'A pull request opens', 'with screenshots, a review and QA'],
+  ['▲', 'Its own isolated deployment and URL', '· a running copy, apart from production', 'nam-2026-conference-9k2m….vercel.app'],
 ];
 
 function PromiseScene() {
@@ -106,24 +110,19 @@ function PromiseScene() {
             <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full ${GH.green} px-3 py-1 text-[14px] font-semibold text-white`}><GhOpenIcon /> Open</span>
             <div className="mt-4 grid grid-cols-[1fr_170px] gap-5 text-[16px]">
               <div>
-                <div className={`border-b ${GH.line} pb-1 text-[18px] font-semibold`}>Done when</div>
-                <ul className="mt-2 space-y-1">
-                  {ISSUE_140.doneWhen.map((d) => (
-                    <li key={d} className="flex gap-2"><span className={`mt-1 size-4 shrink-0 rounded border ${GH.line}`} />{d}</li>
-                  ))}
-                </ul>
-                <div className={`pz-appear mt-4 flex items-center gap-2 ${GH.muted}`} style={later(900)}>
+                <div className={`rounded-md border ${GH.line} px-3 py-2.5 ${GH.muted}`}><b className={GH.ink}>Done when</b> · 3 checks a test can make</div>
+                <div className={`pz-appear mt-7 flex items-center gap-2 text-[18px] ${GH.muted}`} style={later(900)}>
                   <span className="size-5 shrink-0 rounded-full bg-violet-300" aria-hidden="true" />
                   <span><b className={GH.ink}>you</b> added the <span className="rounded-full bg-[#d8b4fe] px-2 text-[13px] font-semibold text-[#3b0764]">ready-for-ai</span> label</span>
                 </div>
                 {/* seconds later, on the same issue: Vercel has it */}
-                <div className={`pz-appear mt-2.5 overflow-hidden rounded-md border ${GH.line}`} style={later(TIMELINE_AT)}>
+                <div className={`pz-appear mt-5 overflow-hidden rounded-md border ${GH.line}`} style={later(TIMELINE_AT)}>
                   <div className={`flex items-center gap-2 border-b ${GH.line} bg-[#f6f8fa] px-3 py-1.5 text-[14px]`}>
                     <span className="grid size-5 place-items-center rounded-full bg-[#1f2328] text-white" aria-hidden="true"><Vercel className="size-2.5" /></span>
-                    <b>ship</b><span className={GH.muted}>· a Vercel Workflow · just now</span>
+                    <b>ship</b><span className={GH.muted}>· a Vercel Workflow</span><span className="ml-auto rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[13px] font-semibold text-[#166534]">⏱ 3 seconds later</span>
                   </div>
-                  <div className="px-3 py-2.5 text-[15px]">
-                    <div className="text-[17px] font-semibold">🏭 Ship on Vercel · Triage</div>
+                  <div className="px-3 py-4 text-[15px]">
+                    <div className="text-[20px] font-semibold">🏭 Ship on Vercel · Triage</div>
                     <div className={`whitespace-nowrap ${GH.muted}`}><b className={GH.ink}>⏳ Triage</b> → Plan → Build → Gate → Audit → …</div>
                   </div>
                 </div>
@@ -142,21 +141,21 @@ function PromiseScene() {
       <Replay on from="right" delay={200} style={at(780, 64, 740, 540)} className="flex flex-col">
         <Kicker>Then, with nobody at a keyboard</Kicker>
         <div className="mt-3 flex flex-1 flex-col justify-center">
-          <div className="relative space-y-[9px]">
+          <div className="relative space-y-[5px]">
             <span className="pz-fill absolute bottom-6 left-[21px] top-3 w-0.5 bg-gradient-to-b from-violet-500 to-emerald-400" style={{ animationDuration: '3.2s', animationDelay: `${TIMELINE_AT}ms`, transformOrigin: 'top' }} />
-            {AFTER_THE_LABEL.map(([icon, what, how], i) => (
+            {AFTER_THE_LABEL.map(([icon, what, how, url], i) => (
               <div key={what} className="pz-appear relative flex items-center gap-4" style={later(TIMELINE_AT + i * 480)}>
                 <span className={`grid size-11 shrink-0 place-items-center rounded-full border text-[20px] ${icon === '▲' ? 'pz-glow border-violet-400/70 bg-raised text-ink' : 'border-hairline bg-raised'}`}>{icon === '▲' ? <Vercel className="size-4" /> : icon}</span>
                 <div className="min-w-0 leading-tight">
-                  <div className="text-[21px] text-ink">{what}</div>
-                  <div className="text-[15px] text-faint">{how}</div>
+                  <div className={`text-[21px] ${url ? 'font-semibold text-emerald-100' : 'text-ink'}`}>{what}</div>
+                  <div className="whitespace-nowrap text-[15px] text-faint">{url && <span className="mr-2 font-mono text-[14px] text-emerald-300 underline decoration-emerald-400/40 underline-offset-4">{url}</span>}{how}</div>
                 </div>
               </div>
             ))}
             <div className="pz-appear relative flex items-center gap-4 rounded-2xl border border-emerald-400/50 bg-emerald-500/10 py-2 pr-4" style={later(TIMELINE_AT + AFTER_THE_LABEL.length * 480 + 200)}>
               <span className="grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/60 bg-emerald-500/20 text-[20px]">👤</span>
               <div className="leading-tight">
-                <div className="text-[23px] font-semibold text-emerald-100">You try the preview and click merge</div>
+                <div className="text-[23px] font-semibold text-emerald-100">You open that URL, try the change, and click merge</div>
               </div>
             </div>
           </div>
@@ -246,26 +245,26 @@ export const OPENING = [
     Scene: TitleScene,
   },
   {
-    id: 'promise', name: 'One label', accent: 'text-emerald-300', tone: 'emerald',
-    beats: [
-      {
-        kicker: 'The promise',
-        title: 'Label an issue. Vercel picks it up from there',
-        body: 'Your part is the ticket and the merge.',
-      },
-    ],
-    Scene: PromiseScene,
-  },
-  {
     id: 'issue', name: 'The ticket', accent: 'text-emerald-300', tone: 'emerald',
     beats: [
       {
-        kicker: 'The ticket',
-        title: 'It starts with a GitHub issue written so a test can check it',
-        body: 'Why, what should change, and a Done when list every later agent is judged against.',
+        kicker: 'The inputs',
+        title: 'It starts with a ticket, and the context it carries',
+        body: 'A Done when list a test can check, and the docs every agent reads instead of the source.',
       },
     ],
     Scene: IssueScene,
+  },
+  {
+    id: 'promise', name: 'One label', accent: 'text-emerald-300', tone: 'emerald',
+    beats: [
+      {
+        kicker: 'Then, one label',
+        title: 'Label an issue. Three seconds later, Vercel is on it',
+        body: 'Measured on ticket #38: webhook answered in 0.7 s, ticket claimed and sized about 3 s after GitHub sent it.',
+      },
+    ],
+    Scene: PromiseScene,
   },
 ];
 

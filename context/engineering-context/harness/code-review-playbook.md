@@ -154,7 +154,7 @@ confidence**: its skeptic executed it, and both of you report at least 0.95
 was verified is a suggestion.
 
 **People correct you.** A 👎 on a review comment dismisses its blockers;
-`/dismiss 2` under it dismisses finding 2. Every review reads those back
+a reply such as “finding 2 is wrong” dismisses finding 2 (`/dismiss 2` still works). Every review reads those back
 across the repository and never raises the same claim again
 (`pastDismissals`; the cases that started this are in
 `factory/test/fixtures/review-false-positives.json`).

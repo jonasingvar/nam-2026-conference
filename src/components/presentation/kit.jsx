@@ -101,6 +101,15 @@ export function Vercel({ className = 'size-4' }) {
   );
 }
 
+/** The talk's standing credit, in the deck's top bar on every slide. */
+export function BuiltOnVercel() {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-hairline bg-black/40 px-3 py-1 text-[13px] font-medium text-ink">
+      <Vercel className="size-3" /> Built on Vercel
+    </span>
+  );
+}
+
 /** A panel: the deck's standard card. */
 export const box = 'rounded-2xl border border-hairline bg-surface';
 

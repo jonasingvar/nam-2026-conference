@@ -294,7 +294,7 @@ How to test one: `context/engineering-context/testing.md` § Testing a dialog.
 - The engineering talk states only what the factory really does. Its facts are
   the code's — the phases, round limits, tiers and thresholds in `factory/`
   (see `harness.md`) — and its numbers are real runs in this repository: ticket
-  #38's models table and $0.93, ticket #16 at $4.59 then $1.80, and the model
+  #38's models table and $0.93, ticket #16 at $4.11 then $1.80, and the model
   measurements in `factory/lib/models.ts`. Change the factory, change the talk.
 
 ## Gotchas

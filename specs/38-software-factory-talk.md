@@ -42,7 +42,7 @@ working, on Vercel — and written to sell what running it there buys.
   and ends on the feature, live.
 - **Every claim is the code's.** Phases, round limits, tiers, thresholds, hosts
   and step names were read from `factory/`; the numbers on the receipts are
-  real runs in this repository (ticket #38: $0.93; ticket #16: $4.59 on Claude
+  real runs in this repository (ticket #38: $0.93; ticket #16: $4.11 on Claude
   models alone, $1.80 routed).
 - **The preview gets its own stop**: trying the pull request as a running app
   while you review it is what Vercel adds that the old harness never had.

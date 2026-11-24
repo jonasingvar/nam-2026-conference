@@ -19,7 +19,7 @@
  *     both report confidence ≥ BLOCK_CONFIDENCE (`blocks`). Anything less that
  *     its skeptic verified is a suggestion. Contrived (real, but only from an
  *     input nobody gives) is a suggestion.
- *   - A finding a person dismissed before (a 👎 on the review, or `/dismiss n`)
+ *   - A finding a person dismissed before (a 👎 on the review, or a reply saying finding n is wrong)
  *     is not raised again.
  */
 export type Raised = {
@@ -112,7 +112,7 @@ export function composeReview(o: {
     quoted(head.join('\n')),
     ...(o.extra ?? []).filter(Boolean),
     suggestions.length ? `<details><summary>Worth a look — suggestions, not blockers (${suggestions.length})</summary>\n\n${suggestions.join('\n')}\n\n</details>` : '',
-    `<sub>${o.footer}${n ? ` · reply \`/dismiss <n>\` (or 👎 this comment) if a finding is wrong — the next review will not raise it again` : ''}</sub>`,
+    `<sub>${o.footer}${n ? ` · reply “finding <n> is wrong” (or 👎 this comment) and the next review will not raise it again` : ''}</sub>`,
     `<!-- factory-verdict:review ${JSON.stringify(o.marker)} -->`,
   ].filter(Boolean).join('\n\n');
 }
@@ -123,8 +123,18 @@ export const listed = (blockers: Raised[], suggestions: Raised[]) => [
   ...suggestions.map((f, i) => ({ n: blockers.length + i + 1, blocker: false, category: f.category, file: f.file, line: f.line, claim: f.claim })),
 ];
 
-/** `/dismiss 2`, `/dismiss 1, 3` → [2] / [1, 3]. */
+/**
+ * Which findings a reply calls wrong, said the way a person would say it to a
+ * colleague: "finding 2 is wrong", "#1 and #3 are false positives", "dismiss 2"
+ * — and still `/dismiss 1, 3`. A number has to be named as a finding (or open
+ * the comment), so "line 42 is wrong" dismisses nothing.
+ */
 export const dismissNumbers = (body: string) => {
-  const m = /(?:^|\s)\/dismiss\s+([\d,\s]+)/i.exec(body);
-  return m ? m[1].split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isInteger(n) && n > 0) : [];
+  const nums = (s: string) => (s.match(/\d+/g) || []).map(Number).filter((n) => Number.isInteger(n) && n > 0 && n < 100);
+  const LIST = String.raw`#?\d+(?:\s*(?:,|and|&)?\s*#?\d+)*`;
+  const cmd = new RegExp(String.raw`(?:^|\s)\/?dismiss\s+(?:findings?\s+)?(${LIST})`, 'i').exec(body);
+  if (cmd) return nums(cmd[1]);
+  const WRONG = String.raw`(?:is|are|was|were)\s+(?:just\s+|simply\s+|both\s+)?(?:wrong|incorrect|(?:a\s+)?false\s+positives?|not\s+(?:real|true|right|a\s+(?:problem|bug|blocker)|an\s+issue))`;
+  const said = new RegExp(String.raw`(?:(?:^|\s)(?:findings?|points?|items?|numbers?)\s+|(?:^|\s)#|^\s*)(${LIST})\s+${WRONG}`, 'i').exec(body);
+  return said ? nums(said[1]) : [];
 };
