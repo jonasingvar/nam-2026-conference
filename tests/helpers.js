@@ -124,6 +124,10 @@ export const LANES = {
   'conflict.ui':      { desktop: { user: kenji, day: 3, clean: true },    mobile: { user: andy, day: 3, clean: true } },
   'conflict.api':     { desktop: { user: abraham, day: 3 },                 mobile: { user: jonas, day: 3 } },
   'schedule.grid':    { desktop: { user: sofia, day: 1 },                 mobile: { user: marcus, day: 1 } },
+  // My Agenda builds its own problems on the day — a seat clashing with a
+  // waitlist place, and a cross-town hop — so the two projects take different
+  // attendees. Neither is on day 1 anywhere else in this table.
+  'agenda.page':      { desktop: { user: andy, day: 1 },                  mobile: { user: abraham, day: 1 } },
   // read-only: it books nothing, and needs a day the seed sells sessions out on
   'schedule.seats':   { desktop: { user: kenji, day: 1, readOnly: true }, mobile: { user: marcus, day: 0, readOnly: true } },
   'session.add':      { desktop: { user: sofia, day: 0 },                 mobile: { user: andy, day: 0 } },

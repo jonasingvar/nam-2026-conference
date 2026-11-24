@@ -314,7 +314,7 @@ import { MyAgendaPage } from './pages/MyAgendaPage.jsx';
     routes: routesOf(app),
     redirects: redirectsOf(app),
     sources: new Map([
-      ['src/pages/MyAgendaPage.jsx', `<p data-testid="agenda-coming-soon">Soon</p><div data-testid={\`row-\${id}\`} />`],
+      ['src/pages/MyAgendaPage.jsx', `<p data-testid="agenda-empty">Nothing yet</p><div data-testid={\`row-\${id}\`} />`],
       ['src/components/AgendaList.jsx', `<ul data-testid={'agenda-list'} />`],
     ]),
     specs: new Map(specs),
@@ -322,7 +322,7 @@ import { MyAgendaPage } from './pages/MyAgendaPage.jsx';
 
   test('redirects and static test ids are read; a computed id is not', () => {
     assert.deepEqual([...redirectsOf(app)], [['/my-plan', '/my-agenda']]);
-    assert.deepEqual(testIdsIn(repo([]).sources.get('src/pages/MyAgendaPage.jsx')), ['agenda-coming-soon']);
+    assert.deepEqual(testIdsIn(repo([]).sources.get('src/pages/MyAgendaPage.jsx')), ['agenda-empty']);
     assert.deepEqual(testIdsIn(`<ul data-testid={'agenda-list'} />`), ['agenda-list']);
   });
 
@@ -331,7 +331,7 @@ import { MyAgendaPage } from './pages/MyAgendaPage.jsx';
   });
 
   test("clicking through to the page and checking its test id counts too", () => {
-    const home = ['tests/home.spec.js', `await visit(page); await click('My Agenda'); await expect(page.getByTestId('agenda-coming-soon')).toBeVisible();`];
+    const home = ['tests/home.spec.js', `await visit(page); await click('My Agenda'); await expect(page.getByTestId('agenda-empty')).toBeVisible();`];
     const other = ['tests/other.spec.js', `await visit(page); await expect(page.getByTestId('hero')).toBeVisible();`];
     assert.deepEqual(affectedSpecs(['src/pages/MyAgendaPage.jsx'], repo([home, other])), ['tests/home.spec.js']);
     // A component's own test id, through the page that renders it.
