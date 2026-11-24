@@ -87,12 +87,12 @@ function TitleScene() {
 const TIMELINE_AT = 1700;
 
 const AFTER_THE_LABEL = [
-  ['▲', 'Vercel picks the ticket up: a webhook starts a durable workflow', 'no runner to queue for, no laptop to leave open'],
-  ['🧮', 'Jev, a small decision model, sizes it and picks a model for every job', 'a third of a second'],
-  ['📄', 'A spec lands as the branch’s first commit', 'read the intent before the diff'],
-  ['🧪', 'A failing test, then the change that turns it green', 'in a sandbox forked for this run'],
-  ['🚦', 'The gate passes; independent auditors find nothing left', 'scripts decide, agents advise'],
-  ['🔀', 'A pull request opens on its own preview, with screenshots, a review and QA', 'a link you can click and try'],
+  ['▲', 'Vercel picks the ticket up', 'a webhook starts a durable workflow'],
+  ['🧮', 'Jev sizes it and picks a model for every job', 'a small decision model · a third of a second'],
+  ['📄', 'A spec is the branch’s first commit', 'the intent, before the diff'],
+  ['🧪', 'A failing test, then the change', 'in a sandbox forked for this run'],
+  ['🚦', 'The gate passes, auditors find nothing', 'scripts decide, agents advise'],
+  ['🔀', 'A pull request on its own preview', 'with screenshots, a review and QA'],
 ];
 
 function PromiseScene() {
@@ -133,8 +133,6 @@ function PromiseScene() {
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   <span className="pz-pop rounded-full bg-[#d8b4fe] px-2.5 py-0.5 text-[13px] font-semibold text-[#3b0764]" style={later(900)}>ready-for-ai</span>
                 </div>
-                <div className={`pz-appear mt-3 text-[13px] ${GH.muted}`} style={later(1300)}>That is the last thing you do for a while.</div>
-                <div className={`pz-appear mt-3 text-[13px] ${GH.muted}`} style={later(TIMELINE_AT + 300)}>The webhook started a Vercel Workflow. It now owns the ticket.</div>
               </div>
             </div>
           </div>
@@ -150,23 +148,22 @@ function PromiseScene() {
               <div key={what} className="pz-appear relative flex items-center gap-4" style={later(TIMELINE_AT + i * 480)}>
                 <span className={`grid size-11 shrink-0 place-items-center rounded-full border text-[20px] ${icon === '▲' ? 'pz-glow border-violet-400/70 bg-raised text-ink' : 'border-hairline bg-raised'}`}>{icon === '▲' ? <Vercel className="size-4" /> : icon}</span>
                 <div className="min-w-0 leading-tight">
-                  <div className="text-[19px] text-ink">{what}</div>
-                  <div className="text-[14px] text-faint">{how}</div>
+                  <div className="text-[21px] text-ink">{what}</div>
+                  <div className="text-[15px] text-faint">{how}</div>
                 </div>
               </div>
             ))}
             <div className="pz-appear relative flex items-center gap-4 rounded-2xl border border-emerald-400/50 bg-emerald-500/10 py-2 pr-4" style={later(TIMELINE_AT + AFTER_THE_LABEL.length * 480 + 200)}>
               <span className="grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/60 bg-emerald-500/20 text-[20px]">👤</span>
               <div className="leading-tight">
-                <div className="text-[20px] font-semibold text-emerald-100">You read it, try the preview and click merge</div>
-                <div className="text-[14px] text-emerald-200/70">the run wakes up and checks production</div>
+                <div className="text-[23px] font-semibold text-emerald-100">You try the preview and click merge</div>
               </div>
             </div>
           </div>
         </div>
         <div className="pz-appear mt-3 flex items-baseline gap-4 rounded-2xl border border-hairline bg-surface px-5 py-2.5" style={later(TIMELINE_AT + 4300)}>
           <span className="font-display text-[40px] leading-none text-ink">$0.93</span>
-          <span className="text-[15px] leading-snug text-muted">of AI from label to reviewed pull request — ticket #38 in this repository, a fast run</span>
+          <span className="text-[18px] leading-snug text-muted">of AI, label to reviewed pull request — ticket #38, here</span>
         </div>
       </Replay>
     </>
@@ -254,7 +251,7 @@ export const OPENING = [
       {
         kicker: 'The promise',
         title: 'Label an issue. Vercel picks it up from there',
-        body: 'One label reaches the factory’s webhook, and a durable workflow takes the ticket all the way to a reviewed pull request on its own preview. Your part is the ticket and the merge.',
+        body: 'Your part is the ticket and the merge.',
       },
     ],
     Scene: PromiseScene,
@@ -265,7 +262,7 @@ export const OPENING = [
       {
         kicker: 'The ticket',
         title: 'It starts with a GitHub issue written so a test can check it',
-        body: 'The product harness turned a conversation into this: why, what should change, and the Done when list every later agent is judged against. It arrives carrying its context — the docs the agents read instead of the source.',
+        body: 'Why, what should change, and a Done when list every later agent is judged against.',
       },
     ],
     Scene: IssueScene,

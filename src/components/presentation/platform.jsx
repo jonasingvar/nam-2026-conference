@@ -40,23 +40,18 @@ function Product({ name, sub, glow, className = '', style, children }) {
 /* ---------------------------- the map ----------------------------- */
 
 const EDGES = [
-  { d: 'M370 180 L450 180', label: 'webhook', lx: 410, ly: 168, at: 900 },
-  { d: 'M450 250 L370 250', label: 'verdicts', lx: 410, ly: 272, at: 1200, back: true },
+  { d: 'M370 240 L450 240', label: 'webhook', lx: 410, ly: 228, at: 900 },
   { d: 'M950 205 L1030 205', label: 'forks', lx: 990, ly: 193, at: 1500 },
-  { d: 'M1280 330 L1280 380', label: 'every model call', lx: 1366, ly: 360, at: 1900 },
-  { d: 'M370 490 L450 490', label: 'builds', lx: 410, ly: 478, at: 2300 },
-  { d: 'M1030 300 C 990 330, 990 400, 950 430', label: 'probes it', lx: 1078, ly: 360, at: 2700 },
+  { d: 'M1280 310 L1280 390', label: 'model calls', lx: 1340, ly: 355, at: 1900 },
+  { d: 'M370 480 L450 480', label: 'builds', lx: 410, ly: 468, at: 2300 },
 ];
 
 function Machine({ name, mode, delay }) {
-  const tone = { push: 'text-fuchsia-200 border-fuchsia-400/40', read: 'text-sky-200 border-sky-400/40', none: 'text-muted border-hairline' }[mode];
   return (
-    <div className="pz-pop rounded-xl border border-hairline bg-raised px-3 py-2.5" style={later(delay)}>
+    <div className="pz-pop rounded-xl border border-hairline bg-raised px-3 py-3" style={later(delay)}>
       <div className="flex items-center justify-between gap-1">
-        <span className="whitespace-nowrap font-mono text-[13px] text-ink">{name}</span>
-        <span className={`rounded-full border px-1.5 font-mono text-[10.5px] ${tone}`}>{mode}</span>
+        <span className="whitespace-nowrap font-mono text-[15px] text-ink">{name}</span>
       </div>
-      <div className="mt-1.5 whitespace-nowrap font-mono text-[12px] text-[#d97757]">Claude Code</div>
     </div>
   );
 }
@@ -77,68 +72,56 @@ function Map() {
       </svg>
 
       {/* GitHub: the only thing a person touches */}
-      <div style={at(70, 80, 300, 520)} className={`${box} pz-appear flex flex-col`}>
+      <div style={at(70, 150, 300, 380)} className={`${box} pz-appear flex flex-col`}>
         <div className="flex items-center gap-2.5 border-b border-hairline px-5 py-3">
           <span className="grid size-6 place-items-center rounded-full bg-ink text-[13px] text-ground" aria-hidden="true">●</span>
           <span className="font-display text-[21px] text-ink">GitHub</span>
         </div>
         <div className="flex flex-1 flex-col gap-3 px-5 py-4">
-          <div className="rounded-xl border border-hairline bg-raised px-3.5 py-2.5">
-            <div className="flex items-center gap-2 text-[17px] text-ink"><IssueIcon className="size-4 text-emerald-400" /> Issue #140</div>
+          <div className="rounded-xl border border-hairline bg-raised px-4 py-3.5">
+            <div className="flex items-center gap-2 text-[19px] text-ink"><IssueIcon className="size-4 text-emerald-400" /> Issue #140</div>
             <div className="mt-1.5"><Label name="ready-for-ai" className="pz-pop text-[12px]" /></div>
           </div>
-          <div className="pz-appear rounded-xl border border-hairline bg-raised px-3.5 py-2.5" style={later(3200)}>
-            <div className="flex items-center gap-2 text-[17px] text-ink"><PrIcon className="size-4 text-emerald-400" /> Pull request #142</div>
-            <div className="mt-1 text-[13px] text-faint">preview link · screenshots · review · QA</div>
+          <div className="pz-appear rounded-xl border border-hairline bg-raised px-4 py-3.5" style={later(3200)}>
+            <div className="flex items-center gap-2 text-[19px] text-ink"><PrIcon className="size-4 text-emerald-400" /> Pull request #142</div>
           </div>
-          <div className="pz-appear rounded-xl border border-hairline bg-raised px-3.5 py-2.5" style={later(3500)}>
-            <div className="text-[13px] text-faint">commit statuses</div>
-            <div className="mt-1 space-y-0.5 font-mono text-[13px] text-emerald-300">{['verify', 'review', 'qa', 'screenshots'].map((c) => <div key={c}>✓ factory/{c}</div>)}</div>
-          </div>
-          <div className="mt-auto text-[16px] leading-snug text-muted">The only place a person works. <b className="text-ink">No GitHub Actions</b>: it holds the issues and the code, and nothing runs here.</div>
+          <div className="mt-auto font-display text-[22px] leading-tight text-ink">No GitHub Actions</div>
         </div>
       </div>
 
-      <Product name="nam-2026-factory" sub="the factory · Next.js" glow style={at(450, 80, 500, 250)} className="pz-appear">
-        <div className="flex items-center gap-2">
-          <Code className="text-[15px]">POST /api/github</Code>
-          <span className="text-[14px] text-faint">→ seven Vercel Workflows</span>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
+      <Product name="The factory" sub="seven Vercel Workflows" glow style={at(450, 100, 500, 210)} className="pz-appear">
+        <div className="flex flex-wrap gap-2">
           {Object.keys(WORKFLOWS).map((w, i) => <Wf key={w} name={w} className="pz-pop" style={later(1300 + i * 90)} />)}
         </div>
       </Product>
 
-      <Product name="Vercel Sandbox" sub="a fresh machine per run" style={at(1030, 80, 500, 250)} className="pz-appear">
+      <Product name="Vercel Sandbox" sub="a fresh machine per run" style={at(1030, 100, 500, 210)} className="pz-appear">
         <div className="grid grid-cols-3 gap-2">
           <Machine name="ship-140" mode="push" delay={1900} />
           <Machine name="review-142" mode="read" delay={2050} />
           <Machine name="qa-142" mode="read" delay={2200} />
         </div>
-        <div className="mt-3 text-[14px] text-faint">each forked from <span className="font-mono text-muted">orbit-warm</span> — the repo installed, Chromium in place</div>
       </Product>
 
-      <Product name="nam-2026-conference" sub="the app · Vite + Express" style={at(450, 380, 500, 220)} className="pz-appear">
-        <div className="space-y-2 text-[16px]">
-          <div className="flex items-center gap-3 rounded-lg bg-raised px-3 py-2"><Code>main</Code><span className="text-muted">→ production, on Turso</span></div>
-          <div className="pz-appear flex items-center gap-3 rounded-lg bg-raised px-3 py-2" style={later(2600)}><span className="font-mono text-[14px] text-emerald-300">every pull request</span><span className="text-muted">→ its own preview URL</span></div>
-          <div className="pz-appear px-1 text-[14px] text-faint" style={later(3000)}>Built by Vercel on every push. A preview seeds its own database, so nothing a test does can touch production.</div>
+      <Product name="The app" sub="built by Vercel on every push" style={at(450, 390, 500, 190)} className="pz-appear">
+        <div className="space-y-2.5 text-[18px]">
+          <div className="flex items-center gap-3 rounded-lg bg-raised px-3 py-2"><Code>main</Code><span className="text-muted">→ production</span></div>
+          <div className="pz-appear flex items-center gap-3 rounded-lg bg-raised px-3 py-2" style={later(2600)}><span className="font-mono text-[15px] text-emerald-300">every pull request</span><span className="text-muted">→ its own preview</span></div>
         </div>
       </Product>
 
-      <Product name="AI Gateway" sub="every model, one door" style={at(1030, 380, 500, 220)} className="pz-appear">
+      <Product name="AI Gateway" sub="every model, one door" style={at(1030, 390, 500, 190)} className="pz-appear">
         <div className="flex flex-wrap gap-1.5">
           {['haiku', 'glm', 'deepseek', 'sonnet', 'opus'].map((m, i) => <Model key={m} m={m} className="pz-pop" style={later(2200 + i * 90)} />)}
         </div>
-        <div className="pz-appear mt-3 flex items-center gap-2 text-[15px] text-muted" style={later(2900)}>
+        <div className="pz-appear mt-3.5 flex items-center gap-2 text-[17px] text-muted" style={later(2900)}>
           <span className="rounded-full border border-amber-400/50 bg-amber-500/15 px-2.5 py-0.5 font-mono text-[13px] text-amber-200">Jev</span>
-          picks which one runs each job
+          picks one for each job
         </div>
-        <div className="pz-appear mt-2 text-[14px] text-faint" style={later(3200)}>Claude Code reaches all of them through one endpoint, at live prices.</div>
       </Product>
 
       {/* the ticket leaves GitHub by the webhook, and is inside the factory */}
-      <Token className="absolute" initial={{ left: 250, top: 166, opacity: 0, scale: 0.6 }} animate={{ left: [250, 250, 470], opacity: [0, 1, 1, 0], scale: 1 }} transition={{ duration: 2.2, delay: 0.5, times: [0, 0.2, 0.8, 1], ease: [0.65, 0, 0.35, 1] }} />
+      <Token className="absolute" initial={{ left: 250, top: 226, opacity: 0, scale: 0.6 }} animate={{ left: [250, 250, 470], opacity: [0, 1, 1, 0], scale: 1 }} transition={{ duration: 2.2, delay: 0.5, times: [0, 0.2, 0.8, 1], ease: [0.65, 0, 0.35, 1] }} />
     </>
   );
 }
@@ -146,13 +129,11 @@ function Map() {
 /* --------------------------- the webhook -------------------------- */
 
 const ROUTES = [
-  { icon: '🏷️', event: <>an issue is labelled <Label name="ready-for-ai" className="mx-1 text-[13px]" /> — or someone comments <Code>/ship</Code></>, to: ['ship'] },
-  { icon: '🙋', event: 'a person replies on a ticket the factory handed back', to: ['ship'], note: 'resumes, if Jev reads the reply as an answer' },
-  { icon: '🔀', event: <>a pull request opens — or someone comments <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'], note: 'a later push: verify · ship checks its own' },
-  { icon: '✍️', event: <><Code>@claude make the heading smaller</Code> on a pull request</>, to: ['respond'] },
-  { icon: '🟣', event: 'a pull request is merged or closed', to: [], wake: 'wakes the ship run asleep on it' },
+  { icon: '🏷️', event: <>an issue gets <Label name="ready-for-ai" className="mx-1 text-[14px]" /> or <Code>/ship</Code></>, to: ['ship'] },
+  { icon: '🔀', event: <>a pull request opens, or <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'] },
+  { icon: '✍️', event: <><Code>@claude …</Code> on a pull request</>, to: ['respond'] },
+  { icon: '🟣', event: 'a pull request is merged', to: [], wake: 'wakes the sleeping ship run' },
   { icon: '⬆️', event: <>a push to <Code>main</Code></>, to: ['verify', 'warm'] },
-  { icon: '⏰', event: 'every day at 05:17 UTC', to: ['warm'], note: 'rebuilds the sandbox every run forks' },
 ];
 
 export function Switchboard() {
@@ -161,16 +142,16 @@ export function Switchboard() {
       <div className="pz-appear flex items-center gap-4 rounded-2xl border border-violet-400/50 bg-raised px-6 py-2">
         <Vercel className="size-5 text-ink" />
         <Code className="whitespace-nowrap text-[19px]">POST /api/github</Code>
-        <div className="ml-2 flex flex-wrap gap-x-5 text-[14.5px] text-muted">
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />HMAC signature checked before anything is parsed</span>
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />one repository, refused for any other</span>
-          <span><Tick className="mr-1.5 size-5 text-[11px]" />comments count only from people with write access</span>
+        <div className="ml-auto flex gap-x-6 text-[16px] text-muted">
+          <span><Tick className="mr-1.5 size-5 text-[11px]" />HMAC-signed</span>
+          <span><Tick className="mr-1.5 size-5 text-[11px]" />one repository</span>
+          <span><Tick className="mr-1.5 size-5 text-[11px]" />writers only</span>
         </div>
       </div>
       {ROUTES.map((r, i) => (
         <div key={i} className="pz-appear grid grid-cols-[1fr_110px_1fr] items-center" style={later(350 + i * 260)}>
-          <div className="flex h-[46px] min-w-0 items-center gap-3 rounded-xl border border-hairline bg-surface px-4 text-[17px] text-ink">
-            <span className="w-7 text-center text-[20px]">{r.icon}</span>
+          <div className="flex h-[58px] min-w-0 items-center gap-3 rounded-xl border border-hairline bg-surface px-5 text-[20px] text-ink">
+            <span className="w-8 text-center text-[23px]">{r.icon}</span>
             <span className="min-w-0 truncate">{r.event}</span>
           </div>
           <svg viewBox="0 0 110 20" className="h-5 w-full" aria-hidden="true">
@@ -180,10 +161,9 @@ export function Switchboard() {
               <path d="M96 5 L104 10 L96 15" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
             </g>
           </svg>
-          <div className="flex h-[46px] min-w-0 items-center gap-2 rounded-xl border border-hairline bg-surface px-4">
+          <div className="flex h-[58px] min-w-0 items-center gap-2 rounded-xl border border-hairline bg-surface px-5">
             {r.to.map((w) => <Wf key={w} name={w} />)}
-            {r.wake && <span className="font-mono text-[15px] text-violet-200">💤 → ⚡ {r.wake}</span>}
-            {r.note && <span className="ml-1 truncate text-[14px] text-faint">{r.note}</span>}
+            {r.wake && <span className="font-mono text-[16px] text-violet-200">💤 → ⚡ {r.wake}</span>}
           </div>
         </div>
       ))}
@@ -194,13 +174,13 @@ export function Switchboard() {
 /* ------------------------- seven workflows ------------------------ */
 
 const SEVEN = [
-  { name: 'ship', mode: 'push', when: 'ready-for-ai · /ship', does: 'An issue to a pull request, a preview, a merge and a healthy production — one durable run' },
-  { name: 'review', mode: 'read', when: 'a pull request opens · /review', does: 'Reads the diff from angles picked by what it touches. Approves unless it can prove a problem' },
-  { name: 'qa', mode: 'read', when: 'with review', does: 'Probes the gaps the pull request’s own tests leave, in a browser, on its live preview' },
-  { name: 'screenshots', mode: 'none', when: 'with review · /screenshots', does: 'Before and after of every page the diff touches, desktop and mobile. No model involved' },
-  { name: 'respond', mode: 'push', when: '@claude … on a pull request', does: 'Makes the change a person asked for, and nothing else. Gate, push, reply' },
-  { name: 'verify', mode: 'none', when: 'every push', does: 'CI: the gate in a sandbox that holds no credential at all, so it runs for anyone’s pull request' },
-  { name: 'warm', mode: null, when: 'push to main · daily', does: 'Rebuilds the installed sandbox every run forks, and sweeps anything left behind' },
+  { name: 'ship', mode: 'push', when: 'ready-for-ai · /ship', does: 'a ticket, all the way to production' },
+  { name: 'review', mode: 'read', when: 'a pull request opens · /review', does: 'reads the diff, proves what it flags' },
+  { name: 'qa', mode: 'read', when: 'with review', does: 'tries to break it on the preview' },
+  { name: 'screenshots', mode: 'none', when: 'with review · /screenshots', does: 'before and after, on the pull request' },
+  { name: 'respond', mode: 'push', when: '@claude … on a pull request', does: 'makes the change you ask for' },
+  { name: 'verify', mode: 'none', when: 'every push', does: 'runs the tests, with no credential' },
+  { name: 'warm', mode: null, when: 'push to main · daily', does: 'rebuilds the sandbox every run forks' },
 ];
 
 const MODE_TONE = { push: 'border-fuchsia-400/40 text-fuchsia-200', read: 'border-sky-400/40 text-sky-200', none: 'border-hairline text-muted' };
@@ -211,26 +191,25 @@ function Seven() {
       {SEVEN.map((w, i) => (
         <motion.div
           key={w.name}
-          className={`${box} flex flex-col p-5`}
+          className={`${box} flex flex-col justify-center p-6`}
           initial={{ opacity: 0, y: 40, rotateX: -20 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           transition={{ delay: 0.15 + i * 0.09, type: 'spring', stiffness: 130, damping: 17 }}
         >
           <div className="flex items-center gap-3">
-            <span className="text-[34px] leading-none">{WORKFLOWS[w.name]}</span>
-            <span className="font-mono text-[26px] text-ink">{w.name}</span>
-            {w.mode && <span className={`ml-auto rounded-full border px-2 font-mono text-[12px] ${MODE_TONE[w.mode]}`}>{w.mode}</span>}
+            <span className="text-[38px] leading-none">{WORKFLOWS[w.name]}</span>
+            <span className="font-mono text-[28px] text-ink">{w.name}</span>
           </div>
-          <div className="mt-2.5 font-mono text-[14px] text-violet-300">{w.when}</div>
-          <div className="mt-3 text-[19px] leading-snug text-muted">{w.does}</div>
+          <div className="mt-3 font-mono text-[15px] text-violet-300">{w.when}</div>
+          <div className="mt-2 text-[21px] leading-snug text-muted">{w.does}</div>
         </motion.div>
       ))}
       <motion.div
-        className="flex flex-col justify-center rounded-2xl border border-violet-400/50 bg-raised p-5"
+        className="flex flex-col justify-center rounded-2xl border border-violet-400/50 bg-raised p-6"
         initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.1, type: 'spring', stiffness: 140, damping: 16 }}
       >
         <div className="font-display text-[32px] leading-tight text-ink">Scripts, not prompts</div>
-        <div className="mt-3 text-[19px] leading-snug text-muted">Loops, round limits and who judges what are TypeScript in <Code>factory/workflows/</Code>. Agents only judge.</div>
+        <div className="mt-3 text-[21px] leading-snug text-muted">The flow is TypeScript. Agents only do the work.</div>
       </motion.div>
     </div>
   );
@@ -302,9 +281,9 @@ function Trace() {
 }
 
 const DURABLE = [
-  ['📼', 'Every step is recorded', 'A finished step never runs twice. On replay it returns the result already in the run’s event log.'],
-  ['🧵', 'No function waits on an agent', 'Each job runs detached in the sandbox. The workflow looks in on it between durable sleeps.'],
-  ['🛟', 'A lost machine comes back', 'A sandbox that hit its timeout resumes from its snapshot, and the one job that was running starts again.'],
+  ['📼', 'Every step is recorded', 'A finished step never runs twice: replay reads the event log.'],
+  ['🧵', 'No function waits on an agent', 'Jobs run detached in the sandbox; the workflow checks in.'],
+  ['🛟', 'A lost machine comes back', 'A timed-out sandbox resumes from its snapshot.'],
 ];
 
 export function Durable() {
@@ -314,8 +293,8 @@ export function Durable() {
       <div className="flex flex-col gap-3">
         {DURABLE.map(([icon, title, body], i) => (
           <div key={title} className={`${box} pz-appear flex flex-1 flex-col justify-center px-5`} style={later(CRASH_AT + 900 + i * 500)}>
-            <div className="flex items-center gap-3"><span className="text-[24px]">{icon}</span><span className="font-display text-[22px] text-ink">{title}</span></div>
-            <div className="mt-1 text-[15.5px] leading-snug text-muted">{body}</div>
+            <div className="flex items-center gap-3"><span className="text-[24px]">{icon}</span><span className="font-display text-[23px] text-ink">{title}</span></div>
+            <div className="mt-1.5 text-[18px] leading-snug text-muted">{body}</div>
           </div>
         ))}
       </div>
@@ -340,44 +319,32 @@ export function Asleep() {
         </div>
         <div className={`${box} pz-appear flex flex-col justify-center px-6 py-3`} style={later(1700)}>
           <div className="font-display text-[56px] leading-none text-ink">$0<span className="text-[26px] text-muted"> while it waits</span></div>
-          <div className="mt-2 text-[17px] leading-snug text-muted">A sleeping workflow holds no function and no sandbox. Take an hour to review it, or the weekend.</div>
+          <div className="mt-2 text-[19px] leading-snug text-muted">No function, no sandbox.</div>
         </div>
       </div>
 
       {/* the timeline: awake, asleep, awake */}
       <div className="relative flex-1">
-        <div className="absolute inset-x-0 top-[42px] h-0.5 bg-hairline" />
-        <span className="pz-fill absolute left-0 top-[42px] h-0.5 w-[24%] origin-left bg-gradient-to-r from-violet-500 to-cyan-300" style={{ animationDuration: '900ms', animationDelay: '300ms' }} />
-        <svg viewBox="0 0 1440 120" className="absolute inset-x-0 -top-4 h-[120px] w-full" aria-hidden="true">
+        <div className="absolute inset-x-0 top-[92px] h-0.5 bg-hairline" />
+        <span className="pz-fill absolute left-0 top-[92px] h-0.5 w-[24%] origin-left bg-gradient-to-r from-violet-500 to-cyan-300" style={{ animationDuration: '900ms', animationDelay: '300ms' }} />
+        <svg viewBox="0 0 1440 120" className="absolute inset-x-0 top-[34px] h-[120px] w-full" aria-hidden="true">
  <path d="M346 59 L922 59" pathLength="1" className="pz-draw-in" fill="none" stroke="#6d5fa0" strokeWidth="2" strokeDasharray="0.012 0.012" style={later(1300)} />
         </svg>
-        <span className="pz-fill absolute left-[64%] top-[42px] h-0.5 w-[36%] origin-left bg-gradient-to-r from-violet-500 to-emerald-300" style={{ animationDuration: '900ms', animationDelay: `${WAKE + 300}ms` }} />
+        <span className="pz-fill absolute left-[64%] top-[92px] h-0.5 w-[36%] origin-left bg-gradient-to-r from-violet-500 to-emerald-300" style={{ animationDuration: '900ms', animationDelay: `${WAKE + 300}ms` }} />
         {[
           { x: '0%', icon: '🏷️', t: 'labelled', s: 'the run starts', d: 200 },
           { x: '24%', icon: '🔀', t: 'pull request opens', s: 'the hook is created', d: 1000 },
           { x: '64%', icon: '🟣', t: 'you click merge', s: 'the webhook resumes the hook', d: WAKE },
-          { x: '85%', icon: '🚀', t: 'production is healthy', s: 'the issue says it is live', d: WAKE + 1100 },
+          { x: '85%', icon: '🚀', t: 'production is healthy', s: 'the issue is closed', d: WAKE + 1100 },
         ].map((n) => (
-          <div key={n.t} className="pz-appear absolute top-[20px] w-[230px]" style={{ left: n.x, ...later(n.d) }}>
+          <div key={n.t} className="pz-appear absolute top-[70px] w-[260px]" style={{ left: n.x, ...later(n.d) }}>
             <span className="grid size-11 place-items-center rounded-full border border-hairline bg-raised text-[20px]">{n.icon}</span>
-            <div className="mt-2 text-[18px] font-semibold text-ink">{n.t}</div>
-            <div className="text-[14px] text-faint">{n.s}</div>
+            <div className="mt-3 text-[21px] font-semibold text-ink">{n.t}</div>
+            <div className="text-[16px] text-faint">{n.s}</div>
           </div>
         ))}
-        <div className="pz-appear absolute left-[36%] -top-[10px] flex items-center gap-3 font-mono text-[16px] text-violet-200" style={later(1700)}>
+        <div className="pz-appear absolute left-[36%] top-[34px] flex items-center gap-3 font-mono text-[18px] text-violet-200" style={later(1700)}>
           <span className="pz-float text-[30px]">💤</span> asleep: minutes, or days
-        </div>
-        <div className="absolute inset-x-0 bottom-0 grid grid-cols-3 gap-4">
-          {[
-            ['A hook, not a poll', <>The token is <Code>pr:&lt;repo&gt;#142</Code>. GitHub’s <i>closed</i> event resumes it.</>],
-            ['A merge is never missed', 'The hook opened with the pull request, so even a merge during review is kept.'],
-            ['One run owns the ticket', 'From the pull request to a healthy production: one run id, every step under it.'],
-          ].map(([title, body], i) => (
-            <div key={title} className={`${box} pz-appear px-5 py-2`} style={later(2100 + i * 250)}>
-              <div className="font-display text-[18px] text-ink">{title}</div>
-              <div className="text-[14px] leading-snug text-muted">{body}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -415,13 +382,12 @@ export function Fork() {
 
       <div className="pz-appear absolute left-0 top-0 flex h-[360px] w-[420px] flex-col rounded-2xl border border-amber-400/50 bg-raised px-6 py-5">
         <div className="flex items-center gap-3"><span className="text-[32px]">🔥</span><span className="font-mono text-[27px] text-ink">orbit-warm</span></div>
-        <div className="mt-0.5 text-[15px] text-amber-200/80">the sandbox every run starts from</div>
-        <div className="mt-3 space-y-2 text-[17.5px] text-muted">
+        <div className="mt-0.5 text-[16px] text-amber-200/80">rebuilt on every push to main</div>
+        <div className="mt-5 space-y-4 text-[20px] text-muted">
           {['the repository, cloned', 'npm ci, already done', 'Chromium, for Playwright', 'network locked, then snapshotted'].map((l, i) => (
             <div key={l} className="pz-appear flex items-center gap-3" style={later(250 + i * 160)}><Tick className="size-6 text-[12px]" />{l}</div>
           ))}
         </div>
-        <div className="mt-auto text-[14.5px] leading-snug text-faint">Rebuilt by the <Wf name="warm" className="mx-0.5 text-[13px]" /> workflow on every push to main, and once a day.</div>
       </div>
 
       {RUNS.map((r, i) => (
@@ -439,30 +405,28 @@ export function Fork() {
           <div className="mt-0.5 text-[16px] text-muted">{r.does}</div>
           <div className="mt-auto flex items-center gap-2 font-mono text-[13px] text-faint">
             <span className="rounded bg-ground/70 px-2 py-1 text-emerald-300">{r.later ? 'later, for the pull request' : 'forked in seconds'}</span>
-            <span>4 vCPUs · its own disk</span>
           </div>
         </motion.div>
       ))}
 
-      <div className="pz-appear absolute inset-x-0 bottom-0 flex h-[64px] items-center gap-5 rounded-2xl border border-hairline bg-surface px-6 text-[17px] text-muted">
-        {['fork', 'run its jobs', 'one snapshot, kept a day', 'deleted when the run ends'].map((l, i) => (
+      <div className="pz-appear absolute inset-x-0 bottom-0 flex h-[64px] items-center gap-5 rounded-2xl border border-hairline bg-surface px-6 text-[20px] text-muted">
+        {['fork', 'run its jobs', 'deleted when the run ends'].map((l, i) => (
           <span key={l} className="pz-appear flex items-center gap-5" style={later(2700 + i * 260)}>
             {i > 0 && <span className="text-violet-300">→</span>}<b className="font-semibold text-ink">{l}</b>
           </span>
         ))}
-        <span className="pz-appear ml-auto text-[15px] text-faint" style={later(3900)}>and a sweep removes anything idle for three hours</span>
       </div>
     </div>
   );
 }
 
 const HOSTS = [
-  { ok: true, host: 'github.com · api.github.com', note: 'the GitHub token is added here', key: true },
-  { ok: true, host: 'ai-gateway.vercel.sh', note: 'the gateway key is added here', key: true },
-  { ok: true, host: 'registry.npmjs.org', note: 'no credential needed' },
-  { ok: true, host: 'this pull request’s preview', note: 'named host by host' },
-  { ok: false, host: 'anywhere else on the internet', note: 'no route out' },
-  { ok: false, host: 'the upstream repository', note: '403, from the proxy itself' },
+  { ok: true, host: 'github.com · api.github.com', note: 'token added here', key: true },
+  { ok: true, host: 'ai-gateway.vercel.sh', note: 'key added here', key: true },
+  { ok: true, host: 'registry.npmjs.org', note: '' },
+  { ok: true, host: 'this pull request’s preview', note: '' },
+  { ok: false, host: 'anywhere else on the internet', note: 'blocked' },
+  { ok: false, host: 'the upstream repository', note: 'blocked' },
 ];
 
 export function Network() {
@@ -473,7 +437,6 @@ export function Network() {
       <div className="pz-appear absolute left-0 top-0 flex h-[348px] w-[500px] flex-col overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]">
         <div className="flex items-center gap-2.5 border-b border-hairline bg-surface px-5 py-2.5">
           <Vercel className="size-3.5 text-ink" /><span className="font-mono text-[15px] text-ink">ship-140</span>
-          <span className="ml-auto font-mono text-[12px] text-faint">Claude Code, running the agent’s commands</span>
         </div>
         <div className="space-y-1 px-5 py-3 font-mono text-[14.5px]">
           <div className="text-faint">$ env | grep TOKEN</div>
@@ -526,13 +489,13 @@ export function Network() {
       {/* three modes: a sandbox gets only what its workflow needs */}
       <div className="absolute inset-x-0 bottom-0 grid grid-cols-3 gap-4">
         {[
-          ['none', 'verify · screenshots', 'No credential at all — safe for anyone’s pull request'],
-          ['read', 'review · qa', 'Models only. No GitHub token: verdicts are posted from outside'],
-          ['push', 'ship · respond', 'GitHub too — and only for branches of this repository'],
+          ['none', 'verify · screenshots', 'no credential at all'],
+          ['read', 'review · qa', 'models only'],
+          ['push', 'ship · respond', 'models and this repository'],
         ].map(([mode, who, what], i) => (
           <div key={mode} className={`${box} pz-appear flex h-[84px] items-center gap-4 px-5`} style={later(3200 + i * 220)}>
             <span className={`rounded-full border px-3 py-0.5 font-mono text-[16px] ${MODE_TONE[mode]}`}>{mode}</span>
-            <div className="leading-tight"><div className="font-mono text-[14px] text-violet-200">{who}</div><div className="text-[14px] text-muted">{what}</div></div>
+            <div className="leading-tight"><div className="font-mono text-[15px] text-violet-200">{who}</div><div className="text-[17px] text-muted">{what}</div></div>
           </div>
         ))}
       </div>
@@ -544,9 +507,9 @@ export function Network() {
 /* ------------------------ AI Gateway and Jev ---------------------- */
 
 const PROFILES = [
-  ['⚡', 'fast', 'text-emerald-300', 'one combined audit · the browser specs the change reaches', 'a fix is re-gated'],
-  ['🟢', 'small', 'text-sky-300', 'a combined audit, plus a browser audit when the layout is at stake · the whole suite', 'up to 2 rounds'],
-  ['🔵', 'full', 'text-fuchsia-300', 'a plan audit first · criteria, rules and browser auditors', 'up to 4 rounds'],
+  ['⚡', 'fast', 'text-emerald-300', 'one audit', '1 round'],
+  ['🟢', 'small', 'text-sky-300', 'an audit, and a browser audit', '2 rounds'],
+  ['🔵', 'full', 'text-fuchsia-300', 'a plan audit, then three auditors', '4 rounds'],
 ];
 
 export function Sizing() {
@@ -555,10 +518,10 @@ export function Sizing() {
       <div className="flex flex-col rounded-2xl border border-amber-400/50 bg-raised px-6 py-4">
         <div className="flex items-center gap-3">
           <span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-4 py-1 font-mono text-[22px] text-amber-100">Jev</span>
-          <span className="text-[15px] leading-tight text-muted">a decision model, called through AI Gateway.<br />It answers with odds, not prose.</span>
+          <span className="text-[18px] leading-tight text-muted">answers with odds, not prose</span>
         </div>
-        <div className="pz-appear mt-3 rounded-xl bg-ground/60 px-4 py-2 text-[18px] text-ink" style={later(400)}>How big a job is ticket #140?</div>
-        <div className="mt-3 space-y-1.5">
+        <div className="pz-appear mt-5 rounded-xl bg-ground/60 px-4 py-3 text-[20px] text-ink" style={later(400)}>How big a job is ticket #140?</div>
+        <div className="mt-5 space-y-3">
           {[['small', 55, true], ['fast', 31, false], ['full', 14, false]].map(([size, pct, pick], i) => (
             <div key={size} className="pz-appear grid grid-cols-[64px_1fr_56px] items-center gap-3" style={later(900 + i * 150)}>
               <span className={`font-mono text-[17px] ${pick ? 'text-ink' : 'text-faint'}`}>{size}</span>
@@ -567,32 +530,23 @@ export function Sizing() {
             </div>
           ))}
         </div>
-        <div className="pz-appear mt-3 flex items-baseline gap-3" style={later(2000)}>
-          <span className="font-display text-[40px] leading-none text-ink">small?</span>
-          <span className="font-mono text-[16px] text-amber-300">only 55% sure · about 300 ms</span>
+        <div className="pz-appear mt-6 flex items-baseline gap-3" style={later(2000)}>
+          <span className="font-display text-[44px] leading-none text-ink">small?</span>
+          <span className="font-mono text-[17px] text-amber-300">55% sure · 300 ms</span>
         </div>
-        <div className="pz-appear mt-3 rounded-xl border border-hairline bg-ground/40 px-4 py-2" style={later(2400)}>
-          <div className="text-[16px] text-ink"><b className="text-amber-200">Under 60%</b>: not sure enough. The run will be sized from what the plan finds in the code.</div>
-        </div>
-        <div className="pz-appear mt-auto space-y-1 text-[14.5px] text-muted" style={later(2800)}>
-          <div>Then one more call picks a tier for each of the run’s nine jobs.</div>
-          <div>A person’s <Label name="ship:fast" className="mx-0.5 text-[12px]" /> or <Label name="ship:full" className="mx-0.5 text-[12px]" /> label always wins.</div>
-        </div>
+        <div className="pz-appear mt-auto text-[19px] leading-snug text-ink" style={later(2400)}><b className="text-amber-200">Under 60%</b>: the plan will decide.</div>
       </div>
 
       <div className="flex flex-col gap-3">
-        <Kicker>The size decides how much loop a ticket gets</Kicker>
+        <Kicker>Size = how much checking the ticket gets</Kicker>
         {PROFILES.map(([icon, name, tone, what, rounds], i) => (
           <div key={name} className={`${box} pz-appear flex flex-1 items-center gap-5 px-6`} style={later(2200 + i * 260)}>
             <span className="text-[30px]">{icon}</span>
             <span className={`w-[92px] font-display text-[30px] ${tone}`}>{name}</span>
-            <span className="flex-1 text-[18px] leading-snug text-muted">{what}</span>
-            <span className="whitespace-nowrap font-mono text-[15px] text-faint">{rounds}</span>
+            <span className="flex-1 text-[22px] leading-snug text-muted">{what}</span>
+            <span className="whitespace-nowrap font-mono text-[18px] text-faint">{rounds}</span>
           </div>
         ))}
-        <div className="pz-appear rounded-xl border border-hairline bg-raised px-5 py-2.5 text-[16px] text-muted" style={later(3200)}>
-          A small run whose diff turns out risky — a rule, stored data, over 300 lines — is <b className="text-ink">escalated to the full auditors</b> mid-run.
-        </div>
       </div>
     </div>
   );
@@ -601,10 +555,10 @@ export function Sizing() {
 // the ladder (factory/lib/models.ts LADDER), prices per million tokens in · out,
 // and where Jev started each job on ticket #16 — a small run
 const TIERS = [
-  { name: 'lite', tone: 'border-emerald-400/40', trust: 'fully spelled-out work', models: [['haiku', '$0.10 · $0.50']], jobs: [], ghost: 'the QA probe writer, when the plan is exact', test: ['1 of 2', '$0.006'] },
-  { name: 'standard', tone: 'border-sky-400/40', trust: 'a contained change, a diff read in context', models: [['deepseek', '$0.30 · $1.20'], ['glm', '$0.15 · $0.50']], jobs: [['Implement', 72], ['Fix', 52], ['Audit', 86], ['Learn', 70]], test: ['2 of 2', '$0.009–0.014'] },
-  { name: 'strong', tone: 'border-violet-400/40', trust: 'judgement across files, subtle bugs', models: [['sonnet', '$2 · $10']], jobs: [['Spec', 99], ['Browser audit', 99], ['Skeptic', 98], ['Review lens', 94]], test: ['2 of 2', '$0.050'] },
-  { name: 'frontier', tone: 'border-fuchsia-400/40', trust: 'ambiguity, and the factory itself', models: [['opus', '$4 · $20']], jobs: [], ghost: 'reviewing a change to the factory' },
+  { name: 'lite', tone: 'border-emerald-400/40', trust: 'spelled-out work', models: [['haiku', '$0.10 · $0.50']], jobs: [] },
+  { name: 'standard', tone: 'border-sky-400/40', trust: 'a contained change', models: [['deepseek', '$0.30 · $1.20'], ['glm', '$0.15 · $0.50']], jobs: [['Implement', 72], ['Fix', 52], ['Audit', 86]] },
+  { name: 'strong', tone: 'border-violet-400/40', trust: 'judgement', models: [['sonnet', '$2 · $10']], jobs: [['Spec', 99], ['Browser audit', 99], ['Skeptic', 98], ['Review lens', 94]] },
+  { name: 'frontier', tone: 'border-fuchsia-400/40', trust: 'ambiguity', models: [['opus', '$4 · $20']], jobs: [] },
 ];
 
 export function Ladder() {
@@ -612,44 +566,34 @@ export function Ladder() {
     <div className="flex h-full flex-col gap-3">
       <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
         {TIERS.map((t, i) => (
-          <div key={t.name} className={`pz-appear flex flex-col rounded-2xl border bg-surface px-5 py-3 ${t.tone}`} style={later(i * 160)}>
+          <div key={t.name} className={`pz-appear flex flex-col rounded-2xl border bg-surface px-5 py-4 ${t.tone}`} style={later(i * 160)}>
             <div className="flex items-baseline gap-2">
-              <span className="font-display text-[25px] text-ink">{t.name}</span>
-              <span className="ml-auto font-mono text-[12px] text-faint">tier {i}</span>
+              <span className="font-display text-[30px] text-ink">{t.name}</span>
             </div>
-            <div className="text-[14px] text-muted">{t.trust}</div>
-            <div className="mt-2 space-y-1">
+            <div className="text-[17px] text-muted">{t.trust}</div>
+            <div className="mt-3 space-y-1.5">
               {t.models.map(([m, price]) => (
-                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} /><span className="font-mono text-[13px] text-muted">{price}</span></div>
+                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} /><span className="font-mono text-[13px] text-faint">{price}</span></div>
               ))}
             </div>
-            {t.test && (
-              <div className="pz-appear mt-2 flex items-baseline justify-between rounded-lg bg-ground/50 px-3 py-1.5" style={later(700 + i * 160)}>
-                <span className="text-[13px] text-faint">2 planted bugs: <b className={`font-display text-[16px] ${t.test[0] === '2 of 2' ? 'text-emerald-300' : 'text-amber-300'}`}>found {t.test[0]}</b></span><span className="font-mono text-[12px] text-muted">{t.test[1]}</span>
-              </div>
-            )}
-            <div className="mt-2 flex flex-1 flex-col justify-end gap-1 border-t border-hairline pt-2">
-              {t.jobs.map(([job, sure], j) => (
+            <div className="mt-4 flex flex-1 flex-col gap-2 border-t border-hairline pt-4">
+              {t.jobs.map(([job], j) => (
                 <motion.div
                   key={job}
-                  className="flex items-center justify-between rounded-lg bg-raised px-3 py-1 text-[15.5px] text-ink"
+                  className="rounded-lg bg-raised px-3.5 py-2.5 text-[18px] text-ink"
                   initial={{ opacity: 0, y: -40 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 220, damping: 16, delay: 1.1 + i * 0.25 + j * 0.12 }}
                 >
-                  {job}<span className="font-mono text-[13px] text-amber-200">Jev {sure}%</span>
+                  {job}
                 </motion.div>
               ))}
-              {t.ghost && <div className="pz-appear rounded-lg border border-dashed border-hairline px-3 py-1.5 text-[14px] text-faint" style={later(2400)}>{t.ghost}</div>}
             </div>
           </div>
         ))}
       </div>
       <div className="pz-appear flex items-center gap-5 rounded-2xl border border-hairline bg-raised px-6 py-2.5" style={later(2700)}>
         <span className="text-[24px]">⚖️</span>
-        <div className="text-[16.5px] leading-snug text-muted">
-          Each job starts where its <b className="text-ink">expected cost</b> is lowest: the price of trying, plus Jev’s odds that the tier is not enough × what failing costs.
-          <span className="ml-2 text-faint">Prices: $ per million tokens, in · out, read live. Job rows: where Jev started each job on a real ticket, #16.</span>
-        </div>
+        <div className="text-[18px] leading-snug text-muted">A different question from size: <b className="text-ink">one model per job</b>, the cheapest Jev trusts with it. <span className="text-faint">$ per million tokens, in · out · jobs from ticket #16</span></div>
       </div>
     </div>
   );
@@ -665,8 +609,7 @@ export function Climb() {
   return (
     <div className="grid h-full grid-cols-[1fr_600px] gap-7">
       <div className={`${box} flex flex-col px-6 py-4`}>
-        <Kicker>The same job on four models — measured in this repository</Kicker>
-        <div className="mt-1 text-[16px] text-muted">Implement a specified function, test first. All four passed.</div>
+        <Kicker>The same job on four models · all four passed</Kicker>
         <div className="mt-3 flex flex-1 flex-col justify-around">
           {MEASURED.map(([m, cost, secs], i) => (
             <div key={m} className="pz-appear grid grid-cols-[210px_1fr_100px_56px] items-center gap-3" style={later(300 + i * 220)}>
@@ -677,34 +620,29 @@ export function Climb() {
             </div>
           ))}
         </div>
-        <div className="pz-appear rounded-xl bg-raised px-5 py-2.5 text-[16px] leading-snug text-muted" style={later(1700)}>
-          <b className="text-ink">A quarter to a tenth of the price, for the same result.</b> In an audit with two planted bugs, both flash models and Sonnet found both; Haiku found one — which is why judgement does not start at the bottom.
+        <div className="pz-appear rounded-xl bg-raised px-5 py-3 text-[20px] leading-snug text-ink" style={later(1700)}>
+          <b>A tenth of the price, for the same result.</b> <span className="text-[16px] text-muted">On a planted-bug audit Haiku found 1 of 2, the rest both.</span>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
         <Kicker>When cheap is not enough, the job climbs</Kicker>
-        <div className={`${box} pz-appear flex items-center gap-4 px-5 py-2.5`} style={later(1900)}>
-          <span className="text-[24px]">🛠️</span><span className="text-[19px] text-ink">Implement</span><Model m="deepseek" className="ml-auto" />
+        <div className={`${box} pz-appear flex items-center gap-4 px-6 py-5`} style={later(1900)}>
+          <span className="text-[28px]">🛠️</span><span className="text-[23px] text-ink">Implement</span><Model m="deepseek" className="ml-auto" />
         </div>
-        <div className="pz-appear flex items-center gap-4 rounded-2xl border border-rose-400/50 bg-rose-500/10 px-5 py-2.5" style={later(2400)}>
-          <span className="text-[24px]">🚦</span><span className="text-[19px] text-rose-200">The gate is red</span><Tick ok={false} className="ml-auto" />
+        <div className="pz-appear flex items-center gap-4 rounded-2xl border border-rose-400/50 bg-rose-500/10 px-6 py-5" style={later(2400)}>
+          <span className="text-[28px]">🚦</span><span className="text-[23px] text-rose-200">The gate is red</span><Tick ok={false} className="ml-auto" />
         </div>
         <motion.div
-          className="flex items-center gap-4 rounded-2xl border border-violet-400/60 bg-raised px-5 py-2.5"
+          className="flex items-center gap-4 rounded-2xl border border-violet-400/60 bg-raised px-6 py-5"
           initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 14, delay: 3 }}
         >
-          <span className="text-[24px]">🔧</span>
-          <div className="leading-tight"><div className="text-[19px] text-ink">Fix <span className="text-violet-300">↑</span></div><div className="text-[13px] text-faint">one tier above whatever wrote the code</div></div>
+          <span className="text-[28px]">🔧</span>
+          <div className="leading-tight"><div className="text-[23px] text-ink">Fix <span className="text-violet-300">↑</span></div><div className="text-[15px] text-faint">one tier up</div></div>
           <Model m="sonnet" className="ml-auto" />
         </motion.div>
-        <div className="pz-appear mt-1 space-y-1.5 text-[15.5px] text-muted" style={later(3500)}>
-          <div className="flex gap-3"><span className="text-violet-300">↑</span>An agent returns nothing: the job runs again a tier up.</div>
-          <div className="flex gap-3"><span className="text-violet-300">↑</span>QA probes will not run: the probe writer moves up.</div>
-          <div className="flex gap-3"><span className="text-violet-300">↑</span>A review lens is unsure of itself: it reads again a tier up.</div>
-        </div>
-        <div className="pz-appear mt-auto rounded-xl border border-hairline bg-surface px-5 py-2 font-mono text-[13px] text-faint" style={later(4000)}>
-          every climb is recorded on the run: <span className="text-muted">climbs=1 · fix=sonnet-5.5</span>
+        <div className="pz-appear mt-auto rounded-xl border border-hairline bg-surface px-5 py-3 font-mono text-[15px] text-faint" style={later(3600)}>
+          recorded on the run: <span className="text-muted">climbs=1 · fix=sonnet-5.5</span>
         </div>
       </div>
     </div>
@@ -718,13 +656,13 @@ export const PLATFORM = [
     beats: [
       {
         kicker: 'The factory floor',
-        title: 'Two Vercel projects, one repository, and no servers of our own',
-        body: 'The app is one project: main is production, and every pull request is its own preview. The factory is the other: a webhook and seven workflows that run Claude Code in sandboxes and reach every model through AI Gateway.',
+        title: 'Everything runs on Vercel',
+        body: 'GitHub holds the issues and the code. Everything that runs, runs on Vercel: the app, and the factory that builds it.',
       },
       {
         kicker: 'The factory floor · seven workflows',
         title: 'Seven workflows, each with one job',
-        body: 'A workflow is plain TypeScript that Vercel makes durable. Each gets a sandbox with only the access it needs — none, read or push. The one that does the building is ship, so that is the one to follow.',
+        body: 'Plain TypeScript that Vercel makes durable. Ship does the building, so that is the one to follow.',
       },
     ],
     Scene: MapScene,

@@ -25,7 +25,7 @@ const MODEL_ROWS = [
   ['Spec', 'deepseek', 'standard', '63%', '$0.028', '$0.042'],
   ['Implement', 'deepseek', 'standard', '66%', '$0.049', '$0.17'],
   ['Audit', 'deepseek', 'standard', '80%', '$0.028', '$0.058'],
-  ['Skeptic', 'glm', 'standard', '70%', '$0.018', '$0.034 · 2 runs'],
+  ['Skeptic', 'glm', 'standard', '70%', '$0.018', '$0.034'],
 ];
 
 const RUN_ROWS = [
@@ -34,12 +34,6 @@ const RUN_ROWS = [
   { child: true, wf: 'qa', phase: 'pass', spend: '$0.54', tone: 'text-emerald-300' },
   { child: true, wf: 'screenshots', phase: 'posted · 2 pages', spend: '—', tone: 'text-emerald-300' },
   { n: 16, wf: 'ship', title: 'My Agenda: list my upcoming sessions', phase: '⏳ Merge', size: 'small', spend: '$0.58', all: '$1.80 all', tone: 'text-amber-300' },
-];
-
-const VIEWS = [
-  ['🔭', 'The trace', 'every phase a named step, live, in Vercel’s Workflows tab'],
-  ['🏷️', 'Attributes', 'issue · phase · size · models · spend_usd — filter runs by any of them'],
-  ['💬', 'One comment', 'on the issue, edited at every phase — the table on the left'],
 ];
 
 function OnTheRecord() {
@@ -53,54 +47,44 @@ function OnTheRecord() {
         <div className="px-5 py-3">
           <div className="text-[20px] font-semibold">🏭 Ship on Vercel · waiting for you to review and merge</div>
           <div className={`mt-1.5 text-[14.5px] ${GH.muted}`}>✅ Triage → ✅ Plan → <s>Plan audit</s> → ✅ Build → ✅ Gate → ✅ Audit → ✅ Pull request → ✅ Preview → ✅ Review &amp; QA → <b className={GH.ink}>⏳ Merge</b> → Production</div>
-          <div className="mt-1.5 text-[14px]"><b>Size:</b> fast — Jev, 71% sure</div>
-          <table className="mt-3 w-full text-left text-[15.5px]">
+          <table className="mt-4 w-full text-left text-[18px]">
             <thead>
               <tr className={`border-b ${GH.line} ${GH.muted}`}>
-                {['Job', 'Model', 'Tier', 'Jev sure', 'Est.', 'Actual'].map((h, i) => <th key={h} className={`py-1.5 font-semibold ${i > 2 ? 'text-right' : ''}`}>{h}</th>)}
+                {['Job', 'Model', 'Jev sure', 'Cost'].map((h, i) => <th key={h} className={`py-2 font-semibold ${i > 1 ? 'text-right' : ''}`}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {MODEL_ROWS.map(([job, m, tier, jev, est, actual], i) => (
                 <tr key={job} className={`pz-appear border-b ${GH.line}`} style={later(400 + i * 180)}>
-                  <td className="py-[11px]">{job}</td>
-                  <td><code className="rounded bg-black/[0.06] px-1.5 py-0.5 font-mono text-[12.5px]">{{ deepseek: 'deepseek-v4.1-flash', glm: 'glm-5.3-flash', sonnet: 'sonnet-5.5' }[m]}</code></td>
-                  <td className={GH.muted}>{tier}</td>
+                  <td className="py-[15px]">{job}</td>
+                  <td><code className="rounded bg-black/[0.06] px-1.5 py-0.5 font-mono text-[14px]">{{ deepseek: 'deepseek-v4.1-flash', glm: 'glm-5.3-flash', sonnet: 'sonnet-5.5' }[m]}</code></td>
                   <td className="text-right">{jev}</td>
-                  <td className={`text-right ${GH.muted}`}>{est}</td>
                   <td className="text-right font-semibold">{actual}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className={`pz-appear mt-3 text-[14px] ${GH.muted}`} style={later(1700)}>Picked per job by Jev from AI Gateway’s live catalog: the cheapest tier likely to be enough.</div>
-          <div className="pz-appear mt-2 text-[15px]" style={later(1900)}><b>AI spend so far:</b> $0.93 over 5 agent runs <span className="font-normal text-[#59636e]">— review and QA included, each with a table of its own on the pull request</span></div>
+          <div className="pz-appear mt-4 text-[19px]" style={later(1900)}><b>AI spend so far:</b> $0.93</div>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
         {/* the factory's own /runs page */}
-        <div className="pz-appear overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]" style={later(900)}>
+        <div className="pz-appear flex-1 overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]" style={later(900)}>
           <div className="flex items-center gap-2 border-b border-hairline bg-surface px-4 py-2 font-mono text-[13px] text-faint"><Vercel className="size-3 text-ink" /> nam-2026-factory.vercel.app/runs <span className="ml-auto text-emerald-300">● refreshing</span></div>
-          <div className="px-4 py-2">
+          <div className="px-5 py-3">
             {RUN_ROWS.map((r, i) => (
-              <div key={i} className={`pz-appear grid grid-cols-[1fr_130px_70px] items-center border-b border-hairline/50 py-[5px] text-[14px] last:border-b-0 ${r.child ? 'text-muted' : 'text-ink'}`} style={later(1200 + i * 160)}>
+              <div key={i} className={`pz-appear grid grid-cols-[1fr_170px_70px] items-center border-b border-hairline/50 py-[14px] text-[17px] last:border-b-0 ${r.child ? 'text-muted' : 'text-ink'}`} style={later(1200 + i * 160)}>
                 <span className="truncate">
                   {r.child ? <span className="ml-4 text-faint">↳ </span> : <span className="mr-2 font-mono text-violet-300">#{r.n}</span>}
                   <b className="font-mono">{r.wf}</b>{r.title && <span className="ml-2 text-faint">{r.title}</span>}
                 </span>
                 <span className={r.tone}>{r.phase}</span>
-                <span className="text-right font-mono">{r.spend}{r.all && <span className="block text-[11px] text-faint">{r.all}</span>}</span>
+                <span className="text-right font-mono">{r.spend}{r.all && <span className="block text-[12px] text-faint">{r.all}</span>}</span>
               </div>
             ))}
           </div>
         </div>
-        {VIEWS.map(([icon, name, what], i) => (
-          <div key={name} className={`${box} pz-appear flex flex-1 items-center gap-4 px-5`} style={later(2000 + i * 250)}>
-            <span className="text-[24px]">{icon}</span>
-            <div className="leading-tight"><div className="font-display text-[20px] text-ink">{name}</div><div className="text-[14.5px] text-muted">{what}</div></div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -124,12 +108,11 @@ function Receipts() {
             </div>
           ))}
         </div>
-        <div className="mt-auto pt-3 text-[15px] text-faint">Built and audited on flash models, reviewed on Sonnet 5.5: 13 agent runs in all.</div>
       </div>
 
       <div className="pz-appear flex flex-col rounded-2xl border border-sky-400/40 bg-sky-500/[0.05] p-6" style={later(600)}>
         <Kicker>🟢 A small ticket · #16, run twice</Kicker>
-        <div className="mt-2 font-display text-[23px] leading-tight text-ink">The same ticket, before and after Jev chose the models</div>
+        <div className="mt-2 font-display text-[23px] leading-tight text-ink">The same ticket, routed by Jev</div>
         <div className="mt-8 flex items-baseline gap-4">
           <span className="relative font-display text-[56px] leading-none text-faint">
             $4.59
@@ -139,7 +122,6 @@ function Receipts() {
         </div>
         <div className="mt-5 font-display text-[108px] leading-none text-ink"><Count to={1.8} prefix="$" decimals={2} delay={1900} /></div>
         <div className="mt-2 text-[17px] text-muted">routed per job, cheapest first</div>
-        <div className="mt-3 text-[15px] leading-snug text-faint">The same ticket, built again once Jev was choosing the model for each job.</div>
         <motion.div
           className="mt-auto self-start rounded-full border border-emerald-400/50 bg-emerald-500/15 px-6 py-2 font-display text-[32px] text-emerald-200"
           initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 13, delay: 3.2 }}
@@ -163,7 +145,6 @@ function Receipts() {
             </div>
           ))}
         </div>
-        <div className="text-[15px] leading-snug text-faint">Change one in a pull request — and the factory reviews its own change.</div>
       </div>
     </div>
   );
@@ -236,10 +217,10 @@ function RoleScene({ step }) {
     <>
       <Show on={step === 0} style={at(80, 130, 1440, 400)} className="grid grid-cols-4 gap-6">
         {[
-          ['✍️', 'You write the ticket', 'Its Done when is the contract every agent is judged against. The thinking moved up front — it did not go away.'],
-          ['🔧', 'You tune the factory', 'Which models, how many rounds, what a review may block on. Each is a file, and shaping it to your codebase is engineering.'],
-          ['🚦', 'You keep the merge', 'Nothing merges itself. The verdicts tell you where to look; the preview and the screenshots let you check in a minute.'],
-          ['🧠', 'You pace the work', 'You lead a team of agents now. Run as many tickets as you can review well — that is the real limit.'],
+          ['✍️', 'You write the ticket', 'Done when is the contract.'],
+          ['🔧', 'You tune the factory', 'Models, rounds, the review bar: each is a file.'],
+          ['🚦', 'You keep the merge', 'Nothing merges itself.'],
+          ['🧠', 'You pace the work', 'As many tickets as you can review well.'],
         ].map(([icon, t, d], i) => (
           <motion.div
             key={t}
@@ -284,12 +265,12 @@ export const CLOSING = [
       {
         kicker: 'On the record',
         title: 'Every run says what it did, on which model, for how much',
-        body: 'Real numbers from one ticket in this repository. Each job shows the model Jev picked, how sure it was that the tier was enough, what it expected to pay and what it paid.',
+        body: 'Real numbers from one ticket in this repository, on the issue and on the factory’s own page.',
       },
       {
         kicker: 'What it costs',
         title: 'One to two dollars a ticket — and every dial is yours',
-        body: 'Real receipts from this repository. Routing each job to the cheapest model that could do it cut the same ticket from $4.59 to $1.80 — and most of what is left pays for judgement, which is where you want it.',
+        body: 'Real receipts from this repository. Routing each job to the cheapest model that could do it cut one ticket by 61%.',
       },
     ],
     Scene: ReceiptsScene,
@@ -300,7 +281,7 @@ export const CLOSING = [
       {
         kicker: 'Don’t babysit one ticket — hand it ten',
         title: 'Ten labels, ten sandboxes, ten previews',
-        body: 'Nothing about a run needs you watching, and nothing about it runs on your machine. Each ticket gets its own sandbox, its own branch and its own preview. The limit is how many pull requests you can review well.',
+        body: 'Nothing runs on your machine. The limit is how many pull requests you can review well.',
       },
     ],
     Scene: ScaleScene,
@@ -311,7 +292,7 @@ export const CLOSING = [
       {
         kicker: 'Your role',
         title: 'You are the tech lead of a team of agents',
-        body: 'None of this replaces engineering judgement; it moves it to where it counts. And trust comes from what you can check — a spec, a failing test, a preview, a verdict that had to be proven — not from the model.',
+        body: 'None of this replaces engineering judgement. It moves it to where it counts.',
       },
       null,
     ],
