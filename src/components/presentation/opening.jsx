@@ -85,16 +85,16 @@ function TitleScene() {
  * then what it replaced.
  * ------------------------------------------------------------------ */
 
+const TIMELINE_AT = 1700;
+
 const AFTER_THE_LABEL = [
+  ['▲', 'Vercel picks the ticket up: a webhook starts a durable workflow', 'no runner to queue for, no laptop to leave open'],
   ['🧮', 'Jev sizes the ticket and picks a model for every job', 'a third of a second'],
   ['📄', 'A spec lands as the branch’s first commit', 'read the intent before the diff'],
   ['🧪', 'A failing test, then the change that turns it green', 'in a sandbox forked for this run'],
   ['🚦', 'The gate passes; independent auditors find nothing left', 'scripts decide, agents advise'],
-  ['🔀', 'A pull request opens on its own Vercel preview', 'a link you can click and try'],
-  ['📸', 'Screenshots, a code review and a QA pass arrive on it', 'before and after, desktop and mobile'],
+  ['🔀', 'A pull request opens on its own preview, with screenshots, a review and QA', 'a link you can click and try'],
 ];
-
-const TIMELINE_AT = 1700;
 
 const VERSUS = [
   ['It dies with the terminal, or with the CI job’s timeout', 'Durable: every step is recorded, and a crash resumes at the last one finished'],
@@ -111,20 +111,30 @@ function PromiseScene({ step }) {
       <Replay on={step === 0} from="left" style={at(80, 64, 640, 540)}>
         <GitHub tab="Issues" className="h-full">
           <div className="px-6 py-4">
-            <div className="text-[23px] leading-tight">{ISSUE_140.title} <span className={GH.muted}>#{ISSUE_140.number}</span></div>
+            <div className="text-[23px] leading-tight">Keep sessions in view on mobile <span className={GH.muted}>#{ISSUE_140.number}</span></div>
             <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full ${GH.green} px-3 py-1 text-[14px] font-semibold text-white`}><GhOpenIcon /> Open</span>
             <div className="mt-4 grid grid-cols-[1fr_170px] gap-5 text-[16px]">
               <div>
-                <div className={GH.muted}><b className={GH.ink}>Why:</b> {ISSUE_140.why}</div>
-                <div className={`mt-3 border-b ${GH.line} pb-1 text-[18px] font-semibold`}>Done when</div>
-                <ul className="mt-2 space-y-2.5">
+                <div className={`border-b ${GH.line} pb-1 text-[18px] font-semibold`}>Done when</div>
+                <ul className="mt-2 space-y-1">
                   {ISSUE_140.doneWhen.map((d) => (
                     <li key={d} className="flex gap-2"><span className={`mt-1 size-4 shrink-0 rounded border ${GH.line}`} />{d}</li>
                   ))}
                 </ul>
-                <div className={`pz-appear mt-5 flex items-center gap-2 ${GH.muted}`} style={later(900)}>
+                <div className={`pz-appear mt-4 flex items-center gap-2 ${GH.muted}`} style={later(900)}>
                   <span className="size-5 shrink-0 rounded-full bg-violet-300" aria-hidden="true" />
                   <span><b className={GH.ink}>you</b> added the <span className="rounded-full bg-[#d8b4fe] px-2 text-[13px] font-semibold text-[#3b0764]">ready-for-ai</span> label</span>
+                </div>
+                {/* seconds later, on the same issue: Vercel has it */}
+                <div className={`pz-appear mt-2.5 overflow-hidden rounded-md border ${GH.line}`} style={later(TIMELINE_AT)}>
+                  <div className={`flex items-center gap-2 border-b ${GH.line} bg-[#f6f8fa] px-3 py-1.5 text-[14px]`}>
+                    <span className="grid size-5 place-items-center rounded-full bg-[#1f2328] text-white" aria-hidden="true"><Vercel className="size-2.5" /></span>
+                    <b>ship</b><span className={GH.muted}>· a Vercel Workflow · just now</span>
+                  </div>
+                  <div className="px-3 py-2.5 text-[15px]">
+                    <div className="text-[17px] font-semibold">🏭 Ship on Vercel · Triage</div>
+                    <div className={`whitespace-nowrap ${GH.muted}`}><b className={GH.ink}>⏳ Triage</b> → Plan → Build → Gate → Audit → …</div>
+                  </div>
                 </div>
               </div>
               <div className={`border-l ${GH.line} pl-4`}>
@@ -133,6 +143,7 @@ function PromiseScene({ step }) {
                   <span className="pz-pop rounded-full bg-[#d8b4fe] px-2.5 py-0.5 text-[13px] font-semibold text-[#3b0764]" style={later(900)}>ready-for-ai</span>
                 </div>
                 <div className={`pz-appear mt-3 text-[13px] ${GH.muted}`} style={later(1300)}>That is the last thing you do for a while.</div>
+                <div className={`pz-appear mt-3 text-[13px] ${GH.muted}`} style={later(TIMELINE_AT + 300)}>The webhook started a Vercel Workflow. It now owns the ticket.</div>
               </div>
             </div>
           </div>
@@ -146,7 +157,7 @@ function PromiseScene({ step }) {
             <span className="pz-fill absolute bottom-6 left-[21px] top-3 w-0.5 bg-gradient-to-b from-violet-500 to-emerald-400" style={{ animationDuration: '3.2s', animationDelay: `${TIMELINE_AT}ms`, transformOrigin: 'top' }} />
             {AFTER_THE_LABEL.map(([icon, what, how], i) => (
               <div key={what} className="pz-appear relative flex items-center gap-4" style={later(TIMELINE_AT + i * 480)}>
-                <span className="grid size-11 shrink-0 place-items-center rounded-full border border-hairline bg-raised text-[20px]">{icon}</span>
+                <span className={`grid size-11 shrink-0 place-items-center rounded-full border text-[20px] ${icon === '▲' ? 'pz-glow border-violet-400/70 bg-raised text-ink' : 'border-hairline bg-raised'}`}>{icon === '▲' ? <Vercel className="size-4" /> : icon}</span>
                 <div className="min-w-0 leading-tight">
                   <div className="text-[19px] text-ink">{what}</div>
                   <div className="text-[14px] text-faint">{how}</div>
@@ -277,8 +288,8 @@ export const OPENING = [
     beats: [
       {
         kicker: '1 · The promise',
-        title: 'Label an issue. Come back to a pull request you can click on',
-        body: 'One label starts everything on the right: sized, planned, built test-first, gated, audited, deployed to a preview, photographed, reviewed and tested. Your part is the ticket at the start and the merge at the end.',
+        title: 'Label an issue. Vercel picks it up from there',
+        body: 'One label reaches the factory’s webhook, and a durable workflow takes the ticket: sized, planned, built test-first, gated, audited, deployed to a preview, photographed, reviewed and tested. Your part is the ticket and the merge.',
       },
       {
         kicker: '1 · What changed',
