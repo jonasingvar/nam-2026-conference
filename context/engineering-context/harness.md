@@ -55,6 +55,7 @@ tests:
   - tests/unit/qa-facts.test.js
   - tests/unit/context.test.js
   - tests/unit/winnow-pin.test.js
+  - tests/unit/readme.test.js
   - tests/unit/tracker-context.test.js
   - tests/unit/demo-transcript.test.js
   - tests/unit/winnow-record.test.js
