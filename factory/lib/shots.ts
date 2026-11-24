@@ -121,6 +121,17 @@ export type Uploaded = { path: string; viewport: string; which: string; url?: st
  * one larger column when there is nothing to compare with. Pages after the
  * first fold into <details>.
  */
+/**
+ * A pull request's description with "try it" at its top — or, with no url, without it: a change
+ * to the factory or the docs has nothing for a person to try on the app's preview. A marked block,
+ * replaced in place, so ship rewriting the body or the next push re-pinning it never stacks two.
+ */
+export function withPreview(body: string, url: string | null, sha = ''): string {
+  const rest = body.replace(/<!-- factory-preview -->[\s\S]*?<!-- \/factory-preview -->\n*/g, '');
+  if (!url) return rest;
+  return `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — this pull request's Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->\n\n${rest}`;
+}
+
 export function shotsComment(pr: number, sha: string, pages: Shot[], shots: Uploaded[], previewUrl: string, beforeLabel: string | null, footer: string) {
   const img = (s: Uploaded | undefined, width: number) =>
     !s ? '—' : s.url ? `<a href="${s.full ?? s.url}"><img src="${s.url}" width="${width}"></a>` : `⚠️ ${s.error ?? 'not captured'}`;

@@ -221,6 +221,18 @@ export async function readPullRequest(n: number): Promise<PullRequest> {
   };
 }
 
+/** The paths a pull request changes (the first 300 — past that, callers treat it as touching everything). */
+export async function pullRequestFiles(n: number): Promise<string[]> {
+  'use step';
+  const out: string[] = [];
+  for (let page = 1; page <= 3; page++) {
+    const files: any[] = await gh(`/pulls/${n}/files?per_page=100&page=${page}`);
+    out.push(...files.map((f) => String(f.filename)));
+    if (files.length < 100) break;
+  }
+  return out;
+}
+
 /**
  * What a commit changes, and its patch: against the base it branched from
  * (`base...sha`, a pull request), or against its parent (a push to main).

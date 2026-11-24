@@ -1,6 +1,7 @@
 import { put } from '@vercel/blob';
 import { Sandbox } from '@vercel/sandbox';
 import { ALLOWED_REPO } from './constants';
+import { withPreview } from './shots';
 
 /**
  * Copy the screenshots (each viewport shot and its full-page one) out of the sandbox into the public Blob store
@@ -47,18 +48,13 @@ export async function postShots(pr: number, body: string) {
 }
 postShots.maxRetries = 3;
 
-/**
- * Put "try it" at the top of the pull request's description: its preview, for
- * this commit. A marked block, replaced in place, so ship rewriting the body
- * or the next push re-pinning it never stacks two.
- */
-export async function pinPreview(pr: number, url: string, sha: string) {
+/** Pin "try it" to the pull request's description (`withPreview`); no url takes it off. */
+export async function pinPreview(pr: number, url: string | null, sha = '') {
   'use step';
   const p = await gh(`/pulls/${pr}`);
-  const block = `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — this pull request's Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->`;
-  const rest = String(p.body ?? '').replace(/<!-- factory-preview -->[\s\S]*?<!-- \/factory-preview -->\n*/g, '');
-  const body = `${block}\n\n${rest}`;
-  if (body !== p.body) await gh(`/pulls/${pr}`, { method: 'PATCH', body: JSON.stringify({ body }) });
+  const before = String(p.body ?? '');
+  const body = withPreview(before, url, sha);
+  if (body !== before) await gh(`/pulls/${pr}`, { method: 'PATCH', body: JSON.stringify({ body }) });
   return true;
 }
 pinPreview.maxRetries = 3;

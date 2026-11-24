@@ -1,7 +1,8 @@
 import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { findDeployment, previewForPr, readPullRequest, setStatus } from '../lib/github-steps';
+import { findDeployment, previewForPr, pullRequestFiles, readPullRequest, setStatus } from '../lib/github-steps';
+import { classify } from '../lib/select';
 import { FACTORY_DASHBOARD, PRODUCTION_URL } from '../lib/constants';
 import { captureScript, choosePages, pagesScript, shotsComment, type Uploaded } from '../lib/shots';
 import { pinPreview, postShots, uploadShots } from '../lib/shots-steps';
@@ -42,6 +43,15 @@ async function shotsRun(input: ShotsInput, box: string, workflowRunId: string): 
   const pr = await readPullRequest(input.pr);
   await setAttributes({ pr: String(pr.number), sha: pr.headSha.slice(0, 12), ...(pr.issue ? { issue: String(pr.issue) } : {}) });
   if (pr.state !== 'open') return { outcome: 'skipped', reason: 'not open' };
+
+  // Only the factory or the docs changed: the app's preview is the same app as before, so there is
+  // nothing to try on it and nothing to shoot. (Vercel may still build one — a docs change does.)
+  const files = await pullRequestFiles(pr.number).catch(() => null);
+  if (files && files.length < 300 && !classify(files).app) {
+    await pinPreview(pr.number, null).catch(() => null);
+    await setStatus(pr.headSha, 'factory/screenshots', 'success', 'No app change — nothing to try or show', runUrl);
+    return { outcome: 'no-app-change' };
+  }
 
   let preview = await previewForPr(pr.number);
   for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await previewForPr(pr.number); }
