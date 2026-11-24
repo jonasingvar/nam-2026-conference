@@ -13,14 +13,17 @@ import {
 } from '../lib/github-steps';
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { isTestGap } from '../lib/review-policy';
-import { ALLOWED_REPO, FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
+import { chooseTests, recordGate, stageTestMap } from '../lib/phases';
+import { breakdownLine, classify as classifyFiles, mergeShards, type Facts, type Project, type Selection } from '../lib/select';
+import { factsScript, runShards } from '../lib/testrun';
+import { ALLOWED_REPO, FACTORY_DASHBOARD, FULL_SUITE_LABEL, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
 
 /**
  * ship — a GitHub issue to a merged, deployed change, as one durable run.
  *
  *   triage (Jev) → plan (spec, first commit) → [plan audit] → build (test first)
- *   → loop { gate + red-check → independent audit → skeptic → fix }
+ *   → loop { select → (gate on desktop ∥ mobile, red-check) ∥ (independent audit → skeptic) → fix }
  *   → pull request → Vercel preview → review → wait for the merge → production
  *
  * Agents do judgement only. Anything a command can decide — the gate, whether
@@ -45,10 +48,12 @@ type Profile = {
 };
 
 const PROFILES: Record<Size, Omit<Profile, 'why'>> = {
-  // A person is waiting and the change is understood: one combined audit, the
-  // browser specs the change reaches, a fix re-gated rather than re-audited.
+  // Every size gates on the tests its change needs (lib/select.ts: the map's
+  // candidates, the specs it reaches and smoke, never less than GATE_SCOPE=branch);
+  // verify and main run more. `gateScope` now only narrows the red-check to unit tests.
+  // A person is waiting and the change is understood: one combined audit, a fix re-gated rather than re-audited.
   fast: { size: 'fast', planAudits: [], planRounds: 0, lenses: ['combined'], buildRounds: 2, probes: 0, gateScope: 'branch', reaudit: false, learns: false },
-  // Contained: one combined audit, the whole suite, a browser audit only when
+  // Contained: one combined audit, a browser audit only when
   // something visible changed without a browser test to prove it.
   small: { size: 'small', planAudits: [], planRounds: 0, lenses: ['combined', 'browser'], buildRounds: 2, probes: 2, reaudit: true, learns: true },
   // A rule, stored data or the harness: Opus, a plan audit, three lenses.
@@ -58,7 +63,7 @@ const PROFILES: Record<Size, Omit<Profile, 'why'>> = {
 const STUCK_AFTER = 2;
 
 /** The jobs a ship run books a model for. */
-const SHIP_JOBS: Job[] = ['spec', 'planAudit', 'reviseSpec', 'implement', 'fix', 'audit', 'browserAudit', 'skeptic', 'learn'];
+const SHIP_JOBS: Job[] = ['spec', 'planAudit', 'reviseSpec', 'implement', 'fix', 'audit', 'browserAudit', 'skeptic', 'learn', 'testSelect'];
 
 export async function ship(input: ShipInput) {
   'use workflow';
@@ -71,7 +76,8 @@ export async function ship(input: ShipInput) {
     // leave a ticket sitting at "ai-working" with nobody told. Say so on the issue, hand it to a person.
     const { workflowRunId } = getWorkflowMetadata();
     const why = String(e?.message || e).slice(0, 400);
-    await disposeSandbox(`ship-${input.issue}-${workflowRunId.slice(-8).toLowerCase()}`).catch(() => null);
+    const box = `ship-${input.issue}-${workflowRunId.slice(-8).toLowerCase()}`;
+    await Promise.all([box, `${box}-gd`, `${box}-gm`].map((b) => disposeSandbox(b))).catch(() => null);
     await setLabels(input.issue, ['needs-human'], ['ai-working', 'ready-for-ai']).catch(() => null);
     await comment(input.issue, `### 🏭 Ship on Vercel · the run crashed\n\n\`${why}\`\n\nNothing is lost: the work so far is on its branch. Reply here (or add \`ready-for-ai\`) to try again.\n\n` +
       `<sub>[run](${FACTORY_DASHBOARD}/workflows/runs/${workflowRunId})</sub>`).catch(() => null);
@@ -193,10 +199,83 @@ async function shipRun(input: ShipInput) {
   };
 
   /** A shell job whose script writes $JOB/result.json; returns it parsed, or null. */
-  async function command(label: string, script: string): Promise<any | null> {
-    const done = await runJob(box, jobId(label), {}, script);
+  async function command(label: string, script: string, where = box): Promise<any | null> {
+    const done = await runJob(where, jobId(label), {}, script);
     if (!done) return null;
     try { return JSON.parse(done.result); } catch { log(`${label}: unreadable result (exit ${done.exit}) ${done.tail.slice(-200)}`); return null; }
+  }
+
+  // ── The gate: the tests this change needs, desktop and mobile side by side ──
+  // Two sandboxes of their own (forked from the warm one once, resumed each round), so ship's own
+  // sandbox is free for the auditors while the tests run. They take the commit from a ref of its own
+  // (refs/factory/gate/<sha>): a push to the branch of an open pull request would start verify on
+  // code the gate has not finished with.
+  const shardBox: Record<Project, string> = { desktop: `${box}-gd`, mobile: `${box}-gm` };
+  let shardsReady: Promise<unknown> | null = null;
+  const disposeShards = async () => { if (shardsReady) { shardsReady = null; await Promise.all([disposeSandbox(shardBox.desktop), disposeSandbox(shardBox.mobile)]); } };
+  /** The selection the last gate ran, for the pull request's checks line and verify's record. */
+  let lastSel: Selection | null = null;
+  let fullSuite = false;
+  let gateRef = '';
+  /** Merge the base, put the commit where the shards can fetch it, and choose the tests. */
+  async function selectGate(tag: string, pushMerged: boolean) {
+    const staged = await stageTestMap(box);
+    const ran = await command(`select${tag}`, [
+      `git fetch -q origin ${BASE}`,
+      gateRef ? `git push -q origin ":${gateRef}" >/dev/null 2>&1 || true` : '',
+      `SYNC=current; CONFLICTS=""`,
+      `if git merge --no-edit origin/${BASE} >"$JOB/merge.log" 2>&1; then grep -q "Already up to date" "$JOB/merge.log" || { SYNC=merged; ${pushMerged ? 'git push -q origin HEAD || true; ' : ''}}; ` +
+        `else SYNC=conflict; CONFLICTS=$(git diff --name-only --diff-filter=U | paste -sd, -); git merge --abort; fi`,
+      `SHA=$(git rev-parse HEAD); QA=""; touch "$JOB/diff.txt"`,
+      `if [ "$SYNC" != conflict ]; then`,
+      `  git push -q origin "HEAD:refs/factory/gate/$SHA" >"$JOB/ref.log" 2>&1 || SYNC=unpushed`,
+      `  QA=$(node scripts/qa-facts.mjs origin/${BASE} 2>/dev/null | tail -1)`,
+      `  git diff origin/${BASE}...HEAD | head -c 40000 > "$JOB/diff.txt"`,
+      // What the auditor is told to look at: removed assertions or added skips (gate.mjs's own reader), known before the gate runs.
+      `  git diff origin/${BASE}...HEAD -- tests/ playwright.config.js package.json scripts/gate.mjs > "$JOB/watched.diff"`,
+      `  node --input-type=module -e 'import { tampered } from "./scripts/gate.mjs"; import { readFileSync } from "node:fs"; console.log(JSON.stringify(tampered(readFileSync(process.env.JOB + "/watched.diff", "utf8"))))' > "$JOB/tampered.json" 2>/dev/null || echo '[]' > "$JOB/tampered.json"`,
+      `fi`,
+      `export EXTRA=$(SYNC="$SYNC" CONFLICTS="$CONFLICTS" SHA="$SHA" QA="$QA" node -e 'const e=process.env,fs=require("fs");let t=[];try{t=JSON.parse(fs.readFileSync(e.JOB+"/tampered.json","utf8"))}catch{}console.log(JSON.stringify({sync:e.SYNC,conflicts:(e.CONFLICTS||"").split(",").filter(Boolean),sha:e.SHA,qaFacts:e.QA,tampered:t,diff:fs.readFileSync(e.JOB+"/diff.txt","utf8")}))')`,
+      `if [ "$SYNC" = conflict ]; then node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",process.env.EXTRA)'; exit 0; fi`,
+      factsScript(BASE),
+    ].filter(Boolean).join('\n'));
+    if (!ran) return null;
+    if (ran.sync === 'conflict') return { ran, sel: null as Selection | null };
+    gateRef = `refs/factory/gate/${ran.sha}`;
+    const facts = (ran.facts ?? null) as Facts | null;
+    const p = models!.pick('testSelect');
+    const chosen = await chooseTests({
+      classified: classifyFiles(facts?.changed ?? []), facts, diff: String(ran.diff || ''), escapes: staged.escapes,
+      pick: { model: p.model, price: models!.catalog[p.model] ?? null },
+      // Never weaker than GATE_SCOPE=branch; everything when a person asked for it.
+      options: { floor: true, full: fullSuite ? `the ${FULL_SUITE_LABEL} label` : undefined },
+    });
+    if (chosen.asked) {
+      models!.record({ job: 'testSelect', label: `select${tag}`, model: p.model, tier: p.tier, est: p.est, cost: chosen.cost, ok: !!chosen.answer, seconds: chosen.seconds });
+      spend.total += chosen.cost;
+    }
+    const sel = chosen.selection;
+    log(`select: ${sel.mode} — ${sel.reason}; ${sel.ran} of ${sel.total} browser tests [${breakdownLine(sel)}]${sel.notes.length ? ` (${sel.notes.join('; ')})` : ''}${chosen.error ? ` — selector failed: ${chosen.error}` : ''}`);
+    await setAttributes({ selection: sel.mode, selected: String(sel.ran), of: String(sel.total), breakdown: breakdownLine(sel) });
+    return { ran, sel };
+  }
+  const gateRecord = (head: string, g: any, sel: Selection) => ({
+    by: 'ship' as const, sha: head, ranAt: String(g.sha), pr: null, ok: !!g.ok, unitOk: !g.unit.failed,
+    mode: sel.mode, reason: sel.reason, confidence: sel.confidence, tests: sel.tests,
+  });
+  /** The two shards on the selected commit; one verdict, as gate.mjs would give it, and the red-check from desktop. */
+  async function gateShards(sel: Selection, sha: string, tag: string) {
+    if (!shardsReady) shardsReady = Promise.all([prepareSandbox(shardBox.desktop, BASE, 'none'), prepareSandbox(shardBox.mobile, BASE, 'none')]);
+    await shardsReady;
+    const checkout = `git fetch -q --prune origin && git fetch -q origin "+refs/factory/gate/${sha}:refs/factory/gate/${sha}" && git checkout -q --detach ${sha} && ` +
+      `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat /vercel/.factory/prepared)" ] || { npm ci --no-audit --no-fund >/dev/null 2>&1 && sha256sum package-lock.json | cut -c1-16 > /vercel/.factory/prepared; }; }`;
+    const out = await runShards(sel, {
+      base: BASE, full: sel.mode === 'full', tag, red: profile!.gateScope === 'branch' ? 'unit' : 'all',
+      run: (p, label, script) => command(label, `${checkout} || { echo '{"gate":"","red":""}' > "$JOB/result.json"; exit 0; }\n${script}`, shardBox[p]),
+    });
+    lastSel = sel;
+    const merged = mergeShards({ desktop: out.desktop.gate, mobile: out.mobile.gate });
+    return { gate: { ...merged, scope: sel.mode }, red: out.desktop.red };
   }
 
   // What people said — the comment that asked for this run, and every answer on the issue or an earlier attempt's PR.
@@ -244,7 +323,7 @@ async function shipRun(input: ShipInput) {
     }
     await setLabels(n, ['needs-human'], ['ai-working', 'ready-for-ai']);
     await show(`handed back at ${stage}`);
-    await disposeSandbox(box);
+    await Promise.all([disposeSandbox(box), disposeShards()]);
     return { outcome: 'needs-human', issue: n, stage, reason: why, draft: draft?.url ?? null, spend: spend.total };
   }
 
@@ -252,6 +331,7 @@ async function shipRun(input: ShipInput) {
   // 1. Triage — read the issue, size the run with Jev.
   // ════════════════════════════════════════════════════════════════════════
   const issue = await readIssue(n);
+  fullSuite = issue.labels.includes(FULL_SUITE_LABEL);
   const issueTitle = issue.title;
   if (issue.isPullRequest || issue.state !== 'open') {
     return { outcome: 'declined', issue: n, reason: issue.isPullRequest ? 'that is a pull request, not an issue' : 'the issue is closed' };
@@ -429,13 +509,35 @@ async function shipRun(input: ShipInput) {
     ? `\n\nAlso, as polish — not required, and never a reason to return ok=false: tighten these tests so they would fail without the change, if it is quick:\n${list(p)}`
     : '';
   let audited = 0;
+  /** The independent audit of one commit, its blockers through their skeptics — run while the gate runs. */
+  async function auditRound(round: number, sha: string, sel: Selection, flagged: string[]): Promise<{ dead: string } | { reports: any[]; raised: Finding[]; confirmed: Finding[] }> {
+    const lenses = lensesFor(profile!);
+    const auditPrompt = (l: string) =>
+      `${ticket}\nYou are auditing a change you did not write, on branch ${branch}. The spec is ${specPath}. ${LENS_ASK[l]}\n\n` +
+      `The gate is running right now at ${sha.slice(0, 7)}, in other sandboxes: unit tests and ${sel.ran} browser tests (${sel.mode}: ${sel.reason}). ` +
+      (l === 'browser'
+        ? `Do not run \`npm test\` or the suite. Budget: ${profile!.probes} probes, one file, both viewports in one run.\n\n`
+        : `Do not run it — read the tests; run a command only to prove one specific claim.\n\n`) +
+      ((l === 'combined' || l === 'criteria') && carried.length ? `The plan audit left these for the build to resolve — a blocker if any is unresolved:\n${list(carried)}\n\n` : '') +
+      ((l === 'combined' || l === 'criteria') && flagged.length ? `The gate flagged removed assertions or added skips:\n${flagged.join('\n')}\n\n` : '') +
+      `Blockers only for something that would change a merge decision; everything else is minor. Change no code. Empty is a good answer.`;
+    // Readers in parallel; the browser lens boots the app, so it runs alone after them.
+    const readers = lenses.filter((l) => l !== 'browser');
+    // An auditor that returns nothing has already been run once more, a tier up (routedAgent).
+    const reports: any[] = await Promise.all(readers.map((l) => agent(`audit:${l}#${round}`, auditPrompt(l), S.FINDINGS, 'audit')));
+    if (lenses.includes('browser')) reports.push(await agent(`audit:browser#${round}`, auditPrompt('browser'), S.FINDINGS, 'browserAudit'));
+    const dead = reports.findIndex((r) => !r);
+    if (dead >= 0) return { dead: [...readers, 'browser'][dead] };
+    const raised: Finding[] = reports.flatMap((r) => r.findings as Finding[]);
+    const confirmed = await confirm(raised.filter((f) => f.severity === 'blocker' && !isTestGap(f)), 'the change', ticket);
+    return { reports, raised, confirmed };
+  }
   for (let round = 1; ; round++) {
     await enter('Gate');
-    const ran = await command(`gate#${round}`, gateScript(BASE, profile.gateScope));
-    if (!ran) return handBack('Gate', 'the gate job did not finish');
-    gate = readGate(ran.gate);
-    if (ran.sync === 'conflict') gate = { ...gate, ok: false };
-    const facts = String(ran.facts || '');
+    const chosen = await selectGate(`#${round}`, true);
+    if (!chosen) return handBack('Gate', 'the gate job did not finish');
+    const ran = chosen.ran;
+    const facts = String(ran.qaFacts || '');
 
     // The diff now says what the ticket risks; a small run that reached a risky
     // path, or grew past 300 app lines, gets the auditors a full run has.
@@ -447,58 +549,9 @@ async function shipRun(input: ShipInput) {
       for (const j of ['audit', 'skeptic', 'fix'] as Job[]) models!.raise(j, 2, reasons.join(', '));
       log(`escalated: ${reasons.join(', ')} — audit ${describe(models!.pick('audit'))}, fixer ${describe(models!.pick('fix'))}`);
     }
-    // The code the last edit wrote fails the gate: the fixer works one tier above that model.
-    const edit = lastEdit as { job: Job; tier: number; model: string } | null; // set inside agent(), which TS cannot see
-    if (!gate.ok && ran.sync !== 'conflict' && edit) {
-      const up = models!.raise('fix', edit.tier + 1, `the gate was red after ${edit.job} on ${edit.model.replace(/^[^/]+\//, '')}`);
-      if (up) log(`the gate is red after ${edit.job} — the fixer climbs to ${describe(up)}`);
-    }
-
     let open: Finding[] = [];
-    if (gate.ok && !profile.reaudit && audited > 0) {
-      rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: 0, confirmed: 0, covered: 'the fix, re-gated — not re-audited (fast)' });
-      minors = await confirm(dedupe(minors).slice(0, 3), 'the change', ticket);
-      break;
-    }
-    if (gate.ok) {
-      audited++;
-      await enter('Audit');
-      red = parseRed(ran.red);
-      const lenses = lensesFor(profile);
-      const auditPrompt = (l: string) =>
-        `${ticket}\nYou are auditing a change you did not write, on branch ${branch}. The spec is ${specPath}. ${LENS_ASK[l]}\n\n` +
-        (l === 'browser'
-          ? `The gate just ran the suite green at ${gate.sha.slice(0, 7)} — do not run \`npm test\` or the suite. Budget: ${profile!.probes} probes, one file, both viewports in one run.\n\n`
-          : `The gate just ran at ${gate.sha.slice(0, 7)}: ${gateLine(gate)}. Do not re-run it — read the tests; run a command only to prove one specific claim.\n\n`) +
-        ((l === 'combined' || l === 'criteria') && carried.length ? `The plan audit left these for the build to resolve — a blocker if any is unresolved:\n${list(carried)}\n\n` : '') +
-        ((l === 'combined' || l === 'criteria') && gate.tampered?.length ? `The gate flagged removed assertions or added skips:\n${gate.tampered.join('\n')}\n\n` : '') +
-        `Blockers only for something that would change a merge decision; everything else is minor. Change no code. Empty is a good answer.`;
-      // Readers in parallel; the browser lens boots the app, so it runs alone after them.
-      const readers = lenses.filter((l) => l !== 'browser');
-      // An auditor that returns nothing has already been run once more, a tier up (routedAgent).
-      const reports: any[] = await Promise.all(readers.map((l) => agent(`audit:${l}#${round}`, auditPrompt(l), S.FINDINGS, 'audit')));
-      if (lenses.includes('browser')) reports.push(await agent(`audit:browser#${round}`, auditPrompt('browser'), S.FINDINGS, 'browserAudit'));
-      const dead = reports.findIndex((r) => !r);
-      if (dead >= 0) return handBack('Audit', `the ${[...readers, 'browser'][dead]} auditor did not finish twice`);
-      const raised: Finding[] = [
-        ...reports.flatMap((r) => r.findings as Finding[]),
-        ...(red && red.checked && red.failedOnBase === false ? [{
-          severity: 'minor' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
-          claim: 'the tests this branch added or changed pass with its app code reverted',
-          evidence: `scripts/red-check.mjs reverted ${red.reverted.join(', ')} to ${BASE} and ran ${red.tests.join(', ')}: none failed`,
-          fix: 'add a test that exercises the changed code where an attendee meets it, and fails on the base branch',
-        }] : []),
-      ];
-      // A test gap is never a blocker, whatever the auditor called it: it rides along with the next fix as polish.
-      minors = raised.filter((f) => f.severity === 'minor' || isTestGap(f)).map((f) => ({ ...f, severity: 'minor' as const }));
-      polish = minors.filter(isTestGap);
-      open = await confirm(raised.filter((f) => f.severity === 'blocker' && !isTestGap(f)), 'the change', ticket);
-      history.push(...open);
-      rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: raised.length, confirmed: open.length,
-        covered: reports.map((r) => `ran ${r.ran}: ${String(r.covered).slice(0, 80)}`).join(' · ') });
-      log(`round ${round}: green, ${raised.length} raised, ${open.length} confirmed`);
-      if (!open.length) { minors = await confirm(dedupe(minors).slice(0, 3), 'the change', ticket); break; }
-    } else if (ran.sync === 'conflict') {
+    if (ran.sync === 'conflict' || !chosen.sel) {
+      gate = { ok: false, sha: '?', unit: { passed: 0, failed: 0 }, tampered: [], browser: { passed: 0, flaky: 0, skipped: 0, failed: [] } };
       open = (ran.conflicts?.length ? ran.conflicts : [`origin/${BASE}`]).map((file: string) => ({
         severity: 'blocker', category: 'conflict', file, claim: `conflicts with origin/${BASE}`,
         evidence: `git merge origin/${BASE} conflicted in ${file}`,
@@ -506,11 +559,58 @@ async function shipRun(input: ShipInput) {
       }));
       rounds.push({ round, gate: `⚠️ conflicts with ${BASE}`, raised: open.length, confirmed: open.length, covered: '' });
     } else {
-      const failures = [...(gate.unit.failed ? [{ test: 'npm test', error: gate.unit.output || `${gate.unit.failed} failed` }] : []), ...gate.browser.failed];
-      if (!failures.length) return handBack('Gate', 'the gate is red but names no failing test');
-      open = dedupe(failures.map((f: any) => ({ severity: 'blocker', category: 'gate', file: f.test, claim: `gate red: ${f.test}`, evidence: f.error, fix: 'make the gate green without editing, skipping or deleting an existing test' })));
-      rounds.push({ round, gate: `❌ ${gateLine(gate)}`, raised: open.length, confirmed: open.length, covered: '' });
-      log(`round ${round}: gate red, ${open.length} failing`);
+      // The gate and the audit read the same commit and change nothing, so they run at the same time:
+      // the tests in their two sandboxes, the auditors (and their skeptics) in this one. A fast run's fix is re-gated, not re-audited.
+      const auditing = profile.reaudit || audited === 0;
+      if (auditing) { status.Audit = 'running'; current = 'Audit'; }
+      const sha = String(ran.sha);
+      const [g, a] = await Promise.all([gateShards(chosen.sel, sha, `#${round}`), auditing ? auditRound(round, sha, chosen.sel, Array.isArray(ran.tampered) ? ran.tampered : []) : Promise.resolve(null)]);
+      gate = g.gate;
+      red = parseRed(g.red);
+      // The code the last edit wrote fails the gate: the fixer works one tier above that model.
+      const edit = lastEdit as { job: Job; tier: number; model: string } | null; // set inside agent(), which TS cannot see
+      if (!gate.ok && edit) {
+        const up = models!.raise('fix', edit.tier + 1, `the gate was red after ${edit.job} on ${edit.model.replace(/^[^/]+\//, '')}`);
+        if (up) log(`the gate is red after ${edit.job} — the fixer climbs to ${describe(up)}`);
+      }
+      if (a && 'dead' in a) return handBack('Audit', `the ${a.dead} auditor did not finish twice`);
+      const raised: Finding[] = [
+        ...(a ? a.raised : []),
+        ...(gate.ok && red && red.checked && red.failedOnBase === false ? [{
+          severity: 'minor' as const, category: 'test-proves-nothing', file: red.tests[0] || 'tests/',
+          claim: 'the tests this branch added or changed pass with its app code reverted',
+          evidence: `scripts/red-check.mjs reverted ${red.reverted.join(', ')} to ${BASE} and ran ${red.tests.join(', ')}: none failed`,
+          fix: 'add a test that exercises the changed code where an attendee meets it, and fails on the base branch',
+        }] : []),
+      ];
+      if (a) {
+        // A test gap is never a blocker, whatever the auditor called it: it rides along with the next fix as polish.
+        minors = raised.filter((f) => f.severity === 'minor' || isTestGap(f)).map((f) => ({ ...f, severity: 'minor' as const }));
+        polish = minors.filter(isTestGap);
+        history.push(...a.confirmed);
+      }
+      const covered = a ? a.reports.map((r: any) => `ran ${r.ran}: ${String(r.covered).slice(0, 80)}`).join(' · ') : 'the fix, re-gated — not re-audited (fast)';
+      if (gate.ok) {
+        if (!a) {
+          rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: 0, confirmed: 0, covered });
+          minors = await confirm(dedupe(minors).slice(0, 3), 'the change', ticket);
+          break;
+        }
+        // Only a round whose gate was green counts toward the audit budget, as when the audit waited for it.
+        audited++;
+        open = a.confirmed;
+        rounds.push({ round, gate: `✅ ${gateLine(gate)}`, raised: raised.length, confirmed: open.length, covered });
+        log(`round ${round}: green, ${raised.length} raised, ${open.length} confirmed`);
+        if (!open.length) { minors = await confirm(dedupe(minors).slice(0, 3), 'the change', ticket); break; }
+      } else {
+        // Red: the failing tests and whatever the audit confirmed at the same commit go to one fix round.
+        const failures = [...(gate.unit.failed ? [{ test: 'npm test', error: gate.unit.output || `${gate.unit.failed} failed` }] : []), ...gate.browser.failed];
+        if (!failures.length && !a?.confirmed.length) return handBack('Gate', 'the gate is red but names no failing test');
+        const red_ = failures.map((f: any) => ({ severity: 'blocker' as const, category: 'gate', file: f.test, claim: `gate red: ${f.test}`, evidence: f.error, fix: 'make the gate green without editing, skipping or deleting an existing test' }));
+        open = dedupe([...red_, ...(a?.confirmed ?? [])]);
+        rounds.push({ round, gate: `❌ ${gateLine(gate)}`, raised: red_.length + (a ? raised.length : 0), confirmed: open.length, covered: a ? `audited alongside: ${a.confirmed.length} confirmed, fixed with the gate` : '' });
+        log(`round ${round}: gate red, ${red_.length} failing${a ? `; the audit beside it confirmed ${a.confirmed.length}` : ''}`);
+      }
     }
     await show();
 
@@ -553,18 +653,26 @@ async function shipRun(input: ShipInput) {
     `if ! git merge --no-edit origin/${BASE} >"$JOB/merge.log" 2>&1; then git merge --abort; echo '{"ok":false,"why":"conflict"}' > "$JOB/result.json"; exit 0; fi`,
     `AFTER=$(git log --name-only --format= ${gate.sha}..HEAD | grep -vE '^(context/|specs/)|\\.md$' | grep -v '^$' | sort -u | paste -sd, -)`,
     `git push -q -u origin HEAD >"$JOB/push.log" 2>&1 || { echo '{"ok":false,"why":"push failed"}' > "$JOB/result.json"; exit 0; }`,
+    gateRef ? `git push -q origin ":${gateRef}" >/dev/null 2>&1 || true` : '',
     // Screenshots are the shots workflow's (before and after, on the preview), not a media branch.
     `STAT=$(git diff --stat origin/${BASE}...HEAD | tail -40)`,
     `STAT="$STAT" AFTER="$AFTER" HEAD_SHA=$(git rev-parse HEAD) node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({ok:true,head:e.HEAD_SHA,stat:e.STAT,codeAfterGate:(e.AFTER||"").split(",").filter(Boolean)}))'`,
-  ].join('\n'));
+  ].filter(Boolean).join('\n'));
+  await disposeShards();
+  gateRef = '';
   if (!final?.ok) return handBack('Pull request', final?.why === 'conflict' ? `conflicts with ${BASE} after the gate` : 'could not push the branch');
   if (final.codeAfterGate?.length) return handBack('Pull request', `code changed after the gate passed: ${final.codeAfterGate.join(', ')}`);
+  // What the gate ran green, for verify: the pull request's head differs from the gated commit only in
+  // docs and specs (just checked), so verify runs only what its own selection adds. Written before the
+  // pull request opens, since opening it is what starts verify.
+  const ranSel = lastSel as Selection | null; // set inside gateShards(), which TS cannot see
+  if (ranSel) await recordGate(gateRecord(final.head, gate, ranSel)).catch(() => null);
 
   const fixedCount = rounds.reduce((x, r) => x + r.confirmed, 0);
   const notVerified = [
     ...(!(red && red.checked) ? ['no red-check ran — no app code changed'] : []),
     ...(red && red.checked && !red.failedOnBase ? ['the new tests also pass without the change (judged a refactor)'] : []),
-    ...(gate.scope === 'branch' ? ['only the browser specs this change reaches ran; main runs the whole suite after merge'] : []),
+    ...(ranSel && ranSel.mode !== 'full' ? [`the gate ran ${ranSel.ran} of ${ranSel.total} browser tests, the ones this change reaches; verify adds what its own selection needs, and main runs them all after merge`] : []),
     ...(!profile.reaudit && rounds.some((r) => r.confirmed) ? ['the fix for what the audit found was re-gated, not re-audited'] : []),
     ...(gate.browser.flakyTests?.length ? [`${gate.browser.flakyTests.length} test(s) flaky, passed on retry`] : []),
   ];
@@ -576,7 +684,7 @@ async function shipRun(input: ShipInput) {
     '',
     built.summary,
     '',
-    `**🛡️ Checks:** ` + [`Tests pass — ${gateLine(gate)}${gate.scope === 'branch' ? ' (the specs this change reaches)' : ', desktop and mobile'}`,
+    `**🛡️ Checks:** ` + [`Tests pass — ${gateLine(gate)}${ranSel && ranSel.mode !== 'full' ? ` · ran ${ranSel.ran} of ${ranSel.total} browser tests (${ranSel.mode}: ${ranSel.reason})` : ', desktop and mobile'}`,
       ...(red && red.checked && red.failedOnBase ? ['the new tests fail without the change'] : []),
       `independent audit: ${fixedCount ? `${fixedCount} problem${fixedCount === 1 ? '' : 's'} found and fixed, ` : ''}clean after ${rounds.length} round${rounds.length === 1 ? '' : 's'}`].join(' · '),
     notVerified.length ? `\n**Not verified:** ${notVerified.join('; ')}.` : '',
@@ -659,14 +767,20 @@ async function shipRun(input: ShipInput) {
       `${ticket}\nThe pull request for this ticket, #${pr.number} on branch ${branch} (spec ${specPath}), was reviewed and tried on its preview. These were found:\n\n${list(open)}\n\n` +
       `Fix each at its cause, and only these. A stale doc: make it say what the code does now, and \`git grep -n -i\` CLAUDE.md, .claude/rules/ and context/ for the same claim elsewhere. ` +
       `A QA bug: reproduce it in a test first, then fix it. Never edit an existing test to make it pass, never skip or delete one. \`npm test\` after every edit; a browser test you add or change runs alone by title. ` +
-      `Leave \`git status\` clean. Commit and push.` + polishAsk(verdicts.polish),
+      // Not pushed by the fixer: a push to the open pull request starts verify, and ship's gate below goes first.
+      `Leave \`git status\` clean. Commit, but do not push — ship pushes once its gate has run.` + polishAsk(verdicts.polish),
       S.BUILT, 'fix');
-    if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); break; }
-    const ran = await command(`gate#r${round}`, gateScript(BASE, profile.gateScope));
-    const g = readGate(ran?.gate ?? '');
-    rounds.push({ round: rounds.length + 1, gate: `${g.ok ? '✅' : '❌'} ${gateLine(g)} (after review)`, raised: open.length, confirmed: open.length, covered: 'fixed what review and QA found' });
-    if (!g.ok) { log('the gate is red after the fix'); break; }
-    await command(`push#r${round}`, `git push -q origin HEAD >"$JOB/push.log" 2>&1; echo '{"ok":true}' > "$JOB/result.json"`);
+    if (!fixed?.ok) { log(`the fixer could not finish: ${fixed?.summary ?? 'no result'}`); await command(`push#r${round}`, `git push -q origin HEAD >"$JOB/push.log" 2>&1; echo '{"ok":true}' > "$JOB/result.json"`); break; }
+    fullSuite = fullSuite || (await readPullRequest(pr.number)).labels.includes(FULL_SUITE_LABEL);
+    const chosen = await selectGate(`#r${round}`, false);
+    const g = chosen?.sel ? (await gateShards(chosen.sel, String(chosen.ran.sha), `#r${round}`)).gate : null;
+    rounds.push({ round: rounds.length + 1, gate: g ? `${g.ok ? '✅' : '❌'} ${gateLine(g)} (after review)` : `⚠️ no gate (${chosen ? 'conflicts' : 'did not finish'})`, raised: open.length, confirmed: open.length, covered: 'fixed what review and QA found' });
+    // Recorded before the push, so the verify the push starts runs only what this gate did not.
+    if (g?.ok && chosen?.sel) await recordGate(gateRecord(String(chosen.ran.sha), g, chosen.sel)).catch(() => null);
+    const pushed = await command(`push#r${round}`, `git push -q origin HEAD >"$JOB/push.log" 2>&1; ${gateRef ? `git push -q origin ":${gateRef}" >/dev/null 2>&1; ` : ''}echo '{"ok":true}' > "$JOB/result.json"`);
+    gateRef = '';
+    await disposeShards();
+    if (!g?.ok) { log(`the gate is red after the fix${pushed ? ' — pushed, so the pull request shows it' : ''}`); break; }
     await disposeSandbox(box);
     await show();
     verdicts = await checks(round);
@@ -743,33 +857,6 @@ function profileFor(f: any): Profile {
   if (f?.openQuestions >= 2) { p.planAudits = ['combined']; p.planRounds = 1; added.push(`${f.openQuestions} open questions → a plan audit`); }
   if (f?.uiInteraction || f?.layoutFit) { p.browserAlways = true; p.probes = 4; added.push('interaction or fit → a browser audit'); }
   return { ...p, why: [f?.why || 'a contained change', ...added].join('; ') };
-}
-
-function gateScript(base: string, scope?: 'branch') {
-  return [
-    `git fetch -q origin ${base}`,
-    `SYNC=current; CONFLICTS=""`,
-    `if git merge --no-edit origin/${base} >"$JOB/merge.log" 2>&1; then grep -q "Already up to date" "$JOB/merge.log" || { SYNC=merged; git push -q origin HEAD || true; }; ` +
-      `else SYNC=conflict; CONFLICTS=$(git diff --name-only --diff-filter=U | paste -sd, -); git merge --abort; fi`,
-    `GATE=""; RED=""; FACTS=""`,
-    `if [ "$SYNC" != conflict ]; then`,
-    `  GATE=$(${scope === 'branch' ? 'GATE_SCOPE=branch ' : ''}GATE_BASE=origin/${base} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
-    `  case "$GATE" in *'"ok":true'*) RED=$(${scope === 'branch' ? 'RED_SCOPE=unit ' : ''}GATE_BASE=origin/${base} node scripts/red-check.mjs 2>"$JOB/red.err" | tail -1);; esac`,
-    `  FACTS=$(node scripts/qa-facts.mjs origin/${base} 2>/dev/null | tail -1)`,
-    `fi`,
-    `SYNC="$SYNC" CONFLICTS="$CONFLICTS" GATE="$GATE" RED="$RED" FACTS="$FACTS" node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({sync:e.SYNC,conflicts:(e.CONFLICTS||"").split(",").filter(Boolean),gate:e.GATE,red:e.RED,facts:e.FACTS}))'`,
-  ].join('\n');
-}
-
-function readGate(line: string) {
-  try {
-    const r = JSON.parse(line);
-    if (typeof r.ok !== 'boolean' || typeof r.sha !== 'string' || !r.unit || !r.browser || !Array.isArray(r.browser.failed) || !Array.isArray(r.tampered)) throw new Error('not a gate result');
-    if (r.dirty) return { ...r, ok: false, browser: { ...r.browser, failed: [...r.browser.failed, { test: 'git status', error: 'the gate ran on uncommitted changes — commit or discard them' }] } };
-    return r;
-  } catch {
-    return { ok: false, sha: '?', unit: { passed: 0, failed: 0 }, tampered: [], browser: { passed: 0, flaky: 0, skipped: 0, failed: [{ test: 'gate.mjs', error: `unreadable gate output: ${String(line).slice(0, 200)}` }] } };
-  }
 }
 
 function parseRed(line: string) {

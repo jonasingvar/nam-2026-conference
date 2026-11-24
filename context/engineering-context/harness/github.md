@@ -15,7 +15,8 @@ comments carry `<!-- factory…` or `<!-- ship-on-vercel` markers).
 | Event | Starts |
 | --- | --- |
 | issue labelled `ready-for-ai` · `/ship` or `@claude` on an issue | ship |
-| any pull request opened, reopened or pushed to | verify — no credential, so safe for anyone's |
+| any pull request opened, reopened or pushed to (one ship opened too) | verify — no credential, so safe for anyone's; on a ship pull request it skips what ship's gate ran green at that commit |
+| `full-suite` put on a pull request | verify again, running every test |
 | …on a branch of this repository, by someone with write access, not a bot (and not one ship opened, which runs its own) | review + QA too |
 | `/review` on a pull request, by someone with write access | verify, review + QA — a fork's pull request too: its head is fetched as `pull/<n>/head`, and review and QA hold no GitHub token |
 | `/fix …` or `@claude …` on a pull request of a branch in this repository | respond |
@@ -44,6 +45,8 @@ which run already has it.
 
 Labels: `ready-for-ai` (start), `ai-working`, `needs-human`, `ready-for-human`,
 `ship:fast` / `ship:full` (a person's sizing, read before Jev's),
+`full-suite` (verify, and ship's gate on that pull request or its issue, run
+every test instead of the ones the change needs; main always does),
 `harness-escape`. The factory never opens an issue of its own: follow-ups stay
 in the review comment. Statuses on a commit, beside Vercel's
 own: `factory/verify`, `factory/review`, `factory/qa` — each links to its run.

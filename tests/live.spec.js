@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { API, visit, momentOn, conferenceDays, MID_SESSION_TIME, ATTENDEES } from './helpers.js';
 
 test.describe('Conference clock', () => {

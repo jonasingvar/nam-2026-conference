@@ -83,7 +83,7 @@ const EDIT: Profile = { input: 60_000, cached: 1_200_000, output: 20_000 };
 
 export type Job =
   | 'spec' | 'planAudit' | 'reviseSpec' | 'implement' | 'fix' | 'audit' | 'browserAudit' | 'skeptic' | 'learn'
-  | 'reviewLens' | 'recheck' | 'qaTriage' | 'qaPlan' | 'qaWrite' | 'qaSkeptic' | 'baseSame' | 'respond';
+  | 'reviewLens' | 'recheck' | 'qaTriage' | 'qaPlan' | 'qaWrite' | 'qaSkeptic' | 'baseSame' | 'respond' | 'testSelect';
 
 export type JobSpec = {
   /** What the job does, for Jev. */
@@ -120,6 +120,9 @@ export const JOBS: Record<Job, JobSpec> = {
   qaSkeptic: { does: 'tries to refute a probe failure as a bug in the change: a wrong selector, a wrong expectation, an unpinned clock', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 2 }, miss: 0.3, effort: 'medium' },
   baseSame: { does: 'reads a probe and the diff: does the base branch fail it for the same reason, or only because the feature is new', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 1 }, miss: 0.2, effort: 'low' },
   respond: { does: "makes the change a person asked for on a pull request, and nothing else", tokens: EDIT, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 2 } },
+  // One structured call, no tools: CI's test selector (lib/select.ts). A miss is cheap — the smoke spec always runs,
+  // an unsure answer widens the run, and main runs everything — so it starts at the cheapest tier.
+  testSelect: { does: "reads a pull request's diff, the coverage map's candidate tests and the list of browser specs, and adds or removes specs with a reason for each — one structured answer, no tools", tokens: { input: 15_000, cached: 0, output: 1_500 }, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 0 }, miss: 0.05, effort: 'low' },
 };
 
 /** A climb's delay (another agent run before the job is done), in dollars. */

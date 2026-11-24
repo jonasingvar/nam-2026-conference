@@ -5,6 +5,7 @@ read_when: writing or fixing a test, adding a data lane, a flaky or cross-talkin
 files:
   - playwright.config.js
   - tests/helpers.js
+  - tests/fixtures.js
   - tests/api/harness.js
   - tests/unit/sandbox-db.js
   - scripts/lane.mjs
@@ -120,10 +121,16 @@ Everything takes injectable `root`, `worktree`, `free`, `exists` — that is how
 `WEB_PORT` is not answering, writes `.screenshots/<route>[.mobile].png`, and exits 1 if the
 page logged a console error.
 
+**Specs import `test` and `expect` from `./fixtures.js`**, not `@playwright/test`: it is plain Playwright
+unless `ORBIT_COVERAGE` is set, when it records which source files each test ran — what the factory's
+test map is built from (`scripts/test-map.mjs`; `tests/unit/test-map.test.js` fails a spec that imports
+Playwright directly).
+
 **CI** is the factory's `verify` workflow (`factory/workflows/verify.ts`, harness doc): every push to a
-pull request and to `main` runs `node scripts/gate.mjs` in a Vercel Sandbox forked from the warm one, and
-reports the commit status `factory/verify`. A `ship:fast` pull request runs `GATE_SCOPE=branch` (the browser
-specs its change reaches); `main` always runs the whole suite. There are no GitHub Actions.
+pull request and to `main` reports the commit status `factory/verify`. A pull request runs the tests its
+change needs — the test map's candidates, a five-test smoke set and its own specs — desktop and
+mobile in two sandboxes at once (`GATE_SPECS`, `GATE_GREP`, `GATE_PROJECT`, `GATE_UNIT=skip` in
+`scripts/gate.mjs`); the `full-suite` label and `main` run the whole suite. There are no GitHub Actions.
 
 ## Invariants
 

@@ -221,6 +221,30 @@ export async function readPullRequest(n: number): Promise<PullRequest> {
   };
 }
 
+/**
+ * What a commit changes, and its patch: against the base it branched from
+ * (`base...sha`, a pull request), or against its parent (a push to main).
+ * Not a step — the `classify` step in phases.ts calls it.
+ */
+export async function changesOf(sha: string, base: string | null) {
+  const j = base ? await gh(`/compare/${encodeURIComponent(base)}...${sha}`) : await gh(`/commits/${sha}`);
+  const files: any[] = j.files || [];
+  return {
+    files: files.filter((f) => f.status !== 'removed').map((f) => String(f.filename)),
+    removed: files.filter((f) => f.status === 'removed').map((f) => String(f.filename)),
+    diff: files.map((f) => `--- ${f.filename} (${f.status})\n${f.patch ?? '(no patch shown)'}`).join('\n').slice(0, 40_000),
+    // The compare API lists at most 300 files: past that, "what changed" is not known.
+    complete: files.length < 300,
+  };
+}
+
+/** The pull request a commit on main came from, and its head when merged. Not a step. */
+export async function pullOfCommit(sha: string): Promise<{ number: number; headSha: string } | null> {
+  const prs: any[] = await gh(`/commits/${sha}/pulls`, { headers: { accept: 'application/vnd.github+json' } });
+  const p = prs.find((x) => x.merged_at) ?? prs[0];
+  return p ? { number: p.number, headSha: p.head?.sha } : null;
+}
+
 /** The JSON in the newest `<!-- <marker> {…} -->` comment on an issue or PR, if any. */
 export async function readMarker(n: number, marker: string): Promise<any | null> {
   'use step';

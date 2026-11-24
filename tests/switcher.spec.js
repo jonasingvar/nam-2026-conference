@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { visit, momentOn, laneFor, bookableFor, ATTENDEES } from './helpers.js';
 
 test.describe('Attendee switcher', () => {
