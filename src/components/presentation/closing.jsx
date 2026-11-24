@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { animate, motion } from 'motion/react';
-import { at, Show, Replay, Code, Label, Kicker, Vercel, PrIcon, later, box } from './kit.jsx';
-import { Orbits } from './opening.jsx';
+import { at, Show, Replay, Code, Label, Kicker, Model, Vercel, PrIcon, later, box } from './kit.jsx';
 import { GH } from './apps.jsx';
 
 /** A number that counts up to `to` as it appears. */
@@ -229,6 +228,86 @@ function ScaleScene() {
  * Your role — what the factory leaves to you, then the bookend.
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * The whole factory on one slide: every Vercel piece, and the numbered
+ * path a ticket takes through them. Laid out on the bare 1600×900 stage.
+ * ------------------------------------------------------------------ */
+
+// [x, y, w, h] of each box — the wires below are drawn between these
+const N = {
+  issue: [60, 150, 250, 120], fn: [390, 150, 280, 120], wf: [750, 150, 790, 120],
+  sandbox: [390, 340, 360, 190], gateway: [830, 340, 400, 190], blob: [1310, 340, 190, 190],
+  pr: [60, 600, 250, 120], preview: [390, 600, 360, 120], merge: [830, 600, 230, 120], prod: [1140, 600, 400, 120],
+};
+
+// [n, path, label, label x, label y, delay]
+const WIRES = [
+  [1, 'M310 210 L390 210', 'webhook', 350, 196, 500],
+  [2, 'M670 210 L750 210', 'starts', 710, 196, 900],
+  [3, 'M860 270 C 860 310, 570 300, 570 340', 'forks one per run', 720, 296, 1400],
+  [4, 'M750 435 L830 435', 'models', 790, 421, 1900],
+  [5, 'M1405 270 L1405 340', 'screenshots', 1340, 318, 2300],
+  [6, 'M390 470 C 250 470, 185 520, 185 600', 'pushes the branch', 232, 540, 2700],
+  [7, 'M310 660 L390 660', 'builds', 350, 646, 3100],
+  [8, 'M750 660 L830 660', 'try it', 790, 646, 3500],
+  [9, 'M1060 660 L1140 660', 'deploys', 1100, 646, 3900],
+  [10, 'M1540 660 L1568 660 L1568 210 L1540 210', 'health', 1568, 452, 4300],
+];
+
+function Part({ at: [x, y, w, h], name, sub, delay = 0, vercel = true, tone = 'border-hairline bg-surface', children }) {
+  return (
+    <div className={`pz-appear absolute flex flex-col justify-center rounded-2xl border px-5 ${tone}`} style={{ left: x, top: y, width: w, height: h, ...later(delay) }}>
+      <div className="flex items-center gap-2 whitespace-nowrap font-display text-[21px] leading-tight text-ink">{vercel && <Vercel className="size-3.5 shrink-0" />}{name}</div>
+      {sub && <div className="mt-1 text-[15px] leading-snug text-muted">{sub}</div>}
+      {children}
+    </div>
+  );
+}
+
+function Architecture() {
+  return (
+    <>
+      <div className="pz-appear absolute inset-x-0 top-[62px] text-center font-display text-[38px] text-ink">How it is all wired <span className="text-muted">— one ticket, ten hops, all on</span> <Vercel className="mb-1.5 inline size-7" /> Vercel</div>
+
+      <svg viewBox="0 0 1600 900" className="pointer-events-none absolute inset-0" aria-hidden="true">
+        {WIRES.map(([n, d, label, lx, ly, t]) => (
+          <g key={n}>
+            <path d={d} pathLength="1" className="pz-draw-in" fill="none" stroke="#6d28d9" strokeWidth="2.5" style={later(t)} />
+            <g className="pz-appear" style={later(t + 500)}>
+              <path d={d} pathLength="1" className="pz-flow" fill="none" stroke="#c4b5fd" strokeWidth="2.5" />
+              <circle cx={lx} cy={ly - 26} r="12" fill="#12141c" stroke="#a78bfa" strokeWidth="1.5" />
+              <text x={lx} y={ly - 21} textAnchor="middle" fill="#ede9fe" fontSize="13" fontFamily="JetBrains Mono, monospace">{n}</text>
+              <text x={lx} y={ly} textAnchor="middle" fill="#9aa2b8" fontSize="12.5" fontFamily="JetBrains Mono, monospace" stroke="#12141c" strokeWidth="5" paintOrder="stroke">{label}</text>
+            </g>
+          </g>
+        ))}
+      </svg>
+
+      <Part at={N.issue} vercel={false} name="GitHub issue" delay={200}><div className="mt-2"><Label name="ready-for-ai" className="text-[12px]" /></div></Part>
+      <Part at={N.fn} name="Vercel Functions" sub={<Code className="text-[14px]">POST /api/github</Code>} delay={700} />
+      <Part at={N.wf} name="Vercel Workflows" sub="ship: one durable run, every step saved · sleeps for free until you merge" delay={1100} tone="pz-glow border-violet-400/60 bg-raised">
+        <div className="mt-1.5 whitespace-nowrap font-mono text-[12.5px] text-violet-200">triage → plan → build → gate → audit → pull request → preview → review &amp; QA → merge → production</div>
+      </Part>
+      <Part at={N.sandbox} name="Vercel Sandbox" sub="a fresh machine per run, forked in seconds. The agent runs here and holds no keys." delay={1600} />
+      <Part at={N.gateway} name="AI Gateway" sub="every model behind one endpoint" delay={2100}>
+        <div className="mt-2 flex flex-wrap gap-1">{['haiku', 'glm', 'deepseek', 'sonnet', 'opus'].map((m) => <Model key={m} m={m} className="text-[11.5px]" />)}</div>
+        <div className="mt-2 text-[14px] text-amber-200">Jev picks one per step, in 300 ms</div>
+      </Part>
+      <Part at={N.blob} name="Vercel Blob" sub="the screenshots" delay={2500} />
+      <Part at={N.pr} vercel={false} name="Pull request" sub="link, screenshots, review, QA" delay={2900} />
+      <Part at={N.preview} name="Vercel Preview" sub="its own isolated deployment and URL" delay={3300} tone="border-emerald-400/50 bg-emerald-500/[0.07]" />
+      <Part at={N.merge} vercel={false} name="You click merge" sub="the run wakes" delay={3700} tone="border-emerald-400/50 bg-emerald-500/[0.07]" />
+      <Part at={N.prod} name="Production" sub="the app on Vercel, data on Turso · checked before the issue is called done" delay={4100} />
+
+      <div className="pz-appear absolute inset-x-0 top-[762px] text-center" style={later(4800)}>
+        <div className="font-display text-[34px] leading-tight text-ink">Write the ticket. Click merge. <span className="pz-shine bg-clip-text text-transparent">The factory does the rest.</span></div>
+        <div className="mt-2 font-mono text-[17px] text-muted">github.com/jonasingvar/nam-2026-conference</div>
+        <div className="mt-1 text-[14px] text-faint">The ship loop is Andy Vays’s design · built at Equal Experts by Jonas Claesson and Abraham Marín Pérez · rebuilt on Vercel by Jonas Claesson</div>
+      </div>
+    </>
+  );
+}
+
 function RoleScene({ step }) {
   return (
     <>
@@ -253,24 +332,8 @@ function RoleScene({ step }) {
         ))}
       </Show>
 
-      {/* the bookend: the title's orbits, back behind the last words */}
-      <Show on={step === 1} from="none" delay={400} style={at(0, 0, 1600, 900)} className="pointer-events-none">
-        <Orbits style={at(380, 10, 840, 840)} className="opacity-[0.08]" />
-      </Show>
-      <Show on={step === 1} from="scale" style={at(80, 70, 1440, 760)} className="flex flex-col items-center justify-center text-center">
-        <div className="font-display text-[88px] leading-[0.98] text-ink">
-          Write the ticket.<br />
-          Click merge.<br />
-          <span className="pz-shine bg-clip-text text-transparent">The factory does the rest.</span>
-        </div>
-        <div className="mt-9 flex items-center gap-3 text-[19px] text-muted">
-          <Vercel className="size-4 text-ink" />
-          {['Workflows', 'Sandbox', 'AI Gateway', 'Blob', 'Previews'].map((p) => <span key={p} className="rounded-full border border-hairline bg-ground/60 px-3.5 py-1 font-mono text-[16px]">{p}</span>)}
-          <span className="text-faint">+ Jev, Turso and Claude Code</span>
-        </div>
-        <div className="mt-6 font-mono text-[20px] text-muted">github.com/jonasingvar/nam-2026-conference</div>
-        <div className="mt-3 text-[17px] text-faint">The ship loop is Andy Vays’s design · built at Equal Experts by Jonas Claesson and Abraham Marín Pérez · rebuilt on Vercel by Jonas Claesson</div>
-      </Show>
+      {/* the last slide: how it is all wired, one numbered path from the label to production */}
+      <Replay on={step === 1} from="scale" style={at(0, 0, 1600, 900)}><Architecture /></Replay>
     </>
   );
 }
