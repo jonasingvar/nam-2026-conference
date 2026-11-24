@@ -46,7 +46,7 @@ export function Orbits({ style = at(940, 20, 640, 640), className = '' }) {
   );
 }
 
-const PRIMITIVES = ['Workflows', 'Sandbox', 'AI Gateway', 'Jev'];
+const PRIMITIVES = ['Workflows', 'Sandbox', 'AI Gateway', 'Previews'];
 
 function TitleScene() {
   return (
@@ -88,7 +88,7 @@ const TIMELINE_AT = 1700;
 
 const AFTER_THE_LABEL = [
   ['▲', 'Vercel picks the ticket up: a webhook starts a durable workflow', 'no runner to queue for, no laptop to leave open'],
-  ['🧮', 'Jev sizes the ticket and picks a model for every job', 'a third of a second'],
+  ['🧮', 'Jev, a small decision model, sizes it and picks a model for every job', 'a third of a second'],
   ['📄', 'A spec lands as the branch’s first commit', 'read the intent before the diff'],
   ['🧪', 'A failing test, then the change that turns it green', 'in a sandbox forked for this run'],
   ['🚦', 'The gate passes; independent auditors find nothing left', 'scripts decide, agents advise'],
@@ -254,7 +254,7 @@ export const OPENING = [
       {
         kicker: 'The promise',
         title: 'Label an issue. Vercel picks it up from there',
-        body: 'One label reaches the factory’s webhook, and a durable workflow takes the ticket: sized, planned, built test-first, gated, audited, deployed to a preview, photographed, reviewed and tested. Your part is the ticket and the merge.',
+        body: 'One label reaches the factory’s webhook, and a durable workflow takes the ticket all the way to a reviewed pull request on its own preview. Your part is the ticket and the merge.',
       },
     ],
     Scene: PromiseScene,
@@ -264,7 +264,7 @@ export const OPENING = [
     beats: [
       {
         kicker: 'The ticket',
-        title: 'It starts with a GitHub issue a test can check',
+        title: 'It starts with a GitHub issue written so a test can check it',
         body: 'The product harness turned a conversation into this: why, what should change, and the Done when list every later agent is judged against. It arrives carrying its context — the docs the agents read instead of the source.',
       },
     ],

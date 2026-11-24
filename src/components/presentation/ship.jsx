@@ -49,7 +49,7 @@ function Rail({ active }) {
         transition={{ type: 'spring', stiffness: 80, damping: 14 }}
       />
       {active === STATIONS.length - 1 && (
-        <span className="pz-pop absolute rounded-full border border-emerald-300/70 bg-emerald-500/30 px-2.5 font-mono text-[13px] font-semibold leading-6 text-emerald-50 shadow-[0_0_20px_-2px_rgba(52,211,153,0.9)]" style={{ left: x - TOKEN_W / 2 - 74, top: RAIL_Y - 12, animationDelay: '900ms' }}>✓ live</span>
+        <span className="pz-pop absolute z-10 rounded-full border border-emerald-300 bg-emerald-700 px-2.5 font-mono text-[13px] font-semibold leading-6 text-white shadow-[0_0_20px_-2px_rgba(52,211,153,0.9)]" style={{ left: x - TOKEN_W / 2 - 74, top: RAIL_Y - 12, animationDelay: '900ms' }}>✓ live</span>
       )}
     </>
   );
@@ -109,23 +109,22 @@ function TriageDetail() {
             <div key={d} className="pz-appear flex gap-2" style={later(200 + i * 150)}><span className="text-violet-300">☐</span>{d}</div>
           ))}
         </div>
-        <div className="pz-appear mt-6 flex items-center gap-3 border-t border-hairline pt-4" style={later(900)}>
-          <span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-3 py-0.5 font-mono text-[15px] text-amber-100">Jev</span>
-          <span className="font-display text-[26px] text-ink">small</span>
-          <span className="font-mono text-[14px] text-emerald-300">78% sure</span>
+        <div className="pz-appear mt-auto flex items-center gap-2 border-t border-hairline pt-4" style={later(900)}>
+          <span className="text-[14px] text-faint">labels</span>
+          <span className="pz-strike text-violet-300" style={later(1300)}><Label name="ready-for-ai" className="text-[12px]" /></span>
+          <Label name="ai-working" className="pz-pop text-[12px]" style={later(1300)} />
         </div>
-        <div className="pz-appear mt-2 text-[14px] text-faint" style={later(1100)}>no plan audit · two auditors · two rounds at most</div>
       </div>
       <div className="flex flex-col justify-between">
         <Row icon="🏷️" title="Claim it" sub={<>label <Label name="ai-working" className="mx-1 text-[12px]" /> and one run token: a second label starts nothing</>} delay={300} />
-        <Row icon="🧮" title="Size it, and choose the models" sub="Jev: small, 78% sure — then one more call picks a tier for every job" delay={650} />
-        <Row icon="📦" title="A sandbox of its own" sub={<><span className="font-mono text-[14px]">ship-140</span>, forked from orbit-warm in seconds</>} delay={1000} />
-        <Row icon="🌿" title="A branch of its own" sub={<span className="font-mono text-[14px]">issue-140-keep-sessions-in-view</span>} delay={1350} />
+        <Row icon="💬" title="Say so on the issue" sub="one comment, edited at every phase from here to production" delay={650} />
+        <Row icon="🧮" title="Size it" sub="Jev: how big a job is this? — next slide" delay={1000} />
+        <Row icon="🪜" title="Choose the models" sub="one more call: a tier for each of the run’s nine jobs" delay={1350} />
       </div>
-      <div className="pz-appear flex flex-col justify-center rounded-2xl border-2 border-dashed border-amber-400/60 bg-amber-500/10 p-6" style={later(1800)}>
-        <Label name="needs-human" className="self-start" />
-        <div className="mt-4 font-display text-[28px] leading-tight text-ink">Not enough to build? It stops here</div>
-        <div className="mt-3 text-[17px] text-muted">No Done when, or a question only a person can answer — it goes back before a line of code, not after an hour of guessing.</div>
+      <div className="pz-appear flex flex-col justify-center rounded-2xl border border-violet-400/40 bg-raised p-6" style={later(1800)}>
+        <Kicker>All of this</Kicker>
+        <div className="mt-3 font-display text-[40px] leading-none text-ink">about a second</div>
+        <div className="mt-3 text-[17px] text-muted">No machine has started yet. Triage is the workflow itself deciding what this run should be, before it spends anything on it.</div>
       </div>
     </div>
   );
@@ -142,7 +141,7 @@ const SPEC_LINES = [
   { t: '## How it will be proved', c: 'text-violet-300' },
   { t: '| first card in view | phone, Filters open | spec |', c: 'text-emerald-300' },
   { t: '## Decisions', c: 'text-violet-300' },
-  { t: 'Hide the My agenda card below lg — OK?', c: 'text-amber-300' },
+  { t: 'Hide the My Agenda card below lg — OK?', c: 'text-amber-300' },
 ];
 
 function SpecDetail() {
@@ -150,20 +149,26 @@ function SpecDetail() {
     <div className="grid h-full grid-cols-[1.6fr_1fr] gap-6">
       <div className="overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]">
         <div className="flex border-b border-hairline bg-surface font-mono text-[13px]">
-          <span className="border-r border-hairline bg-[#0d0f15] px-4 py-2 text-ink">specs/140-compact-mobile-filters.md</span>
+          <span className="border-r border-hairline bg-[#0d0f15] px-4 py-2 text-ink">specs/140-keep-sessions-in-view-on.md</span>
         </div>
         <div className="space-y-1.5 px-6 py-4 font-mono text-[16px]">
           {SPEC_LINES.map((l, i) => <div key={i} className={`pz-appear ${l.c}`} style={later(150 + i * 220)}>{l.t}</div>)}
         </div>
       </div>
-      <div className="flex flex-col gap-4">
-        <div className={`${box} p-5 font-mono text-[15px]`}>
+      <div className="flex flex-col gap-3">
+        <div className={`${box} px-5 py-3 font-mono text-[15px]`}>
           <div className="pz-appear text-amber-300" style={later(2100)}>● docs(spec): plan compact mobile filters</div>
-          <div className="pz-appear mt-1 text-faint" style={later(2300)}>the first commit on the branch</div>
+          <div className="pz-appear mt-1 text-faint" style={later(2300)}>the first commit on <span className="text-muted">issue-140-keep-sessions-in-view-on</span></div>
         </div>
-        <div className={`${box} pz-appear flex-1 p-5 text-[18px] text-muted`} style={later(2500)}>
-          Its <b className="text-ink">Where</b> names the files, the test file and the helpers — so the builder searches for nothing.
-          <div className="mt-3">A reviewer reads the <b className="text-ink">intent before the diff</b>, and a misread ticket surfaces while it is still cheap. On a full ticket, auditors judge the plan first.</div>
+        <div className="pz-appear rounded-2xl border border-amber-400/40 bg-raised px-5 py-3" style={later(2500)}>
+          <div className="flex items-center gap-2 text-[15px] text-muted"><span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-2.5 font-mono text-[13px] text-amber-100">Jev</span> was only 55% sure, so the plan’s facts decide:</div>
+          <div className="mt-1.5 flex items-baseline gap-3"><span className="font-display text-[26px] text-ink">small</span><span className="text-[15px] text-muted">layout at stake → a browser audit too · two rounds</span></div>
+        </div>
+        <div className={`${box} pz-appear flex flex-1 items-center px-5 py-3 text-[19px] leading-snug text-muted`} style={later(2800)}><div>
+          Its <b className="text-ink">Where</b> names the files and the tests, so the builder searches for nothing — and a reviewer reads the <b className="text-ink">intent before the diff</b>.</div>
+        </div>
+        <div className="pz-appear rounded-2xl border-2 border-dashed border-amber-400/60 bg-amber-500/10 px-5 py-2.5" style={later(3100)}>
+          <div className="flex items-center gap-3"><Label name="needs-human" className="shrink-0 whitespace-nowrap text-[12px]" /><span className="text-[15px] text-muted">No outcome a check could be written against? The planner hands it back before a line of code.</span></div>
         </div>
       </div>
     </div>
@@ -281,7 +286,7 @@ function RedCheckDetail() {
         <div className="pz-appear mt-3 text-[18px] text-emerald-300" style={later(FLIP + 1200)}>… which is the point: the test can tell the two apart.</div>
       </div>
       <div className="pz-appear col-span-2 rounded-xl border border-hairline bg-raised px-6 py-4 text-[19px] text-muted" style={later(FLIP + 1700)}>
-        <Code>scripts/red-check.mjs</Code> puts the old code back and runs the new tests: <b className="text-ink">a test that still passes without the fix proves nothing</b>.
+        <Code>scripts/red-check.mjs</Code> puts the old code back and runs the new tests: <b className="text-ink">a test that still passes without the fix proves nothing</b>. If one does, the auditor is told and the pull request says so.
       </div>
     </div>
   );
@@ -292,14 +297,14 @@ function RedCheckDetail() {
 // a small ticket's auditors; a full one splits the read in two and audits the plan first
 const LENSES = [
   { icon: '🎯', name: 'The auditor', reads: 'the Done when and the repo’s rules, in one read' },
-  { icon: '🖥️', name: 'The browser auditor', reads: 'drives the app, desktop and mobile' },
+  { icon: '🖥️', name: 'The browser auditor', reads: 'drives the app — here because the layout is at stake' },
   { icon: '➕', name: 'On a full ticket', reads: 'separate criteria and rules auditors', more: true },
 ];
 
 const FINDINGS = [
   { lens: 'Auditor', text: 'The My agenda count is hidden on phones', verdict: 'refuted — the count is in the mobile nav', ok: false },
   { lens: 'Auditor', text: 'The rail’s gap is not the other panels’ gap', verdict: 'refuted — a nitpick; nobody is hurt', ok: false },
-  { lens: 'Browser', text: 'At 360 px the search field is off-screen', verdict: 'shown by running it — a blocker', ok: true },
+  { lens: 'Browser', text: 'At 360 px the search field is off-screen', verdict: 'shown: the field’s min-width is wider than 360 px — a blocker', ok: true },
 ];
 
 // [layer, is it an agent, where its holes are] — the gate and red-check are scripts
@@ -389,7 +394,7 @@ function LoopDetail() {
         </div>
         <div className="pz-appear mt-2 space-y-2 text-[18px] text-muted" style={later(2100)}>
           <div>• The round limit is a number in a file: <b className="text-ink">two</b> for a small ticket like this one, <b className="text-ink">four</b> for a full one.</div>
-          <div>• What the audit caught becomes a line in the docs the next agent reads.</div>
+          <div>• What the audit caught can become a line in the docs the next agent reads.</div>
           <div>• The same finding back a third time means the fixer cannot fix it — <b className="text-amber-300">hand it to a person</b>.</div>
         </div>
       </div>
@@ -413,29 +418,26 @@ function PrDetail() {
             <Label name="ship:small" className="pz-pop ml-auto text-[12px]" />
           </div>
         </div>
-        <div className="space-y-2.5 px-6 py-3.5 text-[16px]">
+        <div className="space-y-4 px-6 py-5 text-[18px]">
           <div className="pz-appear rounded-lg border-l-4 border-emerald-400/70 bg-emerald-500/10 px-4 py-2 text-emerald-100" style={later(1500)}>
-            <b>🔎 Try it:</b> <span className="font-mono text-[14px] text-emerald-200/90">nam-2026-conference-9k2m….vercel.app</span> <span className="text-emerald-200/60">— this pull request’s preview</span>
+            <b>🔎 Try it:</b> <span className="font-mono text-[15px] text-emerald-200/90">nam-2026-conference-9k2m….vercel.app</span> <span className="text-emerald-200/60">— this pull request’s preview</span>
           </div>
           <div className="pz-appear text-muted" style={later(200)}>Below <Code>lg</Code> the opened filter rail is compact, so the first session stays in view on a phone. The desktop grid is untouched.</div>
           <div className="pz-appear text-ink" style={later(500)}><b>🛡️ Checks:</b> <span className="text-muted">tests pass · the new tests fail without the change · independent audit clean after 2 rounds</span></div>
-          <div className="pz-appear text-ink" style={later(800)}><b>🤔 Decisions for you</b> <span className="text-muted">— hide the My agenda card on phones: OK?</span></div>
+          <div className="pz-appear text-ink" style={later(800)}><b>🤔 Decisions for you</b> <span className="text-muted">— hide the My Agenda card on phones: OK?</span></div>
           <div className="pz-appear flex flex-wrap gap-2 pt-1" style={later(1100)}>
-            {FOLDED.map((f) => <span key={f} className="rounded-md border border-hairline bg-raised px-2.5 py-1 text-[14px] text-faint">▸ {f}</span>)}
+            {FOLDED.map((f) => <span key={f} className="rounded-md border border-hairline bg-raised px-3 py-1.5 text-[15px] text-faint">▸ {f}</span>)}
           </div>
         </div>
       </div>
       <div className="flex flex-col gap-4">
-        <div className={`${box} pz-appear p-5`} style={later(1300)}>
+        <div className={`${box} pz-appear p-6`} style={later(1300)}>
           <Kicker>Opens only when</Kicker>
-          <div className="mt-2 text-[19px] text-ink">the gate is green and no blocker survived its skeptic.</div>
+          <div className="mt-2 text-[22px] leading-snug text-ink">the gate is green and no blocker survived its skeptic.</div>
         </div>
-        <div className={`${box} pz-appear p-5 text-[18px] text-muted`} style={later(1700)}>
-          Written to be read in ten seconds: what changed, whether it is proven, what needs <b className="text-ink">you</b>. The rest is folded away.
-        </div>
-        <div className={`${box} pz-appear flex-1 p-5 text-[17px] text-muted`} style={later(2100)}>
-          <div className="flex items-center gap-2 text-ink">💤 <b>The merge hook opens here</b></div>
-          <div className="mt-1.5">From this moment the run can be woken by your merge — even one that lands while review is still reading.</div>
+        <div className={`${box} pz-appear flex flex-1 flex-col justify-center p-6 text-[20px] leading-snug text-muted`} style={later(1700)}>
+          <div>Written to be read in ten seconds: what changed, whether it is proven, what needs <b className="text-ink">you</b>. The rest is folded away.</div>
+          <div className="mt-5 text-[17px]">Its size label tells the reviewers how hard to look: a <Label name="ship:full" className="mx-0.5 text-[12px]" /> pull request gets the full set of review lenses.</div>
         </div>
       </div>
     </div>
@@ -521,9 +523,9 @@ function TryItDetail() {
           </div>
           <div className="pz-appear pt-1" style={later(3400)}>
             <div className="font-mono text-[12px] uppercase tracking-[0.16em] text-faint">To try a change, you used to</div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[14px] text-faint">
+            <div className="mt-2 flex items-center gap-x-1.5 whitespace-nowrap font-mono text-[13px] text-faint">
               {['git fetch', 'git checkout', 'npm install', 'npm run dev', 'find the page'].map((c, i) => (
-                <span key={c} className="flex items-center gap-2">{i > 0 && <span>→</span>}<span className="rounded bg-ground/60 px-2 py-0.5 line-through decoration-rose-400/70">{c}</span></span>
+                <span key={c} className="flex items-center gap-1.5">{i > 0 && <span>→</span>}<span className="rounded bg-ground/60 px-1.5 py-0.5 line-through decoration-rose-400/70">{c}</span></span>
               ))}
             </div>
             <div className="mt-2 text-[18px] text-emerald-200">Now: <b>one click</b>.</div>
@@ -575,14 +577,14 @@ function PreviewDetail() {
           <span />
           <span className="text-center font-mono text-[13px] uppercase tracking-wider text-faint">Before · production</span>
           <span className="text-center font-mono text-[13px] uppercase tracking-wider text-emerald-300">This pull request</span>
-          <span className="self-center text-[15px] font-semibold text-muted">Desktop</span>
+          <span className="self-center text-[15px] font-semibold text-muted">Desktop<span className="block font-mono text-[12px] font-normal text-faint">unchanged</span></span>
           <Desktop className="pz-appear h-[104px]" />
           <Desktop className="pz-appear h-[104px]" />
           <span className="self-center text-[15px] font-semibold text-muted">Mobile</span>
           <div className="pz-appear flex justify-center" style={later(1500)}><Phone className="h-[176px] w-[112px]" /></div>
           <div className="pz-appear relative flex justify-center" style={later(1800)}>
             <Phone compact className="h-[176px] w-[112px]" />
-            <span className="pz-pop absolute right-4 top-16 rounded-full bg-emerald-500/20 px-2.5 py-0.5 font-mono text-[12px] text-emerald-200 ring-1 ring-emerald-400/50" style={later(2400)}>first session in view</span>
+            <span className="pz-pop absolute left-[calc(50%+72px)] top-[84px] whitespace-nowrap rounded-full bg-emerald-500/20 px-2.5 py-0.5 font-mono text-[13px] text-emerald-200 ring-1 ring-emerald-400/50" style={later(2400)}>← first session in view</span>
           </div>
         </div>
       </div>
@@ -592,11 +594,12 @@ function PreviewDetail() {
 
 /* ------------------------------ Review ---------------------------- */
 
+// a small pull request is read through one combined lens; each row is one finding it reported
 const RAISED = [
-  ['Rules', 'The rail’s gap differs from the other panels', 'dropped — a nitpick', null],
-  ['Logic', '“Clear filters” leaves the search text in place', 'ran it: true', 'suggestion'],
-  ['Tests', 'The 360 px check still passes with the fix removed', 'removed the fix, ran the test: true', 'suggestion'],
-  ['Criteria', 'The desktop grid moved by a pixel', 'could not show it — dropped', null],
+  ['rules', 'The rail’s gap differs from the other panels', 'dropped — a nitpick', null],
+  ['logic', '“Clear filters” leaves the search text in place', 'ran it: true', 'suggestion'],
+  ['tests', 'No test pins “every filter still there” at 360 px', 'checked the tests: true', 'suggestion'],
+  ['criteria', 'The desktop grid moved by a pixel', 'could not show it — dropped', null],
 ];
 
 const BLOCKS_WHEN = [
@@ -610,13 +613,13 @@ const BLOCKS_WHEN = [
 function ReviewDetail() {
   return (
     <div className="grid h-full grid-cols-[1.15fr_1fr] gap-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3"><Wf name="review" /><Kicker>every claim faces its own skeptic</Kicker></div>
+      <div className="flex flex-col gap-3.5">
+        <div className="flex items-center gap-3"><Wf name="review" /><Kicker>every finding it reports faces its own skeptic</Kicker></div>
         {RAISED.map(([lens, text, verdict, kept], i) => {
           const verdictAt = 1500 + i * 380;
           return (
             <div key={text} className="pz-appear grid grid-cols-[1fr_250px] items-center gap-3" style={later(250 + i * 220)}>
-              <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 px-4 py-2.5 text-[16px] text-ink">
+              <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 px-4 py-4 text-[17px] text-ink">
                 <span className="mr-2 font-mono text-[12px] text-amber-300">{lens}</span>
                 <span className={kept ? '' : 'pz-strike text-rose-300'} style={kept ? undefined : later(verdictAt)}><span className="text-ink">{text}</span></span>
               </div>
@@ -633,15 +636,15 @@ function ReviewDetail() {
       </div>
       <div className={`${box} flex flex-col p-6`}>
         <Kicker>It approves by default. To block, all five must hold</Kicker>
-        <div className="mt-3 flex-1 space-y-2.5">
+        <div className="my-3 flex flex-1 flex-col justify-evenly">
           {BLOCKS_WHEN.map((b, i) => (
-            <div key={b} className="pz-appear flex items-center gap-3 text-[17px] text-ink" style={later(600 + i * 280)}>
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-violet-500/20 font-mono text-[14px] text-violet-200 ring-1 ring-violet-400/40">{i + 1}</span>{b}
+            <div key={b} className="pz-appear flex items-center gap-3.5 text-[19px] text-ink" style={later(600 + i * 280)}>
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-500/20 font-mono text-[14px] text-violet-200 ring-1 ring-violet-400/40">{i + 1}</span>{b}
             </div>
           ))}
         </div>
         <div className="pz-appear rounded-xl bg-raised px-4 py-3 text-[16px] leading-snug text-muted" style={later(2300)}>
-          A weak test or a stale doc never blocks. Wrong anyway? Reply <Code>/dismiss 2</Code> or 👎 — the next review will not raise it again.
+          A weak test or a stale doc never blocks. Wrong anyway? Reply <Code className="whitespace-nowrap">/dismiss 2</Code> or 👎 — the next review will not raise it again.
         </div>
       </div>
     </div>
@@ -666,22 +669,22 @@ const PROBES = [
 function QaDetail() {
   return (
     <div className="grid h-full grid-cols-[1.2fr_1fr] gap-6">
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3.5">
         <div className="flex items-center gap-3"><Wf name="qa" /><Kicker>not the tests again — the gaps they leave</Kicker></div>
         {QA_STEPS.map(([icon, name, model, what], i) => (
-          <div key={name} className={`${box} pz-appear flex items-center gap-4 px-5 py-2.5`} style={later(250 + i * 350)}>
+          <div key={name} className={`${box} pz-appear flex items-center gap-4 px-5 py-4`} style={later(250 + i * 350)}>
             <span className="text-[26px]">{icon}</span>
             <span className="w-[62px] font-display text-[22px] text-ink">{name}</span>
-            <span className="flex-1 text-[16px] leading-snug text-muted">{what}</span>
+            <span className="flex-1 text-[17px] leading-snug text-muted">{what}</span>
             {model ? <Model m={model} /> : <span className="rounded-full border border-hairline px-2.5 py-0.5 font-mono text-[13px] text-muted">no model</span>}
           </div>
         ))}
         <div className="pz-appear mt-auto grid grid-cols-2 gap-3" style={later(1500)}>
-          <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.07] px-4 py-2.5">
+          <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.07] px-4 py-3.5">
             <div className="flex items-center gap-2 text-[16px] font-semibold text-emerald-100"><Vercel className="size-3.5" /> On the live preview</div>
             <div className="text-[14px] leading-snug text-muted">everything that only looks: the way an attendee meets it</div>
           </div>
-          <div className="rounded-xl border border-sky-400/40 bg-sky-500/[0.07] px-4 py-2.5">
+          <div className="rounded-xl border border-sky-400/40 bg-sky-500/[0.07] px-4 py-3.5">
             <div className="text-[16px] font-semibold text-sky-100">📦 On the branch, in the sandbox</div>
             <div className="text-[14px] leading-snug text-muted">probes that book a seat: one app, one database, no surprises</div>
           </div>
@@ -689,15 +692,15 @@ function QaDetail() {
       </div>
       <div className={`${box} flex flex-col p-5`}>
         <Kicker>Probes, in a real browser</Kicker>
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-4 space-y-3.5">
           {PROBES.map((p, i) => (
-            <div key={p} className="pz-appear flex items-center gap-3 text-[17px] text-ink" style={later(1900 + i * 380)}><Tick className="size-6 text-[12px]" /> {p}</div>
+            <div key={p} className="pz-appear flex items-center gap-3 text-[19px] text-ink" style={later(1900 + i * 380)}><Tick className="size-7 text-[13px]" /> {p}</div>
           ))}
         </div>
-        <div className="pz-appear mt-3 rounded-xl border-l-4 border-emerald-400/60 bg-emerald-500/10 px-4 py-2.5" style={later(3600)}>
+        <div className="pz-appear mt-5 rounded-xl border-l-4 border-emerald-400/60 bg-emerald-500/10 px-4 py-3.5" style={later(3600)}>
           <div className="flex items-center gap-3 font-display text-[21px] text-emerald-200">QA · high confidence <Meter level="high" /></div>
         </div>
-        <div className="pz-appear mt-auto space-y-1 text-[14.5px] text-muted" style={later(4000)}>
+        <div className="pz-appear mt-auto space-y-1.5 text-[16px] text-muted" style={later(4000)}>
           <div><span className="mr-2">❌</span>a bug: it reproduces here, and not on main</div>
           <div><span className="mr-2">🟠</span>already broken on main — not this change’s fault</div>
           <div><span className="mr-2">⚪</span>the environment, not the change — never held against it</div>
@@ -731,7 +734,7 @@ function Burst() {
 }
 
 const STATUSES = [
-  ['factory/verify', 'unit 316 · browser 184'],
+  ['the run’s own gate', 'unit 316 · browser 184'],
   ['factory/review', 'approved'],
   ['factory/qa', 'high confidence'],
   ['factory/screenshots', '1 page, desktop and mobile'],
@@ -804,7 +807,7 @@ const LIVE = [
   { icon: <MergeIcon className="size-7 text-violet-300" />, title: 'Merged to main', sub: 'the merge commit', at: 200 },
   { icon: <Vercel className="size-6 text-ink" />, title: 'Production deployment', sub: 'of that exact commit · Ready', at: 900 },
   { icon: <span className="text-[26px]">🩺</span>, title: 'GET /api/health', sub: <span className="font-mono text-emerald-300">{'{ "ok": true }'}</span>, at: 1700 },
-  { icon: <IssueIcon className="size-7 text-violet-300" />, title: 'Issue #140 closed', sub: 'labels cleared · “live in production”', at: 2500 },
+  { icon: <IssueIcon className="size-7 text-violet-300" />, title: 'Issue #140 closed', sub: 'by “Closes #140” · the run says where it is live', at: 2500 },
 ];
 
 function ProductionDetail() {
@@ -842,6 +845,19 @@ function ProductionDetail() {
 
 /* --------------------- when it will not converge ------------------ */
 
+/** Not #140: a harder ticket, on a full run, so the detour does not contradict the walk. */
+function Elsewhere({ children }) {
+  return (
+    <div className="mb-3 flex items-center gap-3">
+      <span className="rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-0.5 font-mono text-[13px] text-amber-200">a detour · another ticket</span>
+      <span className="text-[16px] text-muted">{children}</span>
+      <Label name="ship:full" className="text-[12px]" />
+    </div>
+  );
+}
+
+const STUCK = 'A waitlist promotion can still give someone two overlapping seats';
+
 function StuckDetail() {
   return (
     <div className="grid h-full grid-cols-[450px_1fr] gap-8">
@@ -864,21 +880,22 @@ function StuckDetail() {
           </motion.div>
         </div>
       </div>
-      <div className="flex flex-col justify-center gap-3">
+      <div className="flex flex-col justify-center gap-2.5">
+        <Elsewhere>#151 Promote the waitlist without double-booking</Elsewhere>
         {[1, 2, 3].map((round, i) => (
-          <div key={round} className="pz-appear flex items-center gap-5 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-3.5" style={later(300 + i * 650)}>
+          <div key={round} className="pz-appear flex items-center gap-5 rounded-xl border border-amber-400/40 bg-amber-500/10 px-5 py-3" style={later(300 + i * 650)}>
             <span className="font-mono text-[15px] text-faint">Round {round}</span>
-            <span className="text-[19px] text-ink">The grid still hides the first card on a 360 px phone</span>
+            <span className="text-[18px] text-ink">{STUCK}</span>
             {i > 0 && <span className="pz-pop ml-auto shrink-0 rounded-full bg-rose-500/20 px-3 py-0.5 font-mono text-[13px] text-rose-200" style={later(300 + i * 650 + 500)}>same finding</span>}
           </div>
         ))}
         {/* the round that is not run */}
-        <div className="pz-appear flex items-center gap-5 rounded-xl border border-dashed border-hairline px-5 py-3.5" style={later(2500)}>
+        <div className="pz-appear flex items-center gap-5 rounded-xl border border-dashed border-hairline px-5 py-3" style={later(2500)}>
           <span className="font-mono text-[15px] text-faint">Round 4</span>
-          <span className="text-[19px] text-faint line-through decoration-rose-400/70">The grid still hides the first card on a 360 px phone</span>
+          <span className="text-[18px] text-faint line-through decoration-rose-400/70">{STUCK}</span>
           <span className="ml-auto shrink-0 font-mono text-[13px] text-rose-300">not run</span>
         </div>
-        <div className="pz-appear text-[19px] text-muted" style={later(2800)}>The fixer has tried twice. Another round would only spend money.</div>
+        <div className="pz-appear text-[18px] text-muted" style={later(2800)}>The same finding, a third time. Another round would only spend money.</div>
       </div>
     </div>
   );
@@ -894,7 +911,7 @@ function HandBackDetail() {
       <div className={`${box} flex flex-col overflow-hidden`}>
         <div className="flex items-center gap-3 border-b border-hairline px-6 py-3">
           <IssueIcon className="size-5 text-emerald-400" />
-          <span className="font-display text-[22px] text-ink">#140 Keep sessions in view on mobile</span>
+          <span className="font-display text-[21px] text-ink">#151 Promote the waitlist without double-booking</span>
           <span className="ml-auto flex items-center gap-2">
             <span className="pz-strike text-amber-300" style={later(JUDGED_AT + 300)}><Label name="needs-human" className="text-[12px]" /></span>
             <span className="pz-pop" style={later(JUDGED_AT + 300)}><Label name="ai-working" className="text-[12px]" /></span>
@@ -902,22 +919,22 @@ function HandBackDetail() {
         </div>
         <div className="mx-6 mt-4 rounded-xl border border-hairline bg-raised px-5 py-3.5">
           <div className="flex items-center gap-2 text-[14px] text-faint"><span className="grid size-6 place-items-center rounded-full bg-violet-500/30 text-[13px]">🏭</span> ship · stopped at Audit</div>
-          <div className="mt-2 text-[17px] text-ink">I could not get the first card into view on a 360 px phone without hiding the day tabs. <b>Still open:</b></div>
+          <div className="mt-2 text-[17px] text-ink">I cannot promote someone into a seat that overlaps one they already hold without breaking a rule either way. <b>Still open:</b></div>
           <ul className="mt-1.5 space-y-0.5 text-[16px] text-muted">
-            <li>• keep the day tabs visible, or collapse them behind Filters?</li>
-            <li>• draft pull request #142 has everything else, green</li>
+            <li>• skip that person and promote the next, or drop their other seat?</li>
+            <li>• draft pull request #153 has everything else, green</li>
           </ul>
         </div>
         <div className="pz-appear mx-6 mt-3 rounded-xl border border-sky-400/40 bg-sky-500/10 px-5 py-3.5" style={later(REPLY_AT)}>
           <div className="flex items-center gap-2 text-[14px] text-faint"><span className="grid size-6 place-items-center rounded-full bg-sky-500/30 text-[13px]">🙋</span> you, in a comment</div>
-          <div className="mt-1.5 text-[17px] text-ink">Collapse them behind Filters — the day is in the heading anyway.</div>
+          <div className="mt-1.5 text-[17px] text-ink">Skip them. We never take away a seat someone holds.</div>
         </div>
       </div>
       <div className="flex flex-col gap-3.5">
         <div className={`${box} pz-appear flex flex-1 flex-col justify-center px-6`} style={later(400)}>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-overlay px-3 py-1 text-[14px] font-semibold text-muted"><PrIcon /> Draft</span>
-            <span className="font-display text-[21px] text-ink">#142</span>
+            <span className="font-display text-[21px] text-ink">#153</span>
           </div>
           <div className="mt-2 text-[16px] text-muted">The branch, the spec, every round so far, and a section called <b className="text-ink">Why this stopped</b>.</div>
         </div>
@@ -932,8 +949,8 @@ function HandBackDetail() {
           </div>
         </div>
         <div className="pz-appear flex flex-1 flex-col justify-center rounded-2xl border border-violet-400/50 bg-raised px-6" style={later(JUDGED_AT + 700)}>
-          <div className="font-display text-[24px] text-ink">🔁 The run resumes</div>
-          <div className="mt-1 text-[16px] leading-snug text-muted">Same branch, same spec — your answer recorded as a decision. The draft becomes the pull request.</div>
+          <div className="font-display text-[24px] text-ink">🔁 A new run continues</div>
+          <div className="mt-1 text-[16px] leading-snug text-muted">Same branch; the spec is revised with your answer as a decision. The draft becomes the pull request.</div>
         </div>
       </div>
     </div>
@@ -1048,18 +1065,18 @@ const LINE_BEATS = [
   },
   {
     kicker: 'Triage',
-    title: 'Claim it, size it, give it a machine',
-    body: 'The run claims the ticket so no second one can start, and lets Jev size it and choose the models. Then it forks a sandbox and a branch of its own — and hands the ticket straight back if it cannot be built.',
+    title: 'Claim it, size it, choose the models',
+    body: 'Before any machine starts, the run claims the ticket so no second one can, tells you so on the issue, and makes two quick decisions: how big a job this is, and which model each of its jobs should start on.',
   },
   {
     kicker: 'Triage · Jev',
     title: 'First question: how big is this ticket?',
-    body: 'Before any code is written, Jev sizes the ticket in a third of a second. The size sets how many auditors and rounds it gets, so a typo fix does not pay for a plan audit.',
+    body: 'Jev is a small decision model: it answers with odds, in about a third of a second. The size sets how many auditors and rounds a ticket gets — and when Jev is not sure, the run waits for the plan to tell it.',
   },
   {
     kicker: 'Triage · AI Gateway',
     title: 'Then: the cheapest model that will get each job right',
-    body: 'Claude Code reaches every model through AI Gateway, so a job can run on any of them. Coding fails loudly — a red gate — so it starts cheap. Judgement fails silently, so auditors and skeptics start strong.',
+    body: 'Claude Code reaches every model through AI Gateway, so a job can run on any of them. Coding fails loudly — a red gate — so it starts cheap. Judgement fails silently, so a miss is priced in: an auditor starts cheap only when Jev is sure cheap is enough.',
   },
   {
     kicker: 'Plan · Vercel Sandbox',
@@ -1074,7 +1091,7 @@ const LINE_BEATS = [
   {
     kicker: 'Plan · the spec',
     title: 'A plan before any code, while a mistake is still cheap',
-    body: 'specs/<n>-<slug>.md is the first commit and maps each Done when line to its check. On a full ticket, auditors judge the plan before any code exists; this one is small, so that phase is skipped.',
+    body: 'The spec is the branch’s first commit and maps each Done when line to its check. The plan also settles the size Jev was unsure of: small, so the plan audit a full ticket gets is skipped.',
   },
   {
     kicker: 'Build',
@@ -1099,7 +1116,7 @@ const LINE_BEATS = [
   {
     kicker: 'Gate · when it is red',
     title: 'Cheap first, and a way up when cheap is not enough',
-    body: 'A red gate sends the fix to a model one tier above whatever wrote the code. The ladder came from measuring, and every climb is written on the run — so the factory keeps learning which jobs need which model.',
+    body: 'A red gate sends the fix to a model one tier above whatever wrote the code. The ladder came from measuring, and every climb is written on the run — so you can see which jobs needed which model.',
   },
   {
     kicker: 'Audit',
@@ -1109,17 +1126,17 @@ const LINE_BEATS = [
   {
     kicker: 'Audit · fix and loop',
     title: 'Fix, gate, audit — until a round comes back clean',
-    body: 'The loop is bounded by code, so nothing spins all night on your bill. And what the auditors caught is written into the docs, so the next ticket’s agents start out knowing it.',
+    body: 'The loop is bounded by code, so nothing spins all night on your bill. And what the auditors caught can be written into the docs, so the next ticket’s agents start out knowing it.',
   },
   {
-    kicker: 'Audit · when it will not converge',
-    title: 'The same finding, surviving two fixes',
-    body: 'Some tickets cannot be finished by an agent — the ticket contradicts itself, or the fix needs a decision only a person can make. The run notices it is going round in circles and stops.',
+    kicker: 'Audit · what if it will not converge?',
+    title: 'A detour: the same finding, surviving two fixes',
+    body: 'Ticket #140 came back clean. Not every ticket does: some contradict themselves, or need a decision only a person can make. On this harder one, the run notices it is going round in circles and stops.',
   },
   {
     kicker: 'Audit · needs-human, then you',
     title: 'It hands back what it knows. You just reply',
-    body: 'A draft pull request with the work so far, and a comment saying exactly what is open. Answer the way you would answer a colleague: Jev judges whether the reply settles it, and the run picks up where it stopped.',
+    body: 'A draft pull request with the work so far, and a comment saying exactly what is open. Answer the way you would answer a colleague: Jev judges whether the reply settles it, and a new run continues on the same branch.',
   },
   {
     kicker: 'Pull request',
@@ -1139,7 +1156,7 @@ const LINE_BEATS = [
   {
     kicker: 'Review & QA · code review',
     title: 'Review that approves by default, and proves what it flags',
-    body: 'Reviewers that cry wolf get ignored. So every claim goes to its own skeptic, which sees only the claim and has to demonstrate it. What it cannot show is dropped; a blocker has to be serious, shown, and certain.',
+    body: 'Reviewers that cry wolf get ignored. So every finding goes to its own skeptic, which sees only the claim and has to demonstrate it. What it cannot show is dropped; a blocker has to be serious, shown, and certain.',
   },
   {
     kicker: 'Review & QA · QA',

@@ -26,8 +26,6 @@ const MODEL_ROWS = [
   ['Implement', 'deepseek', 'standard', '66%', '$0.049', '$0.17'],
   ['Audit', 'deepseek', 'standard', '80%', '$0.028', '$0.058'],
   ['Skeptic', 'glm', 'standard', '70%', '$0.018', '$0.034 · 2 runs'],
-  ['Review lens', 'sonnet', 'strong', '92%', '$0.24', '$0.086'],
-  ['QA probe writer', 'glm', 'standard', '36%', '$0.020', '$0.047'],
 ];
 
 const RUN_ROWS = [
@@ -54,18 +52,18 @@ function OnTheRecord() {
         </div>
         <div className="px-5 py-3">
           <div className="text-[20px] font-semibold">🏭 Ship on Vercel · waiting for you to review and merge</div>
-          <div className={`mt-1.5 text-[14.5px] ${GH.muted}`}>✅ Triage → ✅ Plan → ✅ Build → ✅ Gate → ✅ Audit → ✅ Pull request → ✅ Preview → ✅ Review &amp; QA → <b className={GH.ink}>⏳ Merge</b> → Production</div>
+          <div className={`mt-1.5 text-[14.5px] ${GH.muted}`}>✅ Triage → ✅ Plan → <s>Plan audit</s> → ✅ Build → ✅ Gate → ✅ Audit → ✅ Pull request → ✅ Preview → ✅ Review &amp; QA → <b className={GH.ink}>⏳ Merge</b> → Production</div>
           <div className="mt-1.5 text-[14px]"><b>Size:</b> fast — Jev, 71% sure</div>
           <table className="mt-3 w-full text-left text-[15.5px]">
             <thead>
               <tr className={`border-b ${GH.line} ${GH.muted}`}>
-                {['Job', 'Model', 'Tier', 'Jev', 'Est.', 'Actual'].map((h, i) => <th key={h} className={`py-1.5 font-semibold ${i > 2 ? 'text-right' : ''}`}>{h}</th>)}
+                {['Job', 'Model', 'Tier', 'Jev sure', 'Est.', 'Actual'].map((h, i) => <th key={h} className={`py-1.5 font-semibold ${i > 2 ? 'text-right' : ''}`}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {MODEL_ROWS.map(([job, m, tier, jev, est, actual], i) => (
                 <tr key={job} className={`pz-appear border-b ${GH.line}`} style={later(400 + i * 180)}>
-                  <td className="py-[7px]">{job}</td>
+                  <td className="py-[11px]">{job}</td>
                   <td><code className="rounded bg-black/[0.06] px-1.5 py-0.5 font-mono text-[12.5px]">{{ deepseek: 'deepseek-v4.1-flash', glm: 'glm-5.3-flash', sonnet: 'sonnet-5.5' }[m]}</code></td>
                   <td className={GH.muted}>{tier}</td>
                   <td className="text-right">{jev}</td>
@@ -76,7 +74,7 @@ function OnTheRecord() {
             </tbody>
           </table>
           <div className={`pz-appear mt-3 text-[14px] ${GH.muted}`} style={later(1700)}>Picked per job by Jev from AI Gateway’s live catalog: the cheapest tier likely to be enough.</div>
-          <div className="pz-appear mt-2 text-[15px]" style={later(1900)}><b>AI spend, build to review:</b> $0.93</div>
+          <div className="pz-appear mt-2 text-[15px]" style={later(1900)}><b>AI spend so far:</b> $0.93 over 5 agent runs <span className="font-normal text-[#59636e]">— review and QA included, each with a table of its own on the pull request</span></div>
         </div>
       </div>
 
@@ -126,7 +124,7 @@ function Receipts() {
             </div>
           ))}
         </div>
-        <div className="mt-auto pt-3 text-[15px] text-faint">Built on DeepSeek V4.1 Flash, judged on Sonnet 5.5: 13 agent runs in all.</div>
+        <div className="mt-auto pt-3 text-[15px] text-faint">Built and audited on flash models, reviewed on Sonnet 5.5: 13 agent runs in all.</div>
       </div>
 
       <div className="pz-appear flex flex-col rounded-2xl border border-sky-400/40 bg-sky-500/[0.05] p-6" style={later(600)}>
@@ -223,7 +221,7 @@ function ScaleScene() {
       <div className="pz-appear flex items-center gap-6 px-6 py-3 text-[16px] text-muted" style={later(7000)}>
         <span className="flex items-center gap-2"><span className="inline-flex items-center gap-1.5 font-semibold text-emerald-300"><PrIcon /> 9</span> pull requests, each on its own preview</span>
         <span className="flex items-center gap-2"><Label name="needs-human" className="text-[12px]" /> 1 question, back to you</span>
-        <span className="ml-auto font-mono text-[14px] text-faint">no laptop was open for any of them</span>
+        <span className="ml-auto font-mono text-[14px] text-faint">an illustration · no laptop open for any of them</span>
       </div>
     </div>
   );
@@ -236,7 +234,7 @@ function ScaleScene() {
 function RoleScene({ step }) {
   return (
     <>
-      <Show on={step === 0} style={at(80, 90, 1440, 500)} className="grid grid-cols-4 gap-6">
+      <Show on={step === 0} style={at(80, 130, 1440, 400)} className="grid grid-cols-4 gap-6">
         {[
           ['✍️', 'You write the ticket', 'Its Done when is the contract every agent is judged against. The thinking moved up front — it did not go away.'],
           ['🔧', 'You tune the factory', 'Which models, how many rounds, what a review may block on. Each is a file, and shaping it to your codebase is engineering.'],
@@ -245,7 +243,7 @@ function RoleScene({ step }) {
         ].map(([icon, t, d], i) => (
           <motion.div
             key={t}
-            className={`${box} flex flex-col p-7`}
+            className={`${box} flex flex-col justify-center p-7`}
             initial={{ opacity: 0, y: 60, rotateX: -25 }}
             animate={{ opacity: 1, y: 0, rotateX: 0 }}
             transition={{ delay: 0.2 + i * 0.15, type: 'spring', stiffness: 120, damping: 16 }}
@@ -259,7 +257,7 @@ function RoleScene({ step }) {
 
       {/* the bookend: the title's orbits, back behind the last words */}
       <Show on={step === 1} from="none" delay={400} style={at(0, 0, 1600, 900)} className="pointer-events-none">
-        <Orbits style={at(380, 10, 840, 840)} className="opacity-[0.14]" />
+        <Orbits style={at(380, 10, 840, 840)} className="opacity-[0.08]" />
       </Show>
       <Show on={step === 1} from="scale" style={at(80, 70, 1440, 760)} className="flex flex-col items-center justify-center text-center">
         <div className="font-display text-[88px] leading-[0.98] text-ink">
@@ -286,11 +284,11 @@ export const CLOSING = [
       {
         kicker: 'On the record',
         title: 'Every run says what it did, on which model, for how much',
-        body: 'This is a real run from this repository. Each job shows the model Jev picked, how sure it was, what it expected to pay and what it paid — on the issue, on the run’s attributes, and on a page that lists every ticket.',
+        body: 'Real numbers from one ticket in this repository. Each job shows the model Jev picked, how sure it was that the tier was enough, what it expected to pay and what it paid.',
       },
       {
         kicker: 'What it costs',
-        title: 'About a dollar a ticket — and every dial is yours',
+        title: 'One to two dollars a ticket — and every dial is yours',
         body: 'Real receipts from this repository. Routing each job to the cheapest model that could do it cut the same ticket from $4.59 to $1.80 — and most of what is left pays for judgement, which is where you want it.',
       },
     ],

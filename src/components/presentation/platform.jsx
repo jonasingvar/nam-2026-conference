@@ -148,7 +148,7 @@ function Map() {
 const ROUTES = [
   { icon: '🏷️', event: <>an issue is labelled <Label name="ready-for-ai" className="mx-1 text-[13px]" /> — or someone comments <Code>/ship</Code></>, to: ['ship'] },
   { icon: '🙋', event: 'a person replies on a ticket the factory handed back', to: ['ship'], note: 'resumes, if Jev reads the reply as an answer' },
-  { icon: '🔀', event: <>a pull request opens — or someone comments <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'], note: 'a later push: verify' },
+  { icon: '🔀', event: <>a pull request opens — or someone comments <Code>/review</Code></>, to: ['verify', 'review', 'qa', 'screenshots'], note: 'a later push: verify · ship checks its own' },
   { icon: '✍️', event: <><Code>@claude make the heading smaller</Code> on a pull request</>, to: ['respond'] },
   { icon: '🟣', event: 'a pull request is merged or closed', to: [], wake: 'wakes the ship run asleep on it' },
   { icon: '⬆️', event: <>a push to <Code>main</Code></>, to: ['verify', 'warm'] },
@@ -195,7 +195,7 @@ export function Switchboard() {
 
 const SEVEN = [
   { name: 'ship', mode: 'push', when: 'ready-for-ai · /ship', does: 'An issue to a pull request, a preview, a merge and a healthy production — one durable run' },
-  { name: 'review', mode: 'read', when: 'a pull request opens · /review', does: 'Reads the diff through lenses picked by what it touches. Approves unless it can prove a problem' },
+  { name: 'review', mode: 'read', when: 'a pull request opens · /review', does: 'Reads the diff from angles picked by what it touches. Approves unless it can prove a problem' },
   { name: 'qa', mode: 'read', when: 'with review', does: 'Probes the gaps the pull request’s own tests leave, in a browser, on its live preview' },
   { name: 'screenshots', mode: 'none', when: 'with review · /screenshots', does: 'Before and after of every page the diff touches, desktop and mobile. No model involved' },
   { name: 'respond', mode: 'push', when: '@claude … on a pull request', does: 'Makes the change a person asked for, and nothing else. Gate, push, reply' },
@@ -265,7 +265,7 @@ function Trace() {
       <div className="flex items-center gap-3 border-b border-hairline bg-surface px-5 py-2.5">
         <Vercel className="size-3.5 text-ink" />
         <span className="font-mono text-[14px] text-muted">nam-2026-factory / Workflows / <span className="text-ink">ship</span></span>
-        <span className="ml-auto flex items-center gap-2 font-mono text-[13px] text-faint">issue=140 <span className="text-hairline">·</span> phase=Audit <span className="text-hairline">·</span> spend_usd=0.31</span>
+        <span className="ml-auto flex items-center gap-2 font-mono text-[13px] text-faint">issue=140 <span className="text-hairline">·</span> phase=Build <span className="text-hairline">·</span> spend_usd=0.07</span>
       </div>
       <div className="relative px-5 py-2.5">
         {TRACE.map(([name, start, width], i) => {
@@ -275,7 +275,7 @@ function Trace() {
             <div key={i} className="grid h-[31px] items-center" style={{ gridTemplateColumns: `${NAME_W}px 1fr` }}>
               <span className="flex items-center gap-2 font-mono text-[15px] text-muted">
                 <span className="text-emerald-400/80">‹›</span>{name}
-                {recorded && <span className="pz-pop ml-auto mr-3 rounded bg-emerald-500/15 px-1.5 text-[11px] text-emerald-300" style={later(CRASH_AT + 500 + i * 110)}>recorded</span>}
+                {recorded && <span className="pz-pop ml-auto mr-3 rounded bg-emerald-500/15 px-1.5 text-[12px] text-emerald-300" style={later(CRASH_AT + 500 + i * 110)}>recorded</span>}
               </span>
               <div className="relative h-[18px]">
                 {spans ? (
@@ -329,7 +329,7 @@ export function Asleep() {
     <div className="flex h-full flex-col gap-4">
       <div className="grid grid-cols-[1fr_520px] gap-6">
         <div className="overflow-hidden rounded-2xl border border-hairline bg-[#0d0f15]">
-          <div className="border-b border-hairline bg-surface px-5 py-2 font-mono text-[13px] text-faint">factory/workflows/ship.ts</div>
+          <div className="border-b border-hairline bg-surface px-5 py-2 font-mono text-[13px] text-faint">factory/workflows/ship.ts — abridged</div>
           <div className="px-6 py-2.5 font-mono text-[16.5px] leading-[1.55]">
             <div className="pz-appear text-faint" style={later(200)}>{'// the moment the pull request exists'}</div>
             <div className="pz-appear" style={later(400)}><span className="text-violet-300">const</span> <span className="text-ink">merged</span> = <span className="text-cyan-300">createHook</span>({'{'} token: <span className="text-emerald-300">'pr:…#142'</span> {'}'});</div>
@@ -370,8 +370,8 @@ export function Asleep() {
         <div className="absolute inset-x-0 bottom-0 grid grid-cols-3 gap-4">
           {[
             ['A hook, not a poll', <>The token is <Code>pr:&lt;repo&gt;#142</Code>. GitHub’s <i>closed</i> event resumes it.</>],
-            ['Agents think off the clock', 'A job runs detached in the sandbox; the workflow sleeps 10 s between looks.'],
-            ['One run owns the ticket', 'Label to production is a single run id, with every step under it.'],
+            ['A merge is never missed', 'The hook opened with the pull request, so even a merge during review is kept.'],
+            ['One run owns the ticket', 'From the pull request to a healthy production: one run id, every step under it.'],
           ].map(([title, body], i) => (
             <div key={title} className={`${box} pz-appear px-5 py-2`} style={later(2100 + i * 250)}>
               <div className="font-display text-[18px] text-ink">{title}</div>
@@ -389,9 +389,9 @@ export function Asleep() {
 
 const RUNS = [
   { name: 'ship-140', mode: 'push', does: 'builds the change', x: 600, y: 0 },
-  { name: 'review-142', mode: 'read', does: 'reads the diff', x: 1030, y: 0 },
-  { name: 'qa-142', mode: 'read', does: 'drives a browser', x: 600, y: 190 },
-  { name: 'verify-3f9c', mode: 'none', does: 'runs the gate', x: 1030, y: 190 },
+  { name: 'review-142', mode: 'read', does: 'reads the diff', x: 1030, y: 0, later: true },
+  { name: 'qa-142', mode: 'read', does: 'drives a browser', x: 600, y: 190, later: true },
+  { name: 'verify-142', mode: 'none', does: 'runs the tests', x: 1030, y: 190, later: true },
 ];
 
 export function Fork() {
@@ -427,9 +427,9 @@ export function Fork() {
       {RUNS.map((r, i) => (
         <motion.div
           key={r.name}
-          className={`${box} absolute flex flex-col px-5 py-4`}
+          className={`absolute flex flex-col rounded-2xl border px-5 py-4 ${r.later ? 'border-dashed border-hairline bg-surface/50' : 'pz-glow border-violet-400/60 bg-raised'}`}
           style={{ left: r.x, top: r.y, width: 410, height: 170 }}
-          initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: r.later ? 0.6 : 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 1.5 + i * 0.22 }}
         >
           <div className="flex items-center gap-3">
@@ -438,7 +438,7 @@ export function Fork() {
           </div>
           <div className="mt-0.5 text-[16px] text-muted">{r.does}</div>
           <div className="mt-auto flex items-center gap-2 font-mono text-[13px] text-faint">
-            <span className="rounded bg-ground/70 px-2 py-1 text-emerald-300">forked in seconds</span>
+            <span className="rounded bg-ground/70 px-2 py-1 text-emerald-300">{r.later ? 'later, for the pull request' : 'forked in seconds'}</span>
             <span>4 vCPUs · its own disk</span>
           </div>
         </motion.div>
@@ -544,8 +544,8 @@ export function Network() {
 /* ------------------------ AI Gateway and Jev ---------------------- */
 
 const PROFILES = [
-  ['⚡', 'fast', 'text-emerald-300', 'one combined audit · the browser specs the change reaches', 'up to 2 rounds'],
-  ['🟢', 'small', 'text-sky-300', 'a combined audit, plus a browser audit when the UI changed · the whole suite', 'up to 2 rounds'],
+  ['⚡', 'fast', 'text-emerald-300', 'one combined audit · the browser specs the change reaches', 'a fix is re-gated'],
+  ['🟢', 'small', 'text-sky-300', 'a combined audit, plus a browser audit when the layout is at stake · the whole suite', 'up to 2 rounds'],
   ['🔵', 'full', 'text-fuchsia-300', 'a plan audit first · criteria, rules and browser auditors', 'up to 4 rounds'],
 ];
 
@@ -557,25 +557,25 @@ export function Sizing() {
           <span className="rounded-full border border-amber-400/60 bg-amber-500/20 px-4 py-1 font-mono text-[22px] text-amber-100">Jev</span>
           <span className="text-[15px] leading-tight text-muted">a decision model, called through AI Gateway.<br />It answers with odds, not prose.</span>
         </div>
-        <div className="pz-appear mt-3 rounded-xl bg-ground/60 px-4 py-2 text-[18px] text-ink" style={later(400)}>How big a job is this ticket? <span className="text-[14px] text-faint">— a real answer, ticket #38</span></div>
+        <div className="pz-appear mt-3 rounded-xl bg-ground/60 px-4 py-2 text-[18px] text-ink" style={later(400)}>How big a job is ticket #140?</div>
         <div className="mt-3 space-y-1.5">
-          {[['fast', 71, true], ['small', 22, false], ['full', 7, false]].map(([size, pct, pick], i) => (
+          {[['small', 55, true], ['fast', 31, false], ['full', 14, false]].map(([size, pct, pick], i) => (
             <div key={size} className="pz-appear grid grid-cols-[64px_1fr_56px] items-center gap-3" style={later(900 + i * 150)}>
               <span className={`font-mono text-[17px] ${pick ? 'text-ink' : 'text-faint'}`}>{size}</span>
-              <span className="h-4 overflow-hidden rounded-full bg-overlay"><span className={`pz-fill block h-full rounded-full ${pick ? 'bg-gradient-to-r from-amber-400 to-emerald-300' : 'bg-hairline'}`} style={{ width: `${pct}%`, animationDuration: '900ms', animationDelay: `${1000 + i * 150}ms` }} /></span>
-              <span className="text-right font-mono text-[16px] text-emerald-300">{pick ? `${pct}%` : ''}</span>
+              <span className="h-4 overflow-hidden rounded-full bg-overlay"><span className={`pz-fill block h-full rounded-full ${pick ? 'bg-gradient-to-r from-amber-400 to-emerald-300' : 'bg-faint/50'}`} style={{ width: `${pct}%`, animationDuration: '900ms', animationDelay: `${1000 + i * 150}ms` }} /></span>
+              <span className={`text-right font-mono text-[16px] ${pick ? 'text-amber-300' : 'text-faint'}`}>{pct}%</span>
             </div>
           ))}
         </div>
         <div className="pz-appear mt-3 flex items-baseline gap-3" style={later(2000)}>
-          <span className="font-display text-[40px] leading-none text-ink">fast</span>
-          <span className="font-mono text-[16px] text-emerald-300">71% sure · 270 ms</span>
+          <span className="font-display text-[40px] leading-none text-ink">small?</span>
+          <span className="font-mono text-[16px] text-amber-300">only 55% sure · about 300 ms</span>
         </div>
         <div className="pz-appear mt-3 rounded-xl border border-hairline bg-ground/40 px-4 py-2" style={later(2400)}>
-          <div className="text-[16px] text-ink">Then one more call: how capable a model does each of nine jobs need? <span className="font-mono text-[13px] text-emerald-300">302 ms</span></div>
+          <div className="text-[16px] text-ink"><b className="text-amber-200">Under 60%</b>: not sure enough. The run will be sized from what the plan finds in the code.</div>
         </div>
         <div className="pz-appear mt-auto space-y-1 text-[14.5px] text-muted" style={later(2800)}>
-          <div>Under <b className="text-ink">60%</b> sure? The run is sized from what the plan finds in the code.</div>
+          <div>Then one more call picks a tier for each of the run’s nine jobs.</div>
           <div>A person’s <Label name="ship:fast" className="mx-0.5 text-[12px]" /> or <Label name="ship:full" className="mx-0.5 text-[12px]" /> label always wins.</div>
         </div>
       </div>
@@ -620,7 +620,7 @@ export function Ladder() {
             <div className="text-[14px] text-muted">{t.trust}</div>
             <div className="mt-2 space-y-1">
               {t.models.map(([m, price]) => (
-                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} /><span className="font-mono text-[12px] text-faint">{price}</span></div>
+                <div key={m} className="flex items-center justify-between gap-2"><Model m={m} /><span className="font-mono text-[13px] text-muted">{price}</span></div>
               ))}
             </div>
             {t.test && (
@@ -636,7 +636,7 @@ export function Ladder() {
                   initial={{ opacity: 0, y: -40 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 220, damping: 16, delay: 1.1 + i * 0.25 + j * 0.12 }}
                 >
-                  {job}<span className="font-mono text-[12px] text-amber-200">Jev {sure}%</span>
+                  {job}<span className="font-mono text-[13px] text-amber-200">Jev {sure}%</span>
                 </motion.div>
               ))}
               {t.ghost && <div className="pz-appear rounded-lg border border-dashed border-hairline px-3 py-1.5 text-[14px] text-faint" style={later(2400)}>{t.ghost}</div>}
@@ -648,7 +648,7 @@ export function Ladder() {
         <span className="text-[24px]">⚖️</span>
         <div className="text-[16.5px] leading-snug text-muted">
           Each job starts where its <b className="text-ink">expected cost</b> is lowest: the price of trying, plus Jev’s odds that the tier is not enough × what failing costs.
-          <span className="ml-2 text-faint">Prices are read live from AI Gateway on every run.</span>
+          <span className="ml-2 text-faint">Prices: $ per million tokens, in · out, read live. Job rows: where Jev started each job on a real ticket, #16.</span>
         </div>
       </div>
     </div>
@@ -678,7 +678,7 @@ export function Climb() {
           ))}
         </div>
         <div className="pz-appear rounded-xl bg-raised px-5 py-2.5 text-[16px] leading-snug text-muted" style={later(1700)}>
-          <b className="text-ink">A tenth of the price for the same result.</b> In an audit with two planted bugs, both flash models and Sonnet found both; Haiku found one — which is why judgement does not start at the bottom.
+          <b className="text-ink">A quarter to a tenth of the price, for the same result.</b> In an audit with two planted bugs, both flash models and Sonnet found both; Haiku found one — which is why judgement does not start at the bottom.
         </div>
       </div>
 
@@ -704,7 +704,7 @@ export function Climb() {
           <div className="flex gap-3"><span className="text-violet-300">↑</span>A review lens is unsure of itself: it reads again a tier up.</div>
         </div>
         <div className="pz-appear mt-auto rounded-xl border border-hairline bg-surface px-5 py-2 font-mono text-[13px] text-faint" style={later(4000)}>
-          every climb is recorded on the run: <span className="text-muted">models=implement=deepseek-v4.1-flash fix=sonnet-5.5 · climbs=1</span>
+          every climb is recorded on the run: <span className="text-muted">climbs=1 · fix=sonnet-5.5</span>
         </div>
       </div>
     </div>
