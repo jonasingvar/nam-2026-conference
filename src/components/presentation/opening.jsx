@@ -1,0 +1,270 @@
+import { at, Show, Replay, IssueCard, Kicker, Vercel, later } from './kit.jsx';
+import { GH, GhOpenIcon, GitHub } from './apps.jsx';
+import { ISSUE_140 } from './issue.js';
+
+/* ------------------------------------------------------------------ *
+ * Title — the factory, and the seven workflows in orbit around it.
+ * ------------------------------------------------------------------ */
+
+export function Orbits({ style = at(940, 90, 640, 640), className = '' }) {
+  const rings = [
+    { r: 140, dur: '26s', words: ['ship', 'verify'] },
+    { r: 210, dur: '38s', words: ['review', 'qa', 'screenshots'] },
+    { r: 280, dur: '54s', words: ['respond', 'warm', 'sandbox', 'Jev'] },
+  ];
+  return (
+    <svg viewBox="0 0 640 640" style={style} className={className} aria-hidden="true">
+      <defs>
+        <radialGradient id="pz-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#c4b5fd" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="#8b5cf6" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <circle cx="320" cy="320" r="104" fill="url(#pz-core)" />
+      {/* the Vercel mark at the centre: everything here runs on it */}
+      <path d="M320 270 L362 342 L278 342 Z" fill="#ffffff" />
+      <text x="320" y="376" textAnchor="middle" fill="#ffffff" fontSize="24" fontWeight="600" fontFamily="Inter, system-ui, sans-serif" letterSpacing="-0.5">Vercel</text>
+      {rings.map((ring, i) => (
+        <g key={ring.r}>
+          <circle cx="320" cy="320" r={ring.r} fill="none" stroke="#333950" strokeDasharray={i === 1 ? '4 8' : undefined} />
+          <g className="pz-spin" style={{ transformOrigin: '320px 320px', animationDuration: ring.dur, animationDirection: i % 2 ? 'reverse' : 'normal' }}>
+            {ring.words.map((w, j) => {
+              const a = (j / ring.words.length) * Math.PI * 2 + i;
+              const x = 320 + Math.cos(a) * ring.r;
+              const y = 320 + Math.sin(a) * ring.r;
+              return (
+                <g key={w}>
+                  <circle cx={x} cy={y} r="6" fill={['#a78bfa', '#67e8f9', '#6ee7b7'][i]} />
+                  <text x={x + 12} y={y + 5} fill="#9aa2b8" fontSize="15" fontFamily="JetBrains Mono, monospace">{w}</text>
+                </g>
+              );
+            })}
+          </g>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+const PRIMITIVES = ['Workflows', 'Sandbox', 'AI Gateway', 'Previews'];
+
+function TitleScene() {
+  return (
+    <>
+      <Orbits />
+      <div style={at(110, 150, 900, 600)}>
+        <Kicker className="pz-appear">ORBIT &rsquo;26 · AI across the software delivery lifecycle</Kicker>
+        <h1 className="pz-appear mt-5 font-display text-[104px] leading-[0.92] text-ink" style={later(120)}>
+          The software<br />
+          <span className="pz-shine bg-clip-text text-transparent">factory</span>
+        </h1>
+        <div className="pz-appear mt-5 flex items-center gap-4 font-display text-[50px] leading-none text-ink" style={later(220)}>
+          <span className="text-muted">built on</span><Vercel className="size-11" /><span>Vercel</span>
+        </div>
+        <p className="pz-appear mt-6 max-w-[780px] text-[25px] leading-snug text-muted" style={later(320)}>
+          A GitHub issue goes in. A reviewed, tested, deployed change comes out — and every part of that runs on Vercel.
+        </p>
+        <div className="pz-appear mt-5 flex items-center gap-2.5" style={later(600)}>
+          {PRIMITIVES.map((p, i) => (
+            <span key={p} className="pz-pop inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/50 px-4 py-1.5 text-[17px] font-medium text-ink" style={later(800 + i * 110)}><Vercel className="size-3" />{p}</span>
+          ))}
+        </div>
+        <div className="pz-appear mt-6 space-y-1 whitespace-nowrap text-[17px] text-faint" style={later(1100)}>
+          <div>🎙️ Product harness: a conversation → a ticket <span className="ml-2 text-emerald-300">✓</span></div>
+          <div className="text-muted"><span className="mr-3 text-violet-300">↳</span>🏭 <b className="text-ink">Engineering harness</b>: the ticket → production</div>
+        </div>
+        <div className="pz-appear mt-4 flex items-center gap-3 text-[16px] text-faint" style={later(1400)}>
+          <img src="/avatars/attendee-001.jpg" alt="Jonas" width={30} height={30} className="size-[30px] shrink-0 rounded-full object-cover ring-2 ring-hairline" />
+          <span>Jonas Claesson · Equal Experts</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * The promise — one label, then everything that happens without you.
+ * ------------------------------------------------------------------ */
+
+const TIMELINE_AT = 1700;
+
+const AFTER_THE_LABEL = [
+  ['▲', 'Vercel picks the ticket up — in 3 seconds', 'webhook answered in 0.7 s · no queue, no runner to boot'],
+  ['🧮', 'Jev sizes it and picks a model for every step', 'two decisions · 300 ms each'],
+  ['📄', 'A spec is the branch’s first commit', 'the intent, before the diff'],
+  ['🧪', 'A failing test, then the change', 'in a sandbox forked for this run'],
+  ['🚦', 'The gate passes, auditors find nothing', 'scripts decide, agents advise'],
+  ['🔀', 'A pull request opens', 'with screenshots, a review and QA'],
+  ['▲', 'Its own isolated deployment and URL', '· a running copy, apart from production', 'nam-2026-conference-9k2m….vercel.app'],
+];
+
+function PromiseScene() {
+  return (
+    <>
+      {/* the last thing you do for a while */}
+      <Replay on from="left" style={at(80, 64, 640, 540)}>
+        <GitHub tab="Issues" className="h-full">
+          <div className="px-6 py-4">
+            <div className="text-[23px] leading-tight">Keep sessions in view on mobile <span className={GH.muted}>#{ISSUE_140.number}</span></div>
+            <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full ${GH.green} px-3 py-1 text-[14px] font-semibold text-white`}><GhOpenIcon /> Open</span>
+            <div className="mt-4 grid grid-cols-[1fr_170px] gap-5 text-[16px]">
+              <div>
+                <div className={`rounded-md border ${GH.line} px-3 py-2.5 ${GH.muted}`}><b className={GH.ink}>Done when</b> · 3 checks a test can make</div>
+                <div className={`pz-appear mt-7 flex items-center gap-2 text-[18px] ${GH.muted}`} style={later(900)}>
+                  <span className="size-5 shrink-0 rounded-full bg-violet-300" aria-hidden="true" />
+                  <span><b className={GH.ink}>you</b> added the <span className="rounded-full bg-[#d8b4fe] px-2 text-[13px] font-semibold text-[#3b0764]">ready-for-ai</span> label</span>
+                </div>
+                {/* seconds later, on the same issue: Vercel has it */}
+                <div className={`pz-appear mt-5 overflow-hidden rounded-md border ${GH.line}`} style={later(TIMELINE_AT)}>
+                  <div className={`flex items-center gap-2 border-b ${GH.line} bg-[#f6f8fa] px-3 py-1.5 text-[14px]`}>
+                    <span className="grid size-5 place-items-center rounded-full bg-[#1f2328] text-white" aria-hidden="true"><Vercel className="size-2.5" /></span>
+                    <b>ship</b><span className={GH.muted}>· a Vercel Workflow</span><span className="ml-auto rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[13px] font-semibold text-[#166534]">⏱ 3 seconds later</span>
+                  </div>
+                  <div className="px-3 py-4 text-[15px]">
+                    <div className="text-[20px] font-semibold">🏭 Ship on Vercel · Triage</div>
+                    <div className={`whitespace-nowrap ${GH.muted}`}><b className={GH.ink}>⏳ Triage</b> → Plan → Build → Gate → Audit → …</div>
+                  </div>
+                </div>
+              </div>
+              <div className={`border-l ${GH.line} pl-4`}>
+                <div className={`font-semibold ${GH.muted}`}>Labels</div>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <span className="pz-pop rounded-full bg-[#d8b4fe] px-2.5 py-0.5 text-[13px] font-semibold text-[#3b0764]" style={later(900)}>ready-for-ai</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </GitHub>
+      </Replay>
+
+      <Replay on from="right" delay={200} style={at(780, 64, 740, 540)} className="flex flex-col">
+        <Kicker>Then, with nobody at a keyboard</Kicker>
+        <div className="mt-3 flex flex-1 flex-col justify-center">
+          <div className="relative space-y-[5px]">
+            <span className="pz-fill absolute bottom-6 left-[21px] top-3 w-0.5 bg-gradient-to-b from-violet-500 to-emerald-400" style={{ animationDuration: '3.2s', animationDelay: `${TIMELINE_AT}ms`, transformOrigin: 'top' }} />
+            {AFTER_THE_LABEL.map(([icon, what, how, url], i) => (
+              <div key={what} className="pz-appear relative flex items-center gap-4" style={later(TIMELINE_AT + i * 480)}>
+                <span className={`grid size-11 shrink-0 place-items-center rounded-full border text-[20px] ${icon === '▲' ? 'pz-glow border-violet-400/70 bg-raised text-ink' : 'border-hairline bg-raised'}`}>{icon === '▲' ? <Vercel className="size-4" /> : icon}</span>
+                <div className="min-w-0 leading-tight">
+                  <div className={`text-[21px] ${url ? 'font-semibold text-emerald-100' : 'text-ink'}`}>{what}</div>
+                  <div className="whitespace-nowrap text-[15px] text-faint">{url && <span className="mr-2 font-mono text-[14px] text-emerald-300 underline decoration-emerald-400/40 underline-offset-4">{url}</span>}{how}</div>
+                </div>
+              </div>
+            ))}
+            <div className="pz-appear relative flex items-center gap-4 rounded-2xl border border-emerald-400/50 bg-emerald-500/10 py-2 pr-4" style={later(TIMELINE_AT + AFTER_THE_LABEL.length * 480 + 200)}>
+              <span className="grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/60 bg-emerald-500/20 text-[20px]">👤</span>
+              <div className="leading-tight">
+                <div className="text-[23px] font-semibold text-emerald-100">You open that URL, try the change, and click merge</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="pz-appear mt-3 flex items-baseline gap-4 rounded-2xl border border-hairline bg-surface px-5 py-2.5" style={later(TIMELINE_AT + 4300)}>
+          <span className="font-display text-[40px] leading-none text-ink">$0.93</span>
+          <span className="text-[18px] leading-snug text-muted">of AI, label to reviewed pull request — ticket #38, here</span>
+        </div>
+      </Replay>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * The ticket arrives, carrying its context.
+ * ------------------------------------------------------------------ */
+
+const CONTEXT = [
+  { name: 'CLAUDE.md', what: 'decisions and why', x: 70, y: 110, side: 'left' },
+  { name: 'context/engineering-context/schedule.md', what: 'where it lives', x: 70, y: 260, side: 'left' },
+  { name: '.claude/rules/ui.md', what: 'UI conventions', x: 70, y: 410, side: 'left' },
+  { name: 'context/engineering-context/testing.md', what: 'how to prove it', x: 1240, y: 150, side: 'right' },
+  { name: 'specs/', what: 'every past plan', x: 1240, y: 330, side: 'right' },
+];
+
+/* One beat: the card lands, the Done when lines draw in, then the context it
+ * carries flies in around it. */
+const DOCS_AT = 2200;
+
+function IssueScene() {
+  return (
+    <>
+      <svg viewBox="0 0 1600 900" className="absolute inset-0" aria-hidden="true">
+        {CONTEXT.map((c, i) => {
+          const fromX = c.side === 'left' ? c.x + 290 : c.x;
+          const toX = c.side === 'left' ? 390 : 1210;
+          const d = `M${fromX} ${c.y + 42} C ${(fromX + toX) / 2} ${c.y + 42}, ${(fromX + toX) / 2} 330, ${toX} 330`;
+          return (
+            <g key={c.name}>
+              <path d={d} pathLength="1" className="pz-draw-in" fill="none" stroke="#4c3d7a" strokeWidth="2" style={later(DOCS_AT + 300 + i * 120)} />
+              <g className="pz-appear" style={later(DOCS_AT + 1200 + i * 120)}>
+                <path d={d} pathLength="1" className="pz-flow" fill="none" stroke="#a78bfa" strokeWidth="2" opacity="0.8" />
+              </g>
+            </g>
+          );
+        })}
+      </svg>
+
+      <div className="pz-arrive" style={at(400, 70, 800, 540)}>
+        <IssueCard number={ISSUE_140.number} title={ISSUE_140.title} className="h-full">
+          <div className="px-7 py-5 text-[17px] leading-relaxed text-muted">
+            <p><b className="text-ink">Why:</b> {ISSUE_140.why}</p>
+            <div className="mt-4 font-display text-[22px] text-ink">Done when</div>
+            <ul className="mt-2 space-y-2.5">
+              {ISSUE_140.doneWhen.map((d, i) => (
+                <Show key={d} as="li" from="left" delay={900 + i * 300} className="flex gap-3">
+                  <span className="mt-1 size-[18px] shrink-0 rounded border-2 border-violet-400/70" />
+                  <span className="text-ink/90">{d}</span>
+                </Show>
+              ))}
+            </ul>
+            <p className="pz-appear mt-4 text-[15px]" style={later(1900)}><b className="text-ink">Out of scope:</b> {ISSUE_140.outOfScope}</p>
+          </div>
+        </IssueCard>
+      </div>
+
+      {CONTEXT.map((c, i) => (
+        <Show key={c.name} from={c.side} delay={DOCS_AT + i * 120} style={at(c.x, c.y, 290, 84)}
+          className="flex flex-col justify-center rounded-xl border border-hairline bg-raised px-4 py-2.5">
+          {c.name.includes('/') && !c.name.endsWith('/') && (
+            <div className="font-mono text-[12px] text-faint">{c.name.slice(0, c.name.lastIndexOf('/') + 1)}</div>
+          )}
+          <div className="font-mono text-[15px] text-ink">
+            {c.name.endsWith('/') ? c.name : c.name.slice(c.name.lastIndexOf('/') + 1)}
+          </div>
+          <div className="text-[14px] text-faint">{c.what}</div>
+        </Show>
+      ))}
+    </>
+  );
+}
+
+export const OPENING = [
+  {
+    id: 'title', name: 'The software factory', accent: 'text-violet-300', tone: 'violet',
+    beats: [null],
+    Scene: TitleScene,
+  },
+  {
+    id: 'issue', name: 'The ticket', accent: 'text-emerald-300', tone: 'emerald',
+    beats: [
+      {
+        kicker: 'The inputs',
+        title: 'It starts with a ticket, and the context it carries',
+        body: 'A Done when list a test can check, and the docs every agent reads instead of the source.',
+      },
+    ],
+    Scene: IssueScene,
+  },
+  {
+    id: 'promise', name: 'One label', accent: 'text-emerald-300', tone: 'emerald',
+    beats: [
+      {
+        kicker: 'Then, one label',
+        title: 'Label an issue. Three seconds later, Vercel is on it',
+        body: 'Measured on ticket #38: webhook answered in 0.7 s, ticket claimed and sized about 3 s after GitHub sent it.',
+      },
+    ],
+    Scene: PromiseScene,
+  },
+];
+

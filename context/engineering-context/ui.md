@@ -172,51 +172,77 @@ focuses `#main`. **`NotFoundPage`** — the `*` route; its heading "Nothing
 scheduled here".
 
 **`/product-presentation` and `/engineering-presentation`** — two talks, the
-product harness (a conversation → a ticket) then the engineering harness (the
-ticket → a reviewed pull request), part of the app so anyone with the URL can
-give or watch them. The routes **outside `<Layout>`**: full screen, no header or
-footer, so the smoke suite (which expects a banner and footer) does not list
-them; `tests/presentation.spec.js` covers them instead. Both pages are a
-`components/presentation/Deck.jsx`, which holds one flat beat index in `?beat=`
-(1-based, matching the counter; `src/lib/presentation.js` parses, clamps and maps
-keys — →/Space/Enter/PageDown on, ←/PageUp/Backspace back, Home/End, F full
-screen) and draws a fixed 1600×900 stage scaled to the window. `Deck`'s `next`
-is the talk that follows: one press past the last beat navigates there — with
-`next.delay` the current scene is first told it is `leaving` (and the stars warp)
-so a hand-off can play, except under reduced motion, which navigates at once; a
-scene also gets `advance`, so a button on the stage can be the clicker. The
-product deck ends on the frame the engineering deck opens with, and hands over
-with a button whose name is "Continue to the engineering harness"; the engineering
-deck has no `next`. `components/presentation/chapters.js` lists the engineering
-chapters in order and `presentation/product/chapters.js` the product ones — the
-workflow first (`workflow.jsx`: the project context, the two-fold trick, context
-versus the task tracker, a chapter slide, the three skills as one possibility),
-then the winnow skills built from the bottom (create-tasks, update-context, winnow
-over both), the whole flow and the demo, the hand-off. A beat with `hero: true` is a
-title slide: `Deck`'s caption is set large mid-stage and the scene only decorates
-beside it. Each is
-`{ id, name, accent, tone, beats, Scene, enter? }` — one
-caption per beat (`null` for none) and a `Scene({ step, leaving, advance })` laid out in stage
-pixels. The chapters either side of the current one stay mounted so they can fly
-in and out; a scene re-mounts each time it becomes current, so its entrance
-replays. `enter: 'cut'` swaps the fly-through for a crossfade, for a chapter whose
-predecessor already drew its opening frame — the map's last beat unpacks ship's
-stations exactly where `ship.jsx` draws them, so moving between the two must not
-move them. The engineering talk tells each idea once, at the station where it
-happens: sizing is Setup's second beat, the Swiss cheese strip sits on the code
-audit, and the needs-human chapter (`after.jsx`) breaks into ship after the loop,
-before `SHIP_PR` — ship's last stop, the same `ShipScene` offset by `PR_BEAT`. It
-ends on *Your role* and a three-step *Now you* lab. `kit.jsx` has the primitives (`Show`, `Replay`, `Token` — the #140 ticket
-that travels both talks, `Flip`, `Terminal`, `Verdict`…); `product/kit.jsx` the
-product talk's own (the hosts' faces, `Wave`, `Versus` — by hand against with the
-skill — `SkillHead`, a skill's name set large, and the three-step `StepRail`); `Backdrop.jsx` the starfield
-and aurora. The product talk states only what the winnow skills really do
-(`.claude/skills/winnow`, `create-tasks`, `update-context`): the bucket names and the
-ticket shape are theirs. `listen-to-meeting` is deliberately not in the talk.
-The engineering talk renders ticket #140 from one constant, `presentation/issue.js`
-(`ISSUE_140`: title, why, what, doneWhen, outOfScope). The product talk keeps its own
-copy of the ticket (`product/winnow.jsx`: WhereScene and the Distil buckets), so a
-change to the #140 text is made in both.
+product harness (a conversation → a ticket) then *The software factory* (the
+engineering harness as it runs today: the ticket → production, on Vercel), part
+of the app so anyone with the URL can give or watch them. The routes **outside
+`<Layout>`**: full screen, no header or footer, so the smoke suite (which
+expects a banner and footer) does not list them; `tests/presentation.spec.js`
+covers them instead. Both pages are a `components/presentation/Deck.jsx`, which
+holds one flat beat index in `?beat=` (1-based, matching the counter;
+`src/lib/presentation.js` parses, clamps and maps keys — →/Space/Enter/PageDown
+on, ←/PageUp/Backspace back, Home/End, F full screen) and draws a fixed
+1600×900 stage scaled to the window. `Deck`'s `next` is the talk that follows:
+one press past the last beat navigates there — with `next.delay` the current
+scene is first told it is `leaving` (and the stars warp) so a hand-off can
+play, except under reduced motion, which navigates at once; a scene also gets
+`advance`, so a button on the stage can be the clicker. The product deck hands
+over with a button whose name is "Continue to the engineering harness"; the
+engineering deck has no `next`.
+
+A chapter is `{ id, name, accent, tone, beats, Scene, enter? }` — one caption
+per beat (`null` for none) and a `Scene({ step, leaving, advance })` laid out
+in stage pixels. A beat with `hero: true` is a title slide: `Deck`'s caption is
+set large mid-stage and the scene only decorates beside it. The chapters either
+side of the current one stay mounted so they can fly in and out; a scene
+re-mounts each time it becomes current, so its entrance replays. `enter: 'cut'`
+swaps the fly-through for a crossfade, for a chapter that continues the scene
+before it.
+
+**The engineering talk** (`components/presentation/chapters.js`) is four files.
+Its spine is one ship run: after a short opening the rail of the run's eleven
+phases stays on screen to the end of the walkthrough, the #140 ticket riding it,
+so the room always knows where it is — and each Vercel piece is taught at the
+station where it happens, not in a chapter of its own.
+
+- `opening.jsx` — the title (`Orbits`, the seven workflows around the Vercel
+  mark, reused behind the closing line), the promise (one label, Vercel picks
+  the ticket up, and everything that then happens without you) and the ticket
+  with its context docs.
+- `platform.jsx` — the factory floor (the map of both projects, the seven
+  workflows) as a chapter, and the panels the rail shows: `Switchboard` (the
+  webhook), `Sizing` and `Ladder` (Jev, AI Gateway), `Fork` and `Network`
+  (Vercel Sandbox), `Durable` and `Asleep` (Vercel Workflows), `Climb`. Each is
+  laid out for the rail's 1440×460 panel. `Wf` is a workflow chip.
+- `ship.jsx` — the rail. `STOPS` is one entry per beat: the station the ticket
+  is at and the panel shown under it (`PANEL`); `LINE_BEATS` is its caption, in
+  the same order. The first stop frames it — a ticket goes in, a feature comes
+  out — and Production closes it with the feature live. `SHIP` cuts the one
+  `LineScene` into a chapter per stretch of the rail (`stretch`), joined by
+  `cut`, so the chrome names the station. Plan audit shows as skipped: #140 is
+  a small ticket. Needs-human is two stops at Audit.
+- `closing.jsx` — on the record (the progress comment's Models table, the
+  `/runs` page) and what it costs, ten tickets at once, your role and the
+  closing line.
+
+`kit.jsx` has the primitives both talks share (`Show`, `Replay`, `Token` — the
+#140 ticket — `Flip`, `Terminal`, `Model` and `MODELS`, the factory's ladder,
+`Vercel`, the mark, `box`…); `apps.jsx` draws GitHub, light, as the room sees
+it; `Backdrop.jsx` the starfield and aurora. The engineering talk renders
+ticket #140 from one constant, `presentation/issue.js` (`ISSUE_140`: title,
+why, what, doneWhen, outOfScope).
+
+**The product talk** (`presentation/product/chapters.js`): the workflow first
+(`workflow.jsx`: the project context, the two-fold trick, context versus the
+task tracker, a chapter slide, the three skills as one possibility), then the
+winnow skills built from the bottom (create-tasks, update-context, winnow over
+both), the whole flow and the demo, the hand-off. `product/kit.jsx` has its own
+primitives (the hosts' faces, `Wave`, `Versus` — by hand against with the
+skill — `SkillHead`, a skill's name set large, and the three-step `StepRail`).
+It states only what the winnow skills really do (`.claude/skills/winnow`,
+`create-tasks`, `update-context`): the bucket names and the ticket shape are
+theirs. `listen-to-meeting` is deliberately not in the talk. It keeps its own
+copy of the ticket (`product/winnow.jsx`: WhereScene and the Distil buckets),
+so a change to the #140 text is made in both.
 
 It is the only place that uses **Motion** (`motion/react`) — springs, the
 chapter fly-through, the camera zoom. Inside a beat, sequences are the `pz-*`
@@ -265,8 +291,11 @@ How to test one: `context/engineering-context/testing.md` § Testing a dialog.
 - New motion needs an entry that the reduced-motion block neutralises, and must
   not leave content hidden when it is.
 - Motion (`motion/react`) stays inside the two presentations. The app's own motion is CSS.
-- The presentation states only what the harness really does; its numbers (round
-  limits, typical costs, PR #96 and #97) are `context/engineering-context/harness/index.md`'s — change them together.
+- The engineering talk states only what the factory really does. Its facts are
+  the code's — the phases, round limits, tiers and thresholds in `factory/`
+  (see `harness.md`) — and its numbers are real runs in this repository: ticket
+  #38's models table and $0.93, ticket #16 at $4.11 then $1.80, and the model
+  measurements in `factory/lib/models.ts`. Change the factory, change the talk.
 
 ## Gotchas
 

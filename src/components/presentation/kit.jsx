@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { motion } from 'motion/react';
 
 /**
- * Building blocks for /presentation. Everything is placed on a fixed
+ * Building blocks for the two talks. Everything is placed on a fixed
  * 1600×900 stage in stage pixels, so a scene is laid out once and the page
  * scales the whole stage to the screen.
  */
@@ -70,34 +70,63 @@ export function Replay({ on, children, ...rest }) {
 /** Delay a keyframe-animated child inside one beat. */
 export const later = (ms, extra) => ({ animationDelay: `${ms}ms`, ...extra });
 
+/**
+ * The models the factory's ladder runs on (factory/lib/models.ts LADDER), by
+ * tier: lite, standard (two), strong, frontier.
+ */
 export const MODELS = {
-  opus:   { name: 'Opus',   chip: 'bg-violet-500/15 text-violet-200 border-violet-400/40', dot: 'bg-violet-400' },
-  sonnet: { name: 'Sonnet', chip: 'bg-sky-500/15 text-sky-200 border-sky-400/40',          dot: 'bg-sky-400' },
-  haiku:  { name: 'Haiku',  chip: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/40', dot: 'bg-emerald-400' },
+  haiku:    { name: 'Haiku 5.5',           tier: 'lite',     chip: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/40', dot: 'bg-emerald-400' },
+  glm:      { name: 'GLM 5.3 Flash',       tier: 'standard', chip: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/40',          dot: 'bg-cyan-400' },
+  deepseek: { name: 'DeepSeek V4.1 Flash', tier: 'standard', chip: 'bg-sky-500/15 text-sky-200 border-sky-400/40',             dot: 'bg-sky-400' },
+  sonnet:   { name: 'Sonnet 5.5',          tier: 'strong',   chip: 'bg-violet-500/15 text-violet-200 border-violet-400/40',    dot: 'bg-violet-400' },
+  opus:     { name: 'Opus 5.5',            tier: 'frontier', chip: 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/40', dot: 'bg-fuchsia-400' },
 };
 
-export function Model({ m, className = '', children }) {
+export function Model({ m, className = '', style, children }) {
   const model = MODELS[m];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[13px] ${model.chip} ${className}`}>
+    <span style={style} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 font-mono text-[13px] ${model.chip} ${className}`}>
       <span className={`size-1.5 rounded-full ${model.dot}`} />
       {children ?? model.name}
     </span>
   );
 }
 
+/** The Vercel mark. */
+export function Vercel({ className = 'size-4' }) {
+  return (
+    <svg viewBox="0 0 16 14" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M8 0l8 14H0z" />
+    </svg>
+  );
+}
+
+/** The talk's standing credit, in the deck's top bar on every slide. */
+export function BuiltOnVercel() {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-hairline bg-black/40 px-3 py-1 text-[13px] font-medium text-ink">
+      <Vercel className="size-3" /> Built on Vercel
+    </span>
+  );
+}
+
+/** A panel: the deck's standard card. */
+export const box = 'rounded-2xl border border-hairline bg-surface';
+
 const LABELS = {
   'ready-for-ai':   'bg-violet-500/20 text-violet-200 border-violet-400/50',
   'ai-working':     'bg-sky-500/20 text-sky-200 border-sky-400/50',
   'needs-human':    'bg-amber-500/20 text-amber-200 border-amber-400/50',
   'ready-for-human':'bg-emerald-500/20 text-emerald-200 border-emerald-400/50',
+  'ship:fast':      'bg-emerald-500/20 text-emerald-200 border-emerald-400/50',
+  'ship:small':     'bg-sky-500/20 text-sky-200 border-sky-400/50',
   'ship:full':      'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/50',
   'harness-escape': 'bg-rose-500/20 text-rose-200 border-rose-400/50',
 };
 
-export function Label({ name, className = '' }) {
+export function Label({ name, className = '', style }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[14px] font-semibold ${LABELS[name]} ${className}`}>
+    <span style={style} className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[14px] font-semibold ${LABELS[name]} ${className}`}>
       {name}
     </span>
   );

@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { resumeHook } from 'workflow/api';
 import { HookNotFoundError } from 'workflow/errors';
 import { ALLOWED_REPO, FULL_SUITE_LABEL } from '@/lib/constants';
+import { dismissNumbers } from '@/lib/review-policy';
 import { startChecks, startRespond, startShip, startShots, startVerify, startWarm } from '@/lib/start';
 
 /**
@@ -13,8 +14,8 @@ import { startChecks, startRespond, startShip, startShots, startVerify, startWar
  *     (not one ship opened: ship runs its own, and waits for them)
  *   - `/review` on a pull request                      → verify, review and QA it again
  *   - `/screenshots` on a pull request                 → screenshot what it changes, on its preview
- *   - `@claude …` on a pull request                    → respond: make the change asked for
- *   - `/dismiss <n>` on a pull request                  → nothing now: the next review reads it and drops that finding for good
+ *   - `/fix …` or `@claude …` on a pull request        → respond: make the change asked for
+ *   - "finding <n> is wrong" on a pull request         → nothing now: the next review reads it and drops that finding for good
  *   - a pull request closed (merged or not)            → wake the ship run waiting on it, tidy its issue
  *   - a push to a pull request (or one ship opened)    → verify: the tests the change needs, as CI
  *   - `full-suite` put on a pull request               → verify it again, running everything
@@ -44,8 +45,8 @@ export async function POST(req: Request) {
   // write access, on the issue or on the draft ship handed back, resumes it — no label needed.
   if (event === 'issue_comment' && p.action === 'created' && WRITERS.has(p.comment?.author_association)) {
     const body: string = p.comment?.body || '';
-    // `/dismiss n` marks a review finding wrong (read back by the next review), not an answer to a hand-back.
-    if (!body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel') && !/(^|\s)\/dismiss\b/i.test(body)) {
+    // "finding 2 is wrong" marks a review finding wrong (read back by the next review), not an answer to a hand-back.
+    if (!body.includes('<!-- factory') && !body.includes('<!-- ship-on-vercel') && !dismissNumbers(body).length) {
       let n: number | null = null;
       if (!p.issue?.pull_request) {
         if ((p.issue.labels || []).some((l: any) => l.name === 'needs-human')) n = p.issue.number;
@@ -138,11 +139,11 @@ export async function POST(req: Request) {
       const [v, checks] = await Promise.all([startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, full, pr: pr.number }), startChecks(p.issue.number, pr.head.sha)]);
       return Response.json({ verify: v, checks });
     }
-    if (/(^|\s)@claude\b/i.test(body)) {
+    if (/(^|\s)(\/fix|@claude)\b/i.test(body)) {
       // respond pushes, so only to a branch of this repository.
       const pr = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}/pulls/${p.issue.number}`, { headers: { authorization: `Bearer ${process.env.GITHUB_TOKEN}`, 'user-agent': 'orbit-factory' } }).then((r) => r.json());
       if (pr.head?.repo?.full_name?.toLowerCase() !== ALLOWED_REPO) return Response.json({ ignored: 'a fork\'s branch: the factory pushes only to this repository' });
-      return Response.json(await startRespond({ pr: p.issue.number, ask: body.replace(/(^|\s)@claude\b/gi, ' ').trim(), author: p.comment.user.login }, p.comment.id));
+      return Response.json(await startRespond({ pr: p.issue.number, ask: body.replace(/(^|\s)(\/fix|@claude)\b/gi, ' ').trim(), author: p.comment.user.login }, p.comment.id));
     }
   }
 

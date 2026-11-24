@@ -119,7 +119,7 @@ function useParallax() {
   return { rotateX, rotateY, onPointerMove };
 }
 
-export function Deck({ chapters: CHAPTERS, title, next }) {
+export function Deck({ chapters: CHAPTERS, title, next, brand }) {
   useDocumentTitle(title);
   const COUNTS = useMemo(() => CHAPTERS.map((c) => c.beats.length), [CHAPTERS]);
   const TOTAL = COUNTS.reduce((a, b) => a + b, 0);
@@ -209,7 +209,8 @@ export function Deck({ chapters: CHAPTERS, title, next }) {
         <Link to="/" className="font-display text-[15px] text-muted hover:text-ink" aria-label="Back to ORBIT '26">ORBIT &rsquo;26</Link>
         <span className="text-faint">/</span>
         <span className="text-muted" data-testid="presentation-chapter">{current.name}</span>
-        <span className="ml-auto font-mono text-faint" data-testid="presentation-counter">{beat + 1} / {TOTAL}</span>
+        {brand && <span className="ml-auto">{brand}</span>}
+        <span className={`${brand ? '' : 'ml-auto '}font-mono text-faint`} data-testid="presentation-counter">{beat + 1} / {TOTAL}</span>
         <button type="button" onClick={toggleFullscreen} className="rounded-md border border-hairline px-2 py-1 text-muted hover:bg-overlay hover:text-ink" aria-label="Toggle full screen (F)">
           ⛶
         </button>

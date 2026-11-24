@@ -13,7 +13,7 @@ const HOST_COMPANY = 'Equal Experts';
 /** The hosts' two talks, in the order they are given. */
 const TALKS = [
   { to: '/product-presentation', title: 'The product harness', blurb: 'A conversation → a ticket' },
-  { to: '/engineering-presentation', title: 'The engineering harness', blurb: 'A ticket → a pull request' },
+  { to: '/engineering-presentation', title: 'The software factory', blurb: 'A ticket → production, on Vercel' },
 ];
 
 /**

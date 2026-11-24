@@ -83,6 +83,13 @@ test('a finding a person dismissed is not raised again, on any pull request', ()
   assert.equal(toCheck([{ ...b }], d).checked.length, 0);
   assert.deepEqual(dismissNumbers('/dismiss 1, 3'), [1, 3]);
   assert.deepEqual(dismissNumbers('please /dismissal'), []);
+  // …and the way a person would say it to a colleague, with no command at all
+  assert.deepEqual(dismissNumbers('Finding 2 is wrong — the count is in the mobile nav'), [2]);
+  assert.deepEqual(dismissNumbers('#1 and #3 are false positives'), [1, 3]);
+  assert.deepEqual(dismissNumbers('2 is not a problem, we do that on purpose'), [2]);
+  assert.deepEqual(dismissNumbers('dismiss 2'), [2]);
+  assert.deepEqual(dismissNumbers('line 42 is wrong, should be 43'), [], 'a number that is not named as a finding');
+  assert.deepEqual(dismissNumbers('Skip them. We never take away a seat someone holds.'), [], 'an answer to a hand-back');
 });
 
 test('the comment: an approval is green, every blocker sits inside the callout with its confidence, the footer links render', () => {
