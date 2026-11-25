@@ -68,11 +68,13 @@ lat/lng are real. There was once a per-venue "floor plan" built from invented
 removed. Do not bring it back — `VenueBoard` shows what is actually happening
 in each room instead.
 
-## Home and My Agenda are blank on purpose
+## Home is blank on purpose
 
-`/` is a way in — hero, links, the latest announcement, sponsors — and
-`/my-agenda` is a *coming soon* placeholder. Personal views are what workshop
-teams build; build one when a ticket asks for it. When you do:
+`/` is a way in — hero, links, the latest announcement, sponsors — and nothing
+more: personal views are what workshop teams build. `/my-agenda` is now the
+attendee's own day (agenda doc), but the rest of the personal side — suggestions,
+what they follow, hours held — is still unbuilt; build it when a ticket asks for
+it, and when you do:
 
 - **Rank suggestions on behaviour, not declaration.** `interests` is what
   someone ticked at registration; the topic tags on what they have actually

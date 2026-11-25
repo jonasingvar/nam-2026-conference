@@ -25,6 +25,10 @@ export function ConferenceProvider({ children }) {
   const [followingIds, setFollowingIds] = useState(() => new Set());
   // sessionId -> 'confirmed' | 'waitlisted'
   const [reservations, setReservations] = useState(() => new Map());
+  // Whether this attendee's own state has arrived. Until it has, the
+  // reservations map is empty but means "unknown", not "nothing booked" — a
+  // page that filtered a list on it would flash an empty agenda.
+  const [userReady, setUserReady] = useState(false);
   // sessionId -> live seat counts, so a reservation updates every view at once
   const [seatCounts, setSeatCounts] = useState(() => new Map());
   // an overlapping booking the attendee has to resolve
@@ -42,11 +46,13 @@ export function ConferenceProvider({ children }) {
     // Never let one attendee act on the previous attendee's state.
     setFollowingIds(new Set());
     setReservations(new Map());
+    setUserReady(false);
     api.getUser(currentUserId)
       .then((u) => {
         if (!active) return;
         setFollowingIds(new Set(u.followedSpeakers.map((s) => s.id)));
         setReservations(new Map((u.reservations ?? []).map((r) => [r.sessionId, r.status])));
+        setUserReady(true);
       })
       .catch(() => {});
     return () => { active = false; };
@@ -179,6 +185,7 @@ export function ConferenceProvider({ children }) {
       currentUser: users.find((u) => u.id === currentUserId) ?? users[0] ?? null,
       currentUserId,
       setCurrentUserId,
+      userReady,
       followingIds,
       isFollowing: (id) => followingIds.has(id),
       toggleFollow,
@@ -196,7 +203,7 @@ export function ConferenceProvider({ children }) {
       venueById: Object.fromEntries((data?.venues ?? []).map((v) => [v.id, v])),
       roomById: Object.fromEntries((data?.rooms ?? []).map((r) => [r.id, r])),
     };
-  }, [data, error, clock, currentUserId, followingIds, toggleFollow,
+  }, [data, error, clock, currentUserId, userReady, followingIds, toggleFollow,
       reservations, seatCounts, reserveSeat, releaseSeat, toggleSeat,
       conflict, resolveConflict]);
 

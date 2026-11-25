@@ -156,6 +156,19 @@ body::before {
   }
 }
 
+/* The rail down the left of a booked session on My Agenda. It draws itself
+   from the top on load: scale, not height, so the browser can keep it on the
+   compositor. `--i` staggers the panels down the page. */
+@keyframes rail-draw {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@utility rail-draw {
+  transform-origin: top;
+  animation: rail-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
 /* Logo marquee — the track is duplicated, so -50% is a seamless loop. */
 @keyframes marquee {
   from { transform: translateX(0); }
@@ -372,4 +385,7 @@ body::before {
   }
   /* Revealed content must still be visible if the transition is skipped. */
   .reveal { opacity: 1 !important; transform: none !important; }
+  /* Duration alone is not enough for a delayed animation: the rail has to be
+     at full height immediately, not after its stagger. */
+  .rail-draw { animation-delay: 0ms !important; }
 }

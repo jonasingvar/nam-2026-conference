@@ -30,3 +30,16 @@
 
 ## Out of scope
 Reserving, check-in, rating, other days, `.ics` export, any change to Home or to the server.
+
+## Amended while building
+- **The page reads `/users/:id/schedule`, not `/today`.** `todayFor` returns `current`
+  (one), `next` (only the *next* session) and `finished` — the day's later seats are in
+  none of them, so "all sessions I have booked for today" is unreachable from that
+  payload at 08:00. `/schedule` carries every seat on every day, so it is one fetch per
+  attendee with the day picked client-side from `clock.day`.
+- **The store needed a `userReady` flag.** The reservations map is empty until
+  `GET /users/:id` lands, which is indistinguishable from "nothing booked" and flashed
+  the empty state; the page now waits for both responses before drawing.
+- **The lane is day index 1, not a clean day 0.** Every attendee with a free day 0 pair
+  is already claimed by another lane; abraham (desktop) has seeded waitlist places on
+  day 1, which is what the "waitlisted seats are not shown" check needs.

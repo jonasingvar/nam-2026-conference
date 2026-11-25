@@ -56,7 +56,9 @@ delay by `--i` × 40ms — set `style={{ '--i': i }}`, capped by callers at ~12)
 `animate-pulse-dot` (live indicators), `animate-ken-burns`, `animate-slide-in`,
 `animate-fade-zoom` and `animate-fill` (the speaker spotlight and its autoplay progress;
 duration set inline), `reveal` (scroll-triggered, + `data-visible="true"`),
-`animate-marquee` (sponsor logos).
+`animate-marquee` (sponsor logos), `rail-draw` (My Agenda's left rail: `scaleY` 0 → 1 from
+the top, delayed by `--i` × 90ms — the one animation the reduced-motion block also has to
+zero the *delay* on, since duration alone would leave it invisible until its turn).
 JS-driven motion (`SpeakerSpotlight`, `HeroMedia`, `CountUp`) checks
 `matchMedia('(prefers-reduced-motion: reduce)')` itself.
 

@@ -3,9 +3,17 @@ import {
   API, ATTENDEES, bookableFor, conferenceDays, laneFor, shotForPR, visit,
 } from './helpers.js';
 
-/** A CSS `transform` matrix's vertical scale. `none` is the identity. */
-const scaleY = (transform) =>
-  (transform === 'none' ? 1 : Number(transform.slice(7).split(',')[3]));
+/**
+ * The vertical scale a `transform` means — a keyframe's `scaleY(x)` or a
+ * computed `matrix(a, b, c, d, e, f)`. `none` is the identity.
+ */
+const scaleY = (transform) => {
+  if (transform === 'none') return 1;
+  const fn = /scaleY\(([\d.]+)\)/.exec(transform ?? '');
+  if (fn) return Number(fn[1]);
+  const m = /matrix\(([^)]+)\)/.exec(transform ?? '');
+  return m ? Number(m[1].split(',')[3]) : NaN;
+};
 
 /** Two sessions this attendee can book today, in different slots, with room to spare. */
 async function twoBookable(request, userId, day) {
@@ -60,9 +68,10 @@ test.describe('My Agenda is the day you hold seats for', () => {
           for (const r of records) for (const n of r.addedNodes) check(n);
         }).observe(document.documentElement, { childList: true, subtree: true });
       });
-      // Hold the day payload back, so the skeleton is observable and any
-      // panel → empty → panel flicker has the time to happen.
-      await page.route('**/api/users/*/today*', async (route) => {
+      // Hold the plan and the attendee's own seats apart, so the skeleton is
+      // observable and the gap between the two responses — the one that used
+      // to flash an empty agenda — has time to happen.
+      await page.route('**/api/users/*', async (route) => {
         await new Promise((r) => setTimeout(r, 1200));
         await route.continue();
       });
@@ -75,7 +84,7 @@ test.describe('My Agenda is the day you hold seats for', () => {
 
       const panels = page.locator('[data-testid^="agenda-session-"]');
       await expect(panels).toHaveCount(agenda.confirmed.length);
-      await page.unroute('**/api/users/*/today*');
+      await page.unroute('**/api/users/*');
       await shotForPR(page, 'my-agenda');
 
       // Every confirmed seat has a panel; a waitlist place has none. Nothing
@@ -106,10 +115,12 @@ test.describe('My Agenda is the day you hold seats for', () => {
       await expect(panel).toContainText(mine.venue.name);
       const box = await panel.boundingBox();
       expect(box.height, 'the panel is too small to read').toBeGreaterThanOrEqual(150);
+      // Still to come, an hour early: not live yet.
+      await expect(panel.getByTestId('agenda-live')).toHaveCount(0);
 
-      const portrait = panel.getByRole('link', { name: new RegExp(speaker.name) });
-      await expect(portrait).toHaveAttribute('href', `/speakers/${speaker.id}`);
-      await expect(portrait.locator('img, svg')).toHaveCount(1);
+      const portrait = panel.locator(`a[href="/speakers/${speaker.id}"]`);
+      await expect(portrait).toContainText(speaker.name);
+      await expect(portrait.locator('img, svg'), 'the speaker link carries no portrait').toHaveCount(1);
       await portrait.click();
       await expect(page).toHaveURL(new RegExp(`/speakers/${speaker.id}$`));
       await page.goBack();
@@ -136,6 +147,10 @@ test.describe('My Agenda is the day you hold seats for', () => {
         .evaluate((el) => getComputedStyle(el).transform);
       expect(scaleY(settled)).toBe(1);
       await page.emulateMedia({ reducedMotion: null });
+
+      // Once its slot arrives it is the one running now.
+      await visit(page, '/my-agenda', { as: user, at: `${day}T${mine.startsAt}` });
+      await expect(page.getByTestId(`agenda-session-${mine.id}`)).toContainText(/live now/i);
 
       // Releasing the seat removes the panel at once, and gives the seat back.
       await page.getByTestId(`agenda-release-${mine.id}`).click();

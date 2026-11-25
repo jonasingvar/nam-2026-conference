@@ -105,13 +105,14 @@ the routes. `/product-presentation` and `/engineering-presentation` sit outside 
 **`useConference()`** (`store.jsx:ConferenceProvider`) spreads the whole bootstrap payload
 (`conference`, `venues`, `travel`, `tracks`, `tags`, `rooms`, `users`, `days`, `formats`,
 `levels`, `cuisines`) and adds: `ready`, `error`, `clock` (from `useConferenceClock(days)`),
-`currentUser`, `currentUserId`, `setCurrentUserId`; follows — `followingIds`,
+`currentUser`, `currentUserId`, `setCurrentUserId`, `userReady`; follows — `followingIds`,
 `isFollowing(id)`, `toggleFollow(id)`; seats — `reservations` (Map sessionId →
 `'confirmed'|'waitlisted'`), `reservationFor(id)`, `onAgenda(id)`, `seatCounts`,
 `seatsFor(id)`, `reserveSeat`, `releaseSeat`, `toggleSeat`, `conflict`,
 `resolveConflict(swap)`; lookups — `trackBySlug`, `venueById`, `roomById`.
 Changing `currentUserId` writes `orbit:currentUserId`, clears follows/reservations, then
-reloads them from `GET /users/:id`. `seatCounts` holds live counts from seat responses so
+reloads them from `GET /users/:id`; `userReady` flips true when that response lands, so a
+page can tell "nothing booked" from "not loaded yet" instead of flashing an empty state. `seatCounts` holds live counts from seat responses so
 every card updates without refetching; read `seatsFor(id)` before the page's payload.
 
 **`useFetch(fn, deps)`** returns `{ data, loading, error, reload }`. It re-runs when `deps`

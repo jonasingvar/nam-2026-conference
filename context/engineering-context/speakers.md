@@ -46,8 +46,9 @@ related: [seed, ui, agenda, architecture]
 `api.followSpeaker` / `api.unfollowSpeaker`; `useConference()` exposes
 `followingIds` (a `Set`), `isFollowing(id)` and `toggleFollow(id)` (store.jsx —
 calls the API, updates the set, toasts). Nothing shows a followed speaker's
-sessions yet — `GET /api/sessions?followedBy=` (`api.getFollowedSessions`) is
-there for whoever builds Home or My Agenda.
+sessions yet — My Agenda lists booked seats, not follows — and
+`GET /api/sessions?followedBy=` (`api.getFollowedSessions`) is there for whoever
+builds that feed on Home or My Agenda.
 
 **`SpeakersPage` — URL params** (`useSearchParams`, `'all'`/empty deletes the
 key): `q`, `track` (sent as `trackSlug`), `day`, `show`

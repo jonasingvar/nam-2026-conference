@@ -1,13 +1,15 @@
 ---
 area: agenda
-summary: The attendee's own conference — the My Agenda placeholder page, and the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), none of which has a UI yet.
+summary: The attendee's own conference — the My Agenda page that shows a day of booked seats, and the endpoints an agenda is built on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports).
 read_when: touching My Agenda, an attendee's day or schedule, suggestions, clashes or booked-hours totals, a speaker's own sessions, or calendar export
 files:
   - server/lib/agenda.js
   - server/lib/ical.js
   - src/pages/MyAgendaPage.jsx
+  - src/components/AgendaSessionPanel.jsx
 tests:
   - tests/home.spec.js
+  - tests/agenda.spec.js
   - tests/api/agenda.test.js
   - tests/api/calendar.test.js
   - tests/unit/ical.test.js
@@ -16,18 +18,29 @@ related: [seats, attendance, clock, venues, schedule, speakers, ui]
 
 # Agenda
 
-**My Agenda is a placeholder.** `/my-agenda` (`MyAgendaPage`, still in the nav,
-`/my-plan` redirects there) renders a `SectionHeader` and a "Coming soon" panel
-(`agenda-coming-soon`) with a `Browse the schedule` button — nothing else. Workshop
-teams design the page from scratch. Everything underneath it is built and tested:
-adding a session takes a seat (seats doc), and the payloads below are served,
-with matching functions in `src/lib/api.js`. What a day is made of is decided in
-`server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
+**My Agenda is the day you hold seats for.** `/my-agenda` (`MyAgendaPage`, in the
+nav, `/my-plan` redirects there) fetches `/users/:id/schedule` once per attendee — a
+30 s clock tick must not reflow the page — takes `clock.day` from it and renders one
+`AgendaSessionPanel` per confirmed seat, in time order: the speaker portraits
+(linked to `/speakers/:id`), the title, the track, the room and venue, and a single
+**Release seat**. Sessions already over are dimmed and marked `agenda-finished`; the one
+running is `agenda-live`. Nothing here books: the only action is giving a seat back
+(CLAUDE.md § There is exactly one action), and the page draws nothing — `agenda-skeleton` —
+until both the day payload and the store's own reservations have arrived, so a panel never
+appears, vanishes and comes back as two responses land in different orders. A day with
+nothing booked is `agenda-empty`, with a link to `/schedule`.
+Everything underneath the page is built and tested: adding a session takes a seat (seats
+doc), and the payloads below are served, with matching functions in `src/lib/api.js`. What a
+day is made of is decided in `server/lib/agenda.js`; routes in `server/routes/users.js` only
+validate and call it.
 
 ## How it works
 
 **`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
+Client: `api.getSchedule(userId)` — `MyAgendaPage` is the first caller, fetched once
+per attendee (the day is picked client-side from `clock.day`, so a clock tick does not
+refetch, and every later session of the day is there — `/today` carries only the very next
+one).
 `agenda.js:scheduleFor` returns one entry per day that has any reservation:
 `{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
 waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)
@@ -50,9 +63,10 @@ seats is `travel.js:assessTravel` (venues doc); export is `api.agendaCalendarUrl
 
 **`GET /api/users/:id/today?day=&time=`** → `users.js` checks the user exists (404)
 and `day` is present (400), then `agenda.js:todayFor(userId, { day, time })`.
-`time` defaults to `'00:00'`. Client: `api.getToday(userId, clock)` — no UI
-calls it yet. Key a fetch on `[currentUser.id, clock.day, clock.time]` and it
-refetches on every clock tick.
+`time` defaults to `'00:00'`. Client: `api.getToday(userId, clock)` — no UI calls it;
+its `current`/`next`/`finished` split carries only the *next* upcoming session, which is
+why the agenda page reads the whole plan from `/schedule` instead. Keying a fetch on
+`[currentUser.id, clock.time]` would refetch it on every clock tick.
 
 Payload, field by field (sessions are `hydrateSessions` output — full
 `toSession` plus `speakers` and `tags`):
@@ -121,8 +135,9 @@ local `DTSTART`/`DTEND`, `UID:orbit-session-<id>@orbitconf.dev`, LOCATION
 
 ## Where to change…
 
-- The My Agenda page: `MyAgendaPage.jsx`; replace `tests/home.spec.js`'s
-  "My Agenda is a blank canvas" test when the placeholder goes.
+- The My Agenda page: `MyAgendaPage.jsx` (the day, the skeleton/empty states) and
+  `AgendaSessionPanel.jsx` (one panel); prove it in `tests/agenda.spec.js`, which
+  uses the `agenda.page` lane.
 - A new field on the day payload → `agenda.js:todayFor`; prove it in `tests/api/` with `startApi()`.
 - Suggestion ranking → `agenda.js:suggestionsFor` / `myTopics` / `openInSlot`.
 - Clash or total rules → `agenda.js:scheduleFor`/`clashesIn`, and any client
