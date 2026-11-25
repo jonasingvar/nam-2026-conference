@@ -68,13 +68,14 @@ test('a commit the review has judged is not reviewed again when the pull request
   assert.ok(!alreadyReviewed(null));
 });
 
-test('when the preview of the pushed commit is ready, its link is the first thing on the card', () => {
+test('when the preview of the pushed commit is ready, its link closes the card', () => {
   const base = { ask: 'x', author: 'sam', runUrl: 'u' };
   const waiting = respondCard({ ...base, phase: 'Preview' });
   assert.match(waiting, /Changed and pushed · building the preview/);
   assert.match(waiting, /✅ Reply → \*\*⏳ Preview\*\*/);
   const done = respondCard({ ...base, phase: null, outcome: 'changed', preview: { url: 'https://p.vercel.app', sha: '0e843ed' } });
-  assert.ok(done.indexOf('## 🔎 [Open the preview](https://p.vercel.app)') < done.indexOf('✅ Read'), 'above the phase path');
+  assert.ok(done.indexOf('🔎 **[Open the live preview](https://p.vercel.app)**') > done.indexOf('**Read as:**'), 'at the bottom, after the details');
+  assert.doesNotMatch(done, /^> \[!TIP\]|^## /m);
   assert.match(done, /✅ Reply → ✅ Preview/);
   assert.match(respondCard({ ...base, phase: null, outcome: 'changed', preview: 'late' }), /<s>Preview<\/s>[\s\S]*not ready in time/);
   assert.match(respondCard({ ...base, phase: null, outcome: 'changed', preview: 'none' }), /does not alter the deployed app/);

@@ -60,10 +60,8 @@ export function respondCard(v: RespondView): string {
   return [
     `### 🏭 Respond on Vercel · ${headline}`,
     '',
-    // The thing the person is waiting for, first and large: the app with their change in it.
-    typeof v.preview === 'object' ? `> [!TIP]\n> ## 🔎 [Open the preview](${v.preview.url})\n> Your change is live there — this pull request at \`${v.preview.sha}\`.\n` : '',
     v.outcome === 'failed' ? '' : path,
-    v.phase === 'Preview' ? '\n⏳ Vercel is building the preview of what was just pushed — the link will appear at the top of this card.' : '',
+    v.phase === 'Preview' ? '\n⏳ Vercel is building the preview of what was just pushed — the link will appear at the bottom of this card.' : '',
     v.preview === 'late' ? '\nThe preview was not ready in time: it is under **Deployments** on this pull request, and the *Try it* link in the description moves to it.' : '',
     v.preview === 'none' ? '\nNo preview to open: this change does not alter the deployed app.' : '',
     '',
@@ -80,6 +78,8 @@ export function respondCard(v: RespondView): string {
     v.time ? `**Time:** ${v.time}` : '',
     v.table ? `\n<details><summary>Models — which job ran on what, and what it cost</summary>\n\n${v.table}\n\n<sub>Picked by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough.</sub>\n</details>` : '',
     '',
+    // Last, where the eye ends up once every step is green: the app with the change in it.
+    typeof v.preview === 'object' ? `\n🔎 **[Open the live preview](${v.preview.url})** — your change, at \`${v.preview.sha}\`.` : '',
     v.outcome ? '' : `👀 **[Watch the agent work, live](${v.runUrl}?tab=streams)** — each thing it says and every command it runs.`,
     '',
     `<sub>[run](${v.runUrl}) · [stream](${v.runUrl}?tab=streams)${v.outcome || v.phase === 'Preview' ? ' · the reply is the next comment' : ''}</sub>`,
