@@ -271,26 +271,35 @@ async function qaRun(input: QaInput) {
   const baseDeploy = (await findDeployment(co.base, 'Preview')).url ?? (pr.base === 'main' ? PRODUCTION_URL : null);
   await allowPreviews(box, [previewUrl, ...(baseDeploy ? [baseDeploy] : [])]);
 
+  const since = previous?.commit && /^[0-9a-f]{7,40}$/.test(String(previous.commit)) && previous.commit !== co.head ? String(previous.commit) : '';
   const facts = await k.command('facts', [
-    `FACTS=$(node scripts/qa-facts.mjs origin/${pr.base} 2>/dev/null | tail -1)`,
-    `FILES=$(git diff --name-only origin/${pr.base}...HEAD | paste -sd, -)`,
-    `FACTS="$FACTS" FILES="$FILES" node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({facts:e.FACTS,files:(e.FILES||"").split(",").filter(Boolean)}))'`,
+    // A second pass (a fix was pushed after QA's last verdict) is sized and aimed by what changed since that
+    // verdict, not by the whole pull request: a one-line fix gets a one-line fix's QA.
+    since ? `git cat-file -e ${since} 2>/dev/null || git fetch -q origin ${since} 2>/dev/null || true` : ':',
+    `SINCE=${since && `$(git cat-file -e ${since} 2>/dev/null && echo ${since})`}`,
+    `FACTS=$(node scripts/qa-facts.mjs "\${SINCE:-origin/${pr.base}}" 2>/dev/null | tail -1)`,
+    `if [ -n "$SINCE" ]; then FILES=$(git diff --name-only "$SINCE" HEAD | paste -sd, -); else FILES=$(git diff --name-only origin/${pr.base}...HEAD | paste -sd, -); fi`,
+    `FACTS="$FACTS" FILES="$FILES" SINCE="$SINCE" node -e 'const e=process.env;require("fs").writeFileSync(e.JOB+"/result.json",JSON.stringify({facts:e.FACTS,since:e.SINCE||"",files:(e.FILES||"").split(",").filter(Boolean)}))'`,
   ].join('\n'));
   const f = String(facts?.facts || '');
   const files: string[] = facts?.files ?? [];
   const size = (/--size=(\w+)/.exec(f) || [])[1] || 'large';
+  /** This pass looks only at what was pushed since QA's last verdict. */
+  const again = Boolean(facts?.since);
+  if (again) k.log(`a second pass: sized and aimed by what changed since ${String(facts.since).slice(0, 7)} (${files.length} file${files.length === 1 ? '' : 's'})`);
   // `probed` tells review this pass exercised the preview; a skip or a run whose probes never ran is no evidence.
   const marker = (bugs: any[], probed = false) => ({ pass: 'qa', commit: co.head, bugs, probed });
 
+  const prevProbes0: any[] = previous?.bugs || [];
   // Nothing an attendee can meet changed: the harness, tests and docs are code review's.
   if (/--app-change=no/.test(f)) {
-    await publish(true, 'high', 'Skipped — this pull request changes nothing an attendee can reach; code review covers it.', [], marker([]));
+    await publish(true, 'high', again ? `Skipped — what was pushed since ${String(facts.since).slice(0, 7)} changes nothing an attendee can reach.` : 'Skipped — this pull request changes nothing an attendee can reach; code review covers it.', [], marker(again ? prevProbes0 : []));
     await disposeSandbox(box);
     return outcome({ verdict: 'pass', confidence: 'high', skipped: 'no app change' });
   }
 
   const ticket = issue ? `The ticket, #${issue.number}: ${issue.title}\n\n${issue.body}\n` : `No linked ticket; the pull request says: ${pr.title}\n\n${pr.body.slice(0, 2000)}\n`;
-  const prevProbes: any[] = previous?.bugs || [];
+  const prevProbes: any[] = prevProbes0;
 
   // Which model does each QA job get: Jev reads the ticket and the diff's facts; the catalog prices it.
   const qaSize = size === 'large' ? 'full' : 'small';
@@ -329,12 +338,15 @@ async function qaRun(input: QaInput) {
 
   // 2. Plan the probes: a thinking job, no code — exact enough that writing them is mechanical.
   k.setPhase('plan');
-  const budget = size === 'large' ? 5 : 3;
+  // A second pass: the earlier bugs' probes, and at most two new ones for the fix.
+  const budget = again ? prevProbes.length + 2 : size === 'large' ? 5 : 3;
   const planned = await k.agent('probeplan',
     `${ticket}\nPull request #${pr.number} (branch ${pr.head}) is deployed at ${previewUrl} — a real Vercel preview with its own fresh database. ` +
     `Follow context/engineering-context/harness/qa-playbook.md §1–§3 (\`awk '/^## 1\\./,/^## 4\\./' context/engineering-context/harness/qa-playbook.md\`) to decide what to probe — ` +
     `you PLAN the probes, you do not write or run them: another agent writes each one from your plan alone, without exploring, and the factory runs them on desktop and mobile.\n\n` +
-    (prevProbes.length ? `This is a re-review. Plan these previous bugs' probes first, with the same titles: ${prevProbes.map((b) => `"${b.title}" (${b.aim})`).join(', ')}; then at most ${budget - prevProbes.length} new probes, aimed at \`git diff ${previous.commit} HEAD\`.\n` :
+    (again || prevProbes.length ? `This is a second pass: QA already judged this pull request at ${String(facts?.since || previous?.commit || '').slice(0, 7)}, and a fix was pushed since. ` +
+      (prevProbes.length ? `Plan these previous bugs' probes first, with the same titles: ${prevProbes.map((b) => `"${b.title}" (${b.aim})`).join(', ')}; then at most ` : `Plan at most `) +
+      `${budget - prevProbes.length} new probes, aimed only at what that fix changed (\`git diff ${facts?.since || previous?.commit} HEAD\`) — do not probe the rest of the pull request again.\n` :
       mode === 'focused' ? `Probe exactly these gaps, one probe each:\n${gaps.map((g) => `- ${g}`).join('\n')}\n` : `Explore: at most ${budget} probes where the PR's own tests do not reach.\n`) +
     `\nFor each probe give: the route; the seeded attendee (tests/helpers.js ATTENDEES); the pinned clock as "<dayIndex> HH:MM" when the outcome depends on the time, else ""; ` +
     `the steps, naming each control by its test id or role and accessible name as the source under src/ has it (grep data-testid; quote it exactly); and every expected result, ` +
