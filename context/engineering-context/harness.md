@@ -172,7 +172,7 @@ attributes keep `kind`, `selection`, `selected`, `of`, `breakdown`, `reason`,
 answers into a run is `lib/select.ts`, pure and tested). Each spec file in
 `tests/` is one vertical of the app. Jev reads what was asked (the ticket's
 title, or the comment), the files changed and the diff, and answers one yes/no
-per vertical — must these tests run again to trust this change — and one for
+per vertical (the smoke spec is not one: it opens every page, so it is only ever the fallback) — must these tests run again to trust this change — and one for
 the whole: can a browser test see this change at all. What runs is the
 change's own specs, whole, and each vertical Jev gives 50% or more; nothing
 else. Jev 80% sure no browser test can tell, with no vertical picked: no

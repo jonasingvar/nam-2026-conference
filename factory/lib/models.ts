@@ -99,7 +99,12 @@ export type JobSpec = {
   /** What was measured on this repository (factory/.scratch evals, 2026-11-23) — evidence Jev weighs. */
   seen?: string;
   /** What a climb costs beyond the next run, in dollars (time, a sandbox): default CLIMB_USD; a red gate round costs more. */
-  climb?: number;
+  climb?: number;  /**
+   * A person is waiting on this job, and a weak result is not a visible failure: start at the least tier Jev is
+   * at least this sure is enough, when that is above the cheapest-expected one. (respond ran a 13-minute,
+   * 105-turn change on a tier Jev gave 30–36%, because starting cheap and climbing was fewer expected dollars.)
+   */
+  minSure?: number;
 };
 
 export const JOBS: Record<Job, JobSpec> = {
@@ -119,7 +124,7 @@ export const JOBS: Record<Job, JobSpec> = {
   qaWrite: { does: 'turns an exact probe plan into Playwright tests, finding selectors in the source — mechanical', tokens: { input: 30_000, cached: 400_000, output: 8_000 }, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 0 }, effort: 'low', seen: 'a lite model (Haiku 5.5) wrote two planned probes that passed on desktop and mobile in 33 s for $0.01; a strong one took 28 s for $0.12' },
   qaSkeptic: { does: 'tries to refute a probe failure as a bug in the change: a wrong selector, a wrong expectation, an unpinned clock', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 1, small: 1, full: 2 }, miss: 0.3, effort: 'medium' },
   baseSame: { does: 'reads a probe and the diff: does the base branch fail it for the same reason, or only because the feature is new', tokens: LIGHT, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 1 }, miss: 0.2, effort: 'low' },
-  respond: { does: "makes the change a person asked for on a pull request, and nothing else", tokens: EDIT, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 2 } },
+  respond: { does: "makes the change a person asked for on a pull request, and nothing else", tokens: EDIT, min: 1, max: 3, fallback: { fast: 2, small: 2, full: 2 }, minSure: 0.6 },
   // One structured call, no tools: CI's test selector (lib/select.ts). A miss is cheap — the smoke spec always runs,
   // an unsure answer widens the run, and main runs everything — so it starts at the cheapest tier.
   testSelect: { does: "reads a pull request's diff, the coverage map's candidate tests and the list of browser specs, and adds or removes specs with a reason for each — one structured answer, no tools", tokens: { input: 15_000, cached: 0, output: 1_500 }, min: 0, max: 2, fallback: { fast: 0, small: 0, full: 0 }, miss: 0.05, effort: 'low' },
@@ -236,10 +241,17 @@ export function fallbackPick(job: Job, size: Size, catalog: Catalog, floor: Tier
 export function pickFrom(job: Job, p: number[] | null, size: Size, catalog: Catalog, floor: Tier = 0): Pick | null {
   const valid = p && p.length === TIERS.length && p.every((x) => Number.isFinite(x) && x >= 0) && Math.abs(p.reduce((a, b) => a + b, 0) - 1) < 0.02;
   if (!valid) return fallbackPick(job, size, catalog, floor);
-  const best = cheapestExpected(job, p!, catalog, floor);
-  if (!best) return fallbackPick(job, size, catalog, floor);
+  const cheapest = cheapestExpected(job, p!, catalog, floor);
+  if (!cheapest) return fallbackPick(job, size, catalog, floor);
+  const upTo = (t: Tier) => p!.slice(0, t + 1).reduce((a, b) => a + b, 0);
+  const best = { tier: cheapest.tier };
+  const need = JOBS[job].minSure;
+  if (need !== undefined && upTo(best.tier) < need) {
+    const tiers = usableTiers(job, catalog).filter((t) => t >= best.tier);
+    best.tier = tiers.find((t) => upTo(t) >= need) ?? tiers[tiers.length - 1];
+  }
   const m = modelFor(best.tier, job, catalog)!;
-  const sure = p!.slice(0, best.tier + 1).reduce((a, b) => a + b, 0);
+  const sure = upTo(best.tier);
   return { job, tier: best.tier, model: m.model, effort: best.tier === 0 ? 'low' : JOBS[job].effort, est: m.est, how: 'jev', sure };
 }
 

@@ -102,3 +102,14 @@ test('the book records every attempt and climb, and says it per job for the run\
   // A job the choice did not name still gets a model: its fallback.
   assert.equal(book.pick('implement').how, 'fallback');
 });
+
+test('respond starts at the least tier Jev is 60% sure is enough, not at the cheapest one to gamble on', () => {
+  // 36% that standard is enough: the cheapest expected start, but a person is waiting on the result.
+  const p = pickFrom('respond', [0, 0.36, 0.5, 0.14], 'small', KNOWN_PRICES)!;
+  assert.equal(TIERS[p.tier], 'strong');
+  assert.ok(p.sure! >= 0.6);
+  // Sure enough already: the cheap tier stands.
+  assert.equal(TIERS[pickFrom('respond', [0, 0.82, 0.15, 0.03], 'small', KNOWN_PRICES)!.tier], 'standard');
+  // A job with no such bar still starts cheap and climbs.
+  assert.equal(pickFrom('implement', [0, 0.36, 0.5, 0.14], 'small', KNOWN_PRICES)!.tier, cheapestExpected('implement', [0, 0.36, 0.5, 0.14], KNOWN_PRICES)!.tier);
+});
