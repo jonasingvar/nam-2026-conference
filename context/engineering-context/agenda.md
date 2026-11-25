@@ -1,6 +1,6 @@
 ---
 area: agenda
-summary: The attendee's own conference — the My Agenda placeholder page, and the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), none of which has a UI yet.
+summary: The attendee's own conference — the My Agenda page (today's confirmed seats), and the endpoints under it (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports); only /schedule has a UI so far.
 read_when: touching My Agenda, an attendee's day or schedule, suggestions, clashes or booked-hours totals, a speaker's own sessions, or calendar export
 files:
   - server/lib/agenda.js
@@ -8,6 +8,7 @@ files:
   - src/pages/MyAgendaPage.jsx
 tests:
   - tests/home.spec.js
+  - tests/agenda.spec.js
   - tests/api/agenda.test.js
   - tests/api/calendar.test.js
   - tests/unit/ical.test.js
@@ -16,18 +17,25 @@ related: [seats, attendance, clock, venues, schedule, speakers, ui]
 
 # Agenda
 
-**My Agenda is a placeholder.** `/my-agenda` (`MyAgendaPage`, still in the nav,
-`/my-plan` redirects there) renders a `SectionHeader` and a "Coming soon" panel
-(`agenda-coming-soon`) with a `Browse the schedule` button — nothing else. Workshop
-teams design the page from scratch. Everything underneath it is built and tested:
-adding a session takes a seat (seats doc), and the payloads below are served,
-with matching functions in `src/lib/api.js`. What a day is made of is decided in
-`server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
+**My Agenda** (`/my-agenda`, `MyAgendaPage`, in the nav; `/my-plan` redirects) shows
+today: a hero (`agenda-hero`: Day N · clock time, weekday, conference dates and city) and
+**Your day** (`agenda-day`) — one large card per **confirmed** seat on `clock.day`, in time order
+(`agenda-session-<id>`). It fetches `api.getSchedule` once, takes `clock.day`'s entry and
+filters through the store's `reservationFor(id) === 'confirmed'`, so Remove
+(`agenda-remove-<id>` → `toggleSeat` → release + Undo toast) drops the card at once.
+Each card: an accent line down the left in the **track** colour (`agenda-line-<id>`,
+`animate-line-grow`, `scaleY` from the top, staggered by `--i`), 96px speaker portraits linking
+to `/speakers/<id>` (`agenda-speaker-<id>`), `time · TRACK · Finished|Live|Upcoming`, title (links
+to the session), speakers, the first speaker's role · company, `room · venue`. Until the fetch
+lands, `agenda-loading` shows fixed-height skeletons so nothing pops in. Hover lift is the
+`.agenda-card` CSS (the transform is not a Tailwind utility, so tests can read it). No reserve,
+check-in, rating or export here. Waitlisted seats are not listed.
+What a day is made of is decided in `server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
 
 ## How it works
 
 **`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
+Client: `api.getSchedule(userId)` — My Agenda calls it.
 `agenda.js:scheduleFor` returns one entry per day that has any reservation:
 `{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
 waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)
@@ -121,8 +129,7 @@ local `DTSTART`/`DTEND`, `UID:orbit-session-<id>@orbitconf.dev`, LOCATION
 
 ## Where to change…
 
-- The My Agenda page: `MyAgendaPage.jsx`; replace `tests/home.spec.js`'s
-  "My Agenda is a blank canvas" test when the placeholder goes.
+- The My Agenda page: `MyAgendaPage.jsx`; proved by `tests/agenda.spec.js` (lane `agenda.page`).
 - A new field on the day payload → `agenda.js:todayFor`; prove it in `tests/api/` with `startApi()`.
 - Suggestion ranking → `agenda.js:suggestionsFor` / `myTopics` / `openInSlot`.
 - Clash or total rules → `agenda.js:scheduleFor`/`clashesIn`, and any client

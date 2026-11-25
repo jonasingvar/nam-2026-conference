@@ -363,6 +363,21 @@ body::before {
 }
 @utility pz-launch { animation: pz-launch 1.8s ease-in-out infinite; }
 
+/* My Agenda: the accent line grows down the card, staggered; cards lift on hover. */
+@keyframes line-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@utility animate-line-grow {
+  transform-origin: top;
+  animation: line-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+.agenda-card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+.agenda-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.2); box-shadow: 0 14px 40px -12px rgba(139,92,246,0.35); }
+.agenda-card .agenda-portrait { transition: transform 0.3s ease; }
+.agenda-card:hover .agenda-portrait { transform: scale(1.05); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
