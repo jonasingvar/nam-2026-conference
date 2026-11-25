@@ -61,16 +61,8 @@ function HeroBar({ conference }) {
  * is still mine: a seat given back here has to leave immediately, and one
  * dropped on another page must not be resurrected by a stale payload.
  */
-function TodaySessions() {
-  const { currentUser, clock, reservationFor, releaseSeat, roomById, venueById } = useConference();
-  const { data } = useFetch(
-    () => (currentUser ? api.getSchedule(currentUser.id) : Promise.resolve(null)),
-    [currentUser?.id],
-  );
-
-  // Only a confirmed seat is a chair held; a waitlist place may never come good.
-  const booked = (data?.days?.find((d) => d.date === clock.day)?.sessions ?? [])
-    .filter((s) => reservationFor(s.id) === 'confirmed');
+function TodaySessions({ booked }) {
+  const { releaseSeat, roomById, venueById } = useConference();
   if (booked.length === 0) return null;
 
   return (
@@ -189,12 +181,11 @@ function QuickLinks() {
  * This used to render the first two pinned rows regardless of `postedAt`, so a
  * warning about day 3 appeared on day 2 — before it was written.
  */
-function LatestAnnouncement() {
+function LatestAnnouncement({ announcements }) {
   const { clock, venueById } = useConference();
-  const { data } = useFetch(api.getAnnouncements, []);
 
   const nowIso = `${clock.day}T${clock.time}:00Z`;
-  const live = (data ?? [])
+  const live = (announcements ?? [])
     .filter((a) => a.postedAt <= nowIso)
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.postedAt.localeCompare(a.postedAt));
 
@@ -225,18 +216,35 @@ function LatestAnnouncement() {
 }
 
 export function HomePage() {
-  const { conference } = useConference();
+  const { conference, currentUser, clock, reservationFor } = useConference();
   useDocumentTitle("ORBIT '26");
+
+  // The page paints in one go. Its two fetched sections are held here, so the
+  // tiles are not drawn first and then shoved down the page when the seats
+  // arrive above them — the flicker the tiles-then-speakers order gave off.
+  const { data: schedule, loading: loadingDay } = useFetch(
+    () => (currentUser ? api.getSchedule(currentUser.id) : Promise.resolve(null)),
+    [currentUser?.id],
+  );
+  const { data: announcements, loading: loadingNews } = useFetch(api.getAnnouncements, []);
+
+  // Only a confirmed seat is a chair held; a waitlist place may never come good.
+  const booked = (schedule?.days?.find((d) => d.date === clock.day)?.sessions ?? [])
+    .filter((s) => reservationFor(s.id) === 'confirmed');
 
   return (
     // Sections hide themselves when empty; hide their Reveal wrapper too, or
     // each one leaves a blank gap in the stack.
     <div className="space-y-8 [&>:empty]:hidden">
       <HeroBar conference={conference} />
-      <Reveal><TodaySessions /></Reveal>
-      <QuickLinks />
-      <Reveal><LatestAnnouncement /></Reveal>
-      <SponsorMarquee />
+      {!(loadingDay || loadingNews) && (
+        <>
+          <Reveal><TodaySessions booked={booked} /></Reveal>
+          <QuickLinks />
+          <Reveal><LatestAnnouncement announcements={announcements} /></Reveal>
+          <SponsorMarquee />
+        </>
+      )}
     </div>
   );
 }

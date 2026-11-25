@@ -161,10 +161,15 @@ Venues, Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the singl
 newest posted one, pinned first, filtered by `postedAt <= clock`, so nothing
 appears before it was written) → `SponsorMarquee` (venues doc). Sections that
 return `null` would leave their `<Reveal>` wrapper as a gap, so the container has
-`[&>:empty]:hidden`.
+`[&>:empty]:hidden`. `HomePage` holds the two fetches itself
+(`api.getSchedule(currentUser.id)` and `api.getAnnouncements`) and draws nothing
+below `HeroBar` until both have resolved, so the page paints in one go — a
+section fetched in place used to appear above the already-drawn tiles and shove
+them down the page. `HeroBar` is static, so it still paints at once.
 
 **`TodaySessions`** (`home-today`) — the seats held for `clock.day`, earliest
-first: `api.getSchedule(currentUser.id)`, the `clock.day` entry, filtered on
+first: the `booked` prop `HomePage` builds from `api.getSchedule(currentUser.id)`,
+the `clock.day` entry, filtered on
 `reservationFor(s.id) === 'confirmed'`. The store decides, not the payload, so a
 seat given back here — or dropped on another page — leaves at once; a waitlist
 place is not a chair and is never listed, and a day with nothing confirmed
@@ -177,10 +182,12 @@ the day, the other days' seats that must stay off it, the waitlist place that
 must too, the portrait link, the cards being roomier than the compact
 `variant="row"` session card, and the single action.
 
-`tests/home.spec.js` also asserts the five links, the announcement cut-off, and
-that none of `today-panel`, `live-now`, `speaking-strip`, `followed-sessions`,
-`next-up` is on the page — no component renders those ids. A new home section is
-a component that returns `null` when empty, wrapped in `<Reveal>`.
+`tests/home.spec.js` also asserts the five links, the announcement cut-off, that
+the tiles wait for the day (holding `/users/:id/schedule` open leaves
+`quick-links` off the page), and that none of `today-panel`, `live-now`,
+`speaking-strip`, `followed-sessions`, `next-up` is on the page — no component
+renders those ids. A new home section is a component that returns `null` when
+empty, wrapped in `<Reveal>`.
 
 **`RouteChange`** — on `pathname` change only (not search), scrolls to top and
 focuses `#main`. **`NotFoundPage`** — the `*` route; its heading "Nothing

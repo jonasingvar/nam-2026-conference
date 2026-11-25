@@ -24,6 +24,27 @@ test.describe('Home is a way in, not a feed', () => {
     }
   });
 
+  test('paints the tiles with the day, never before it', async ({ page }) => {
+    // Hold the day's seats back: the page must stay unpainted rather than show
+    // its tiles and shove them down when the day lands above them. Read-only —
+    // it books nothing, so it needs no lane.
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route('**/api/users/*/schedule', async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    try {
+      await visit(page, '/', { at: await momentOn(0, '10:30') });
+      await expect(page.getByTestId('quick-links'), 'no tiles before the day').toHaveCount(0);
+    } finally {
+      release();
+    }
+    await expect(page.getByTestId('quick-links')).toBeVisible();
+    await expect(page.getByTestId('hero')).toBeVisible();
+  });
+
   test('no announcement appears before it was posted', async ({ page, request }) => {
     const days = await conferenceDays();
     const all = await (await request.get(`${API}/announcements`)).json();
