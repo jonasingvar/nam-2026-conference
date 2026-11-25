@@ -7,12 +7,13 @@
  *   npm run shot -- /speakers/1 --mobile --user=2
  *   npm run shot -- / --at=2026-10-13T14:30   # pin the conference clock
  *   npm run shot -- / --full         # full-page instead of viewport
+ *   npm run shot -- /my-agenda --like=ref.png   # at exactly that image's size (PNG), to compare with it
  *
  * WEB_PORT points it at a particular app, so a worktree running its own lane
  * screenshots its own code.
  */
 import { chromium } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 
 /**
@@ -33,6 +34,9 @@ const DEFAULT_ROUTES = ['/', '/schedule', '/sessions/1', '/speakers', '/speakers
 const targets = routes.length ? routes : DEFAULT_ROUTES;
 const mobile = flags.has('--mobile');
 const fullPage = flags.has('--full');
+// --like=<image>: screenshot at that image's own width and height, at scale 1, so a page can be read
+// beside the reference it must match (context/engineering-context/harness/reference-playbook.md).
+const like = args.find((a) => a.startsWith('--like='))?.split('=')[1];
 const outDir = '.screenshots';
 
 mkdirSync(outDir, { recursive: true });
@@ -61,9 +65,31 @@ if (!(await isUp())) {
 }
 
 const browser = await chromium.launch();
+
+// The reference's own size, read by the browser itself, so PNG, JPEG, WebP and GIF all work. An image that
+// cannot be read stops the run: a screenshot at some other size, under the usual name, would be compared
+// with the reference as if it matched it.
+let likeSize = null;
+if (like) {
+  try {
+    const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }[like.split('.').pop().toLowerCase()] ?? 'image/png';
+    const probe = await browser.newPage();
+    await probe.setContent(`<img id="i" src="data:${mime};base64,${readFileSync(like).toString('base64')}">`);
+    const size = await probe.evaluate(async () => { const i = document.getElementById('i'); await i.decode(); return { width: i.naturalWidth, height: i.naturalHeight }; });
+    await probe.close();
+    if (size.width > 0 && size.height > 0) likeSize = { width: Math.min(size.width, 4000), height: Math.min(size.height, 8000) };
+  } catch { /* reported below */ }
+  if (!likeSize) {
+    console.error(`  --like: cannot read ${like} as an image — no screenshot taken`);
+    await browser.close();
+    devServer?.kill();
+    process.exit(2);
+  }
+  console.log(`  like ${like}: ${likeSize.width}×${likeSize.height}`);
+}
 const context = await browser.newContext({
-  viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 950 },
-  deviceScaleFactor: 2,
+  viewport: likeSize ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 950 }),
+  deviceScaleFactor: likeSize ? 1 : 2,
 });
 await context.addInitScript(({ id, at }) => {
   window.localStorage.setItem('orbit:currentUserId', String(id));
@@ -79,7 +105,7 @@ for (const route of targets) {
   await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   const name = (route === '/' ? 'home' : route.replace(/^\//, '').replace(/\//g, '-'))
-    + (mobile ? '.mobile' : '') + '.png';
+    + (likeSize ? '-like' : '') + (mobile ? '.mobile' : '') + '.png';
   await page.screenshot({ path: `${outDir}/${name}`, fullPage });
   console.log(`  ${route.padEnd(16)} → ${outDir}/${name}`);
 }

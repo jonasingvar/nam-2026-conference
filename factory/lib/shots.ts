@@ -44,6 +44,13 @@ export function plainRoutes(app: string): Record<string, string> {
   return Object.fromEntries(Object.entries(routes).filter(([c]) => !(raw.get(c) || '').includes(':')));
 }
 
+/**
+ * Whether a preview would show this change: something the deployed app serves changed. Narrower than
+ * "app" for tests (lib/select.ts, where a script or a config is the app's): a change to scripts/, tests/,
+ * the factory or docs builds the same app, and a "try it" link on it has nothing to try.
+ */
+export const showsInApp = (files: string[]) => files.some((f) => /^(src|server|api|public)\//.test(f) || /^(index\.html|vercel\.json|package(-lock)?\.json|vite\.config\.js)$/.test(f));
+
 /** A preview's address at a page of the app. */
 export const atPath = (url: string, path: string | null | undefined) => (path && path !== '/' ? `${url.replace(/\/+$/, '')}${path}` : url);
 
@@ -155,7 +162,7 @@ export type Uploaded = { path: string; viewport: string; which: string; url?: st
 export function withPreview(body: string, url: string | null, sha = ''): string {
   const rest = body.replace(/<!-- factory-preview -->[\s\S]*?<!-- \/factory-preview -->\n*/g, '');
   if (!url) return rest;
-  return `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — ${/\.vercel\.app\/./.test(url) ? 'the page this pull request changes, on its' : "this pull request's"} Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->\n\n${rest}`;
+  return `<!-- factory-preview -->\n> [!TIP]\n> **🔎 [Open the live preview](${url})** — ${/\.vercel\.app\/./.test(url) ? 'the page this pull request changes' : 'the app with this pull request'}, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->\n\n${rest}`;
 }
 
 export function shotsComment(pr: number, sha: string, pages: Shot[], shots: Uploaded[], previewUrl: string, beforeLabel: string | null, footer: string) {

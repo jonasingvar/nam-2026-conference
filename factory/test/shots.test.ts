@@ -79,7 +79,7 @@ test('with no base deployment, one larger this-PR column; later pages fold away'
 
 test('"try it" is pinned once at the top, and replaced on the next push', () => {
   const first = withPreview('What this does.', 'https://a.vercel.app', 'abcdef1234567');
-  assert.match(first, /^<!-- factory-preview -->\n> \[!TIP\]\n> \*\*🔎 Try it:\*\* https:\/\/a\.vercel\.app — this pull request's Vercel preview, at abcdef1\./);
+  assert.match(first, /^<!-- factory-preview -->\n> \[!TIP\]\n> \*\*🔎 \[Open the live preview\]\(https:\/\/a\.vercel\.app\)\*\* — the app with this pull request, at abcdef1\./);
   assert.ok(first.endsWith('What this does.'));
   const second = withPreview(first, 'https://b.vercel.app', '1234567abcdef');
   assert.equal(second.match(/factory-preview -->/g)!.length, 2); // one block: its opening and closing marks
@@ -112,6 +112,14 @@ test('a preview link lands on the one page a change is about; several pages, a s
 });
 
 test('a pinned link that opens on a page says so; one that opens on the home page does not', () => {
-  assert.match(withPreview('x', 'https://a.vercel.app/my-agenda', 'abcdef1234567'), /Try it:\*\* https:\/\/a\.vercel\.app\/my-agenda — the page this pull request changes, on its Vercel preview, at abcdef1\./);
-  assert.match(withPreview('x', 'https://a.vercel.app/', 'abcdef1234567'), /— this pull request's Vercel preview/);
+  assert.match(withPreview('x', 'https://a.vercel.app/my-agenda', 'abcdef1234567'), /\[Open the live preview\]\(https:\/\/a\.vercel\.app\/my-agenda\)\*\* — the page this pull request changes, at abcdef1\./);
+  assert.match(withPreview('x', 'https://a.vercel.app/', 'abcdef1234567'), /— the app with this pull request/);
+});
+
+test('a preview link is offered only for a change the deployed app would show', async () => {
+  const { showsInApp } = await import('../lib/shots');
+  assert.ok(showsInApp(['src/pages/MyAgendaPage.jsx', 'tests/agenda.spec.js']));
+  assert.ok(showsInApp(['server/lib/agenda.js']));
+  assert.ok(!showsInApp(['scripts/shot.mjs', 'factory/workflows/ship.ts', 'CLAUDE.md', 'context/engineering-context/harness.md']));
+  assert.ok(!showsInApp(['tests/home.spec.js']));
 });

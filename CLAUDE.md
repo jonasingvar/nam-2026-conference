@@ -177,8 +177,9 @@ Anything in it that cannot be built is a decision for the person, named — neve
 a quiet change. Before calling the work done, screenshot the page
 (`npm run shot -- <route>`) and compare it with the image; a difference the
 words did not ask for is a defect. The spec describes the image element by
-element under `## The reference`. The factory enforces this (harness doc,
-*Reference images*).
+element under `## The reference`. The steps are in
+`context/engineering-context/harness/reference-playbook.md`; `npm run shot --
+<route> --like=<image>` screenshots at the image's own size. The factory enforces this (harness doc, *Reference images*).
 
 ## Verifying a change
 

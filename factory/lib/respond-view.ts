@@ -65,7 +65,7 @@ export function respondCard(v: RespondView): string {
     v.outcome === 'failed' ? '' : path,
     v.phase === 'Preview' ? '\n⏳ Vercel is building the preview of what was just pushed — the link will appear at the top of this card.' : '',
     v.preview === 'late' ? '\nThe preview was not ready in time: it is under **Deployments** on this pull request, and the *Try it* link in the description moves to it.' : '',
-    v.preview === 'none' ? '\nNo new preview: this change did not rebuild the app.' : '',
+    v.preview === 'none' ? '\nNo preview to open: this change does not alter the deployed app.' : '',
     '',
     quoted(v.ask),
     '',
