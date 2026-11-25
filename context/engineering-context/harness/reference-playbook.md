@@ -57,16 +57,19 @@ arrangement is wrong.
 
 ## 4. Compare, at the image's own size
 
-Screenshot the page at exactly the reference's dimensions, so the two can be
-read side by side:
+Screenshot the page at the reference's dimensions — exactly, for a PNG — so the
+two can be read side by side:
 
 ```
 npm run shot -- /my-agenda --like=/vercel/.factory/reference/reference-1.png --user=1 [--at=2026-11-26T11:00]
 ```
 
-`--like` sets the viewport to the image's width and height (PNG) at scale 1 and
-writes `.screenshots/<route>-like.png`. Pick the attendee and the clock so the
-page has the same amount of content as the image.
+`--like` sets the viewport to the image's width and height at scale 1 and writes
+`.screenshots/<route>-like.png`, but it reads that size from a PNG's header only.
+A JPEG or WebP reference cannot be measured: `--like` falls back to the default
+1440×950 at 2× and writes `.screenshots/<route>.png`, so read that beside the
+image knowing the scale is the browser's, not the image's. Pick the attendee and
+the clock so the page has the same amount of content as the image.
 
 Read both images. Go through the inventory row by row and write each difference
 down:

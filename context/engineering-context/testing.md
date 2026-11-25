@@ -117,9 +117,13 @@ probes both ports and gives the lock back if either is taken. `asEnv(lane)` prin
 Everything takes injectable `root`, `worktree`, `free`, `exists` — that is how `lane.test.js` runs.
 
 **Screenshots** (`scripts/shot.mjs`). Args: routes (default nine main routes), `--mobile`
-(390×844), `--full`, `--user=N`, `--at=YYYY-MM-DDTHH:MM`. Starts `npm run dev` itself if
-`WEB_PORT` is not answering, writes `.screenshots/<route>[.mobile].png`, and exits 1 if the
-page logged a console error.
+(390×844), `--full`, `--user=N`, `--at=YYYY-MM-DDTHH:MM`, `--like=<image>`. `--like` reads
+the reference image's own width and height from a PNG's header, screenshots at that size and
+scale 1 so the page can be read beside it, and writes
+`.screenshots/<route>-like[.mobile].png`. Only a PNG can be measured — the JPEG and WebP
+references the factory also stages fall back to the default viewport and the usual name.
+Every other run writes `.screenshots/<route>[.mobile].png`. Starts `npm run dev` itself if
+`WEB_PORT` is not answering, and exits 1 if the page logged a console error.
 
 **Specs import `test` and `expect` from `./fixtures.js`**, not `@playwright/test`: it is plain Playwright
 unless `ORBIT_COVERAGE` is set, when it records which source files each test ran — what the factory's
