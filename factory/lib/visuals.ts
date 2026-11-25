@@ -53,7 +53,7 @@ export function referenceRule(paths: string[]): string {
     `where the app has a design token for what the image shows, use the token that matches it. Anything in the image you cannot build is a Decision for the person, named — never a quiet change.\n` +
     `How to do it, step by step — follow it: context/engineering-context/harness/reference-playbook.md (the inventory to write down, the order to build in, the comparison loop, what counts as a difference).\n` +
     `- Writing the spec: add a section "## The reference" that describes each image element by element, top to bottom, precisely enough to build from without seeing it.\n` +
-    `- Building or fixing: before you finish, screenshot the page you built at the reference's own size (\`npm run shot -- <route> --like=<reference image> --user=<id> [--at=…]\`; a PNG reference gives its own size and \`.screenshots/<route>-like.png\`, a JPEG or WebP one cannot be measured and falls back to the default viewport and \`.screenshots/<route>.png\`), ` +
+    `- Building or fixing: before you finish, screenshot the page you built at the reference's own size (\`npm run shot -- <route> --like=<reference image> --user=<id> [--at=…]\`, written to \`.screenshots/<route>-like.png\`), ` +
     `Read that screenshot beside the reference, and change the code until they match.\n` +
     `- Auditing or reviewing: screenshot the built page the same way and compare it with the reference. Every difference in layout, structure, order, content or proportion ` +
     `that the words of the request did not ask for is a blocker (category criterion-unmet): name the element, what the reference shows and what was built.\n`;

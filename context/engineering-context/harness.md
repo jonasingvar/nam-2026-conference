@@ -222,8 +222,12 @@ comment, the pull request, the ticket and the conversation the same way.
 
 **Preview links** open on the page the change is about (`landingFor`): the one
 changed page with a plain route, else the page Jev picks from the title and
-files (60% or home). Used by the *Try it* pin, ship's progress, QA's comment
-and respond's card.
+files (60% or home). Used by the *Open the live preview* pin, ship's progress, QA's comment
+and respond's card. The pin and respond's card offer a link only when the deployed app
+changed (`showsInApp`: `src/`, `server/`, `api/`, `public/`, the build's config) — a pull
+request to the factory, a script or the tests has nothing to open. Before a pull request
+exists, ship's card links the newest built preview of the branch (`branchPreview`), marked
+as still being worked on.
 
 **Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
 or crashes. A run's sandbox keeps one snapshot that expires in a day. Under

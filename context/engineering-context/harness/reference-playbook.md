@@ -65,10 +65,8 @@ npm run shot -- /my-agenda --like=/vercel/.factory/reference/reference-1.png --u
 ```
 
 `--like` sets the viewport to the image's width and height at scale 1 and writes
-`.screenshots/<route>-like.png`, but it reads that size from a PNG's header only.
-A JPEG or WebP reference cannot be measured: `--like` falls back to the default
-1440×950 at 2× and writes `.screenshots/<route>.png`, so read that beside the
-image knowing the scale is the browser's, not the image's. Pick the attendee and
+`.screenshots/<route>-like.png`, for a PNG, JPEG, WebP or GIF reference alike. An
+image it cannot read stops the run (exit 2) and takes no screenshot. Pick the attendee and
 the clock so the page has the same amount of content as the image.
 
 Read both images. Go through the inventory row by row and write each difference

@@ -37,17 +37,6 @@ const fullPage = flags.has('--full');
 // --like=<image>: screenshot at that image's own width and height, at scale 1, so a page can be read
 // beside the reference it must match (context/engineering-context/harness/reference-playbook.md).
 const like = args.find((a) => a.startsWith('--like='))?.split('=')[1];
-/** A PNG's width and height, from its header; null for anything else. */
-function pngSize(buf) {
-  if (buf.length < 24 || buf.toString('latin1', 1, 4) !== 'PNG') return null;
-  const width = buf.readUInt32BE(16), height = buf.readUInt32BE(20);
-  return width > 0 && height > 0 && width <= 4000 && height <= 8000 ? { width, height } : null;
-}
-let likeSize = null;
-if (like) {
-  try { likeSize = pngSize(readFileSync(like)); } catch { /* unreadable: the default size */ }
-  if (!likeSize) console.log(`  --like: ${like} is not a readable PNG — using the default size`);
-}
 const outDir = '.screenshots';
 
 mkdirSync(outDir, { recursive: true });
@@ -76,6 +65,28 @@ if (!(await isUp())) {
 }
 
 const browser = await chromium.launch();
+
+// The reference's own size, read by the browser itself, so PNG, JPEG, WebP and GIF all work. An image that
+// cannot be read stops the run: a screenshot at some other size, under the usual name, would be compared
+// with the reference as if it matched it.
+let likeSize = null;
+if (like) {
+  try {
+    const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }[like.split('.').pop().toLowerCase()] ?? 'image/png';
+    const probe = await browser.newPage();
+    await probe.setContent(`<img id="i" src="data:${mime};base64,${readFileSync(like).toString('base64')}">`);
+    const size = await probe.evaluate(async () => { const i = document.getElementById('i'); await i.decode(); return { width: i.naturalWidth, height: i.naturalHeight }; });
+    await probe.close();
+    if (size.width > 0 && size.height > 0) likeSize = { width: Math.min(size.width, 4000), height: Math.min(size.height, 8000) };
+  } catch { /* reported below */ }
+  if (!likeSize) {
+    console.error(`  --like: cannot read ${like} as an image — no screenshot taken`);
+    await browser.close();
+    devServer?.kill();
+    process.exit(2);
+  }
+  console.log(`  like ${like}: ${likeSize.width}×${likeSize.height}`);
+}
 const context = await browser.newContext({
   viewport: likeSize ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 950 }),
   deviceScaleFactor: likeSize ? 1 : 2,

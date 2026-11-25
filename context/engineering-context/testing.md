@@ -118,11 +118,10 @@ Everything takes injectable `root`, `worktree`, `free`, `exists` — that is how
 
 **Screenshots** (`scripts/shot.mjs`). Args: routes (default nine main routes), `--mobile`
 (390×844), `--full`, `--user=N`, `--at=YYYY-MM-DDTHH:MM`, `--like=<image>`. `--like` reads
-the reference image's own width and height from a PNG's header, screenshots at that size and
-scale 1 so the page can be read beside it, and writes
-`.screenshots/<route>-like[.mobile].png`. Only a PNG can be measured — the JPEG and WebP
-references the factory also stages fall back to the default viewport and the usual name.
-Every other run writes `.screenshots/<route>[.mobile].png`. Starts `npm run dev` itself if
+the reference image's own width and height (the browser measures it, so PNG, JPEG, WebP
+and GIF all work), screenshots at that size and scale 1 so the page can be read beside it,
+and writes `.screenshots/<route>-like[.mobile].png`. An image it cannot read stops the run
+with exit 2 and no screenshot. Every other run writes `.screenshots/<route>[.mobile].png`. Starts `npm run dev` itself if
 `WEB_PORT` is not answering, and exits 1 if the page logged a console error.
 
 **Specs import `test` and `expect` from `./fixtures.js`**, not `@playwright/test`: it is plain Playwright

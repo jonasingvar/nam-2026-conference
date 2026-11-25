@@ -2,7 +2,7 @@ import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox, stageReferences } from '../lib/sandbox-steps';
 import { imageUrls, referenceRule, visionFloors } from '../lib/visuals';
-import { comment, peopleSaid, previewForPr, progress, readIssue, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
+import { comment, peopleSaid, previewForPr, progress, pullRequestFiles, readIssue, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
 import { chooseModels, describe, modelBook } from '../lib/models';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import type { Intent } from '../lib/intent';
@@ -11,6 +11,7 @@ import { stopwatch, timeLine } from '../lib/timing';
 import { chooseTests } from '../lib/phases';
 import { classify as classifyFiles, type Facts } from '../lib/select';
 import { previewLink } from '../lib/shots-steps';
+import { showsInApp } from '../lib/shots';
 import * as S from './schemas';
 
 /**
@@ -214,7 +215,11 @@ async function respondRun(input: RespondInput) {
   const outcome = !change || (change.changed && !pushed) ? 'failed' as const : change.changed ? 'changed' as const : 'answered' as const;
   // The person is watching this card: once Vercel has built the commit just pushed, its preview goes at the
   // top of it. Nothing runs meanwhile — the sandbox is gone and the pull request is already handed back.
-  if (outcome === 'changed' && pushedSha) {
+  // A change the deployed app would not show (docs, the factory, a script, tests) has nothing to open.
+  const shows = await pullRequestFiles(pr.number).then((f) => !f || f.length >= 100 || showsInApp(f)).catch(() => true);
+  if (outcome === 'changed' && pushedSha && !shows) {
+    await show(null, { outcome, held: stays, preview: 'none' });
+  } else if (outcome === 'changed' && pushedSha) {
     await show('Preview', { held: stays });
     let preview = await previewForPr(pr.number);
     for (let i = 0; i < 40 && (preview.state === 'pending' || preview.state === 'none' || (preview.state === 'ready' && !String(preview.sha || '').startsWith(pushedSha))); i++) {

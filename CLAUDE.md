@@ -179,9 +179,7 @@ a quiet change. Before calling the work done, screenshot the page
 words did not ask for is a defect. The spec describes the image element by
 element under `## The reference`. The steps are in
 `context/engineering-context/harness/reference-playbook.md`; `npm run shot --
-<route> --like=<image>` screenshots at the image's own size — for a PNG, whose
-header carries it; a JPEG or WebP reference cannot be measured and falls back to
-the default viewport. The factory enforces this (harness doc, *Reference images*).
+<route> --like=<image>` screenshots at the image's own size. The factory enforces this (harness doc, *Reference images*).
 
 ## Verifying a change
 

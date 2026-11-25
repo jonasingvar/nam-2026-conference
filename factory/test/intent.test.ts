@@ -77,5 +77,5 @@ test('when the preview of the pushed commit is ready, its link is the first thin
   assert.ok(done.indexOf('## 🔎 [Open the preview](https://p.vercel.app)') < done.indexOf('✅ Read'), 'above the phase path');
   assert.match(done, /✅ Reply → ✅ Preview/);
   assert.match(respondCard({ ...base, phase: null, outcome: 'changed', preview: 'late' }), /<s>Preview<\/s>[\s\S]*not ready in time/);
-  assert.match(respondCard({ ...base, phase: null, outcome: 'changed', preview: 'none' }), /did not rebuild the app/);
+  assert.match(respondCard({ ...base, phase: null, outcome: 'changed', preview: 'none' }), /does not alter the deployed app/);
 });

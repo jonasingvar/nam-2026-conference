@@ -4,6 +4,7 @@ import { review } from './review';
 import { qa } from './qa';
 import { shots } from './shots';
 import { pinPreview, previewLink } from '../lib/shots-steps';
+import { showsInApp } from '../lib/shots';
 import { runJob } from '../lib/jobs';
 import { routedAgent } from '../lib/kit';
 import { stopwatch, timeLine } from '../lib/timing';
@@ -118,6 +119,8 @@ async function shipRun(input: ShipInput) {
   let earlyPreview: { url: string; sha: string } | null = null;
   /** The preview at the page this change is about (landingFor): what a person clicks. */
   let previewLanding = '';
+  /** The change is one the deployed app shows: false once a pull request's files say otherwise. */
+  let appShown = true;
 
   const dollars = (x: number) => `$${x.toFixed(2)}`;
   const render = (headline: string) => [
@@ -141,8 +144,9 @@ async function shipRun(input: ShipInput) {
     '| --- | --- |',
     `| 👀 **Agent output** | [Watch the agents work, live](${runUrl}?tab=streams) — what they say and every command they run |`,
     `| ⚙️ **The run** | [Every step and its timing](${runUrl}) — it resumes from its last finished step if anything dies |`,
-    `| 🔎 **Preview** | ${prUrl && previewUrl ? `[Open the app with this change](${previewLanding || previewUrl})`
-      : earlyPreview ? `[Open the app as last pushed](${earlyPreview.url}) (\`${earlyPreview.sha}\`) — ⚠️ still being worked on: the run has not finished checking it, and it may change`
+    `| 🔎 **Preview** | ${!appShown ? 'None — this change does not alter the deployed app'
+      : prUrl && previewUrl ? `[Open the live preview](${previewLanding || previewUrl})`
+      : earlyPreview ? `[Open the live preview](${earlyPreview.url}) (\`${earlyPreview.sha}\`) — ⚠️ still being worked on: the run has not finished checking it, and it may change`
       : 'Not built yet — a link appears here once the branch has a commit Vercel has built'} |`,
     models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
@@ -765,10 +769,12 @@ async function shipRun(input: ShipInput) {
   }
   if (preview.state === 'ready') {
     previewUrl = preview.url!;
-    previewLanding = await previewLink(pr.number, previewUrl, preview.sha ?? '').catch(() => previewUrl);
     log(`preview ready: ${previewUrl}`);
     // "Try it" goes on the pull request only when the app changed: a factory or docs change builds the same app.
     const files = await pullRequestFiles(pr.number).catch(() => null);
+    // The card links the preview only when the deployed app changed; pinPreview applies the same rule to the pull request.
+    appShown = !files || files.length >= 300 || showsInApp(files);
+    if (appShown) previewLanding = await previewLink(pr.number, previewUrl, preview.sha ?? '').catch(() => previewUrl);
     if (!files || files.length >= 300 || classifyFiles(files).app) await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null);
   }
   else if (preview.state === 'skipped') log('preview skipped — this change builds nothing of the app');

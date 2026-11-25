@@ -2,7 +2,7 @@ import { put } from '@vercel/blob';
 import { Sandbox } from '@vercel/sandbox';
 import { ALLOWED_REPO } from './constants';
 import { experimental_decide as decide } from 'ai';
-import { atPath, landingPath, plainRoutes, withPreview } from './shots';
+import { atPath, landingPath, plainRoutes, showsInApp, withPreview } from './shots';
 
 /**
  * Copy the screenshots (each viewport shot and its full-page one) out of the sandbox into the public Blob store
@@ -97,8 +97,11 @@ export async function pinPreview(pr: number, url: string | null, sha = '') {
   'use step';
   const p = await gh(`/pulls/${pr}`);
   const before = String(p.body ?? '');
-  // The link opens on the page the change is about (landingFor), not the home page.
-  const body = withPreview(before, url ? atPath(url, (await landingFor(pr, sha).catch(() => ({ path: '/' }))).path) : null, sha);
+  // Only for a change the deployed app would show: a pull request to the factory, a script or the tests
+  // gets no link (and loses one pinned earlier). The link opens on the page the change is about.
+  const files: string[] | null = url ? await gh(`/pulls/${pr}/files?per_page=100`).then((l: any[]) => l.map((f) => String(f.filename))).catch(() => null) : null;
+  const offer = url && (!files || files.length >= 100 || showsInApp(files)) ? url : null;
+  const body = withPreview(before, offer ? atPath(offer, (await landingFor(pr, sha).catch(() => ({ path: '/' }))).path) : null, sha);
   if (body !== before) await gh(`/pulls/${pr}`, { method: 'PATCH', body: JSON.stringify({ body }) });
   return true;
 }
