@@ -1,5 +1,22 @@
 import type { NetworkPolicy, NetworkPolicyRule } from '@vercel/sandbox';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ALLOWED_REPO } from './constants';
+
+/**
+ * A sandbox's mode and preview hosts are remembered on its own disk, where everything that runs in
+ * it can write. So they are sealed with a key only the factory holds, and bound to the sandbox's
+ * name: what comes back unsealed, edited or copied from another sandbox is not believed.
+ */
+export function sealPolicy(key: string, name: string, mode: string, hosts: string[]): string {
+  return createHmac('sha256', key).update(JSON.stringify([name, mode, [...hosts].sort()])).digest('hex');
+}
+export function policySealed(key: string, name: string, mode: string, hosts: string[], seal: string): boolean {
+  const want = Buffer.from(sealPolicy(key, name, mode, hosts));
+  const got = Buffer.from(String(seal || '').trim());
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+/** A preview deployment's host, and nothing else: the only kind a sandbox is ever let through to. */
+export const isPreviewHost = (h: string) => /^[a-z0-9][a-z0-9-]*\.vercel\.app$/.test(h);
 
 export { ALLOWED_REPO };
 

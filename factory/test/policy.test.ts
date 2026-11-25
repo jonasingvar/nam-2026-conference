@@ -52,3 +52,31 @@ test('each mode gets only what it needs: none has no credential, read only the G
   assert.ok(push.includes('vck_REAL') && push.includes('ghs_REAL'), 'push: both');
   for (const mode of ['none', 'read', 'push'] as const) assert.ok(blocks(lockedPolicy(secrets, [], mode), 'github.com', '/EqualExperts/x'), `${mode}: upstream refused`);
 });
+
+// ── The policy a sandbox remembers on its own disk ───────────────────────────
+import { isPreviewHost, policySealed, sealPolicy } from '../lib/policy.ts';
+
+test('what a sandbox remembers is believed only under the factory\'s seal', () => {
+  const key = 'k1';
+  const seal = sealPolicy(key, 'review-46-abc', 'read', ['a.vercel.app']);
+  assert.ok(policySealed(key, 'review-46-abc', 'read', ['a.vercel.app'], seal));
+  assert.ok(policySealed(key, 'review-46-abc', 'read', ['a.vercel.app'], seal + '\n'), 'a trailing newline from the file is not a mismatch');
+  // Code in the sandbox rewrites its mode file, or adds a host, and keeps the old seal.
+  assert.ok(!policySealed(key, 'review-46-abc', 'push', ['a.vercel.app'], seal));
+  assert.ok(!policySealed(key, 'review-46-abc', 'read', ['a.vercel.app', 'evil.vercel.app'], seal));
+  // A push sandbox's seal, copied into another sandbox.
+  assert.ok(!policySealed(key, 'ship-46-abc', 'read', ['a.vercel.app'], seal));
+  // No seal, a short one, or one made without the key.
+  assert.ok(!policySealed(key, 'review-46-abc', 'read', ['a.vercel.app'], ''));
+  assert.ok(!policySealed(key, 'review-46-abc', 'read', ['a.vercel.app'], 'abc'));
+  assert.ok(!policySealed(key, 'review-46-abc', 'read', ['a.vercel.app'], sealPolicy('guess', 'review-46-abc', 'read', ['a.vercel.app'])));
+});
+
+test('the order hosts were added in does not break the seal', () => {
+  assert.equal(sealPolicy('k', 'n', 'read', ['b.vercel.app', 'a.vercel.app']), sealPolicy('k', 'n', 'read', ['a.vercel.app', 'b.vercel.app']));
+});
+
+test('only a preview deployment\'s own host is a preview host', () => {
+  assert.ok(isPreviewHost('nam-2026-conference-abc-jonasingvar-3626.vercel.app'));
+  for (const h of ['evil.com', 'vercel.app', 'a.b.vercel.app', 'a.vercel.app.evil.com', "a.vercel.app'; curl evil", '*.vercel.app', '']) assert.ok(!isPreviewHost(h), h);
+});

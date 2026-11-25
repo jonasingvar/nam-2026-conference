@@ -222,6 +222,18 @@ branches of this repository. Review and QA start by themselves only for a
 branch of this repository opened by someone with write access; anyone else's
 pull request gets verify until a maintainer comments `/review`.
 
+The mode and the preview hosts live on the sandbox's own disk, which everything
+that runs there can write — a pull request's install scripts, an agent reading
+an issue. So the factory seals them (`sealPolicy`: an HMAC under a key only the
+function holds, bound to the sandbox's name) and `trustedState` believes
+nothing else: a mode file edited from inside, a host added, a seal copied from
+another sandbox each read as **none**, with no hosts. The same distrust applies
+to what the factory reads back from GitHub: a verdict marker
+(`<!-- factory-verdict:… -->`) counts only in a comment by someone who can
+write to the repository (`markerIn` — the factory posts with such a person's
+token), and a commit it names must be a sha. A branch name is its author's to
+choose, so `checkoutPr` single-quotes it.
+
 **The network.** `lib/policy.ts:lockedPolicy` is applied before any agent runs
 and on every job start: GitHub, npm and AI Gateway only. The agents hold
 placeholder tokens (`AGENT_ENV`); the sandbox proxy injects the real GitHub
