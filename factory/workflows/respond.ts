@@ -11,7 +11,8 @@ import * as S from './schemas';
  * nothing else, prove it with the gate, push, reply. The spec is kept true
  * too: a fix that changes what the spec decided says so in it.
  */
-export type RespondInput = { pr: number; ask: string; author: string };
+/** `issue`: the ticket the request was made on, when it was not made on the pull request itself. */
+export type RespondInput = { pr: number; ask: string; author: string; issue?: number };
 
 export async function respond(input: RespondInput) {
   'use workflow';
@@ -34,7 +35,9 @@ async function respondRun(input: RespondInput) {
   const box = `respond-${pr.number}-${workflowRunId.slice(-8).toLowerCase()}`;
   const k = kit(box, `answering a request on pull request #${pr.number}`);
   // No @-mention: the reply should not notify anyone twice.
-  await comment(pr.number, `👀 On it — asked by ${input.author} · [run](${runUrl})`);
+  await comment(pr.number, `👀 On it — asked by ${input.author}${input.issue ? ` on #${input.issue}` : ''} · [run](${runUrl})`);
+  // Asked on the ticket: say there that it was heard, and where the answer will be.
+  if (input.issue) await comment(input.issue, `👀 On it — the reply will be on pull request #${pr.number} · [run](${runUrl})`).catch(() => null);
 
   await prepareSandbox(box, pr.headSha, 'push');
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
