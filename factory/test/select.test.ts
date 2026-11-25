@@ -242,3 +242,12 @@ test('Jev picks the verticals: the change\'s own specs and the ones Jev names; n
   // What runs the tests changed: everything, whoever picked.
   assert.equal(decideSelection(classify(['playwright.config.js']), facts({ changed: ['playwright.config.js'], branch: null }), null, { jev: true, picked }).mode, 'full');
 });
+
+test('QA is not needed for a change outside the app, or one Jev is sure no browser can show; it runs when Jev cannot say', async () => {
+  const { qaNotNeeded } = await import('../lib/test-pick');
+  assert.match(qaNotNeeded(false, null)!, /no app change/);
+  assert.match(qaNotNeeded(true, 0.05)!, /Jev: nothing a browser could show differently \(95% sure\)/);
+  assert.equal(qaNotNeeded(true, 0.21), null);
+  assert.equal(qaNotNeeded(true, 0.9), null);
+  assert.equal(qaNotNeeded(true, null), null);
+});

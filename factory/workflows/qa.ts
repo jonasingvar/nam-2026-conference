@@ -1,7 +1,9 @@
 import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, findDeployment, previewForPr, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
+import { comment, findDeployment, previewForPr, pullRequestFiles, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
+import { classify } from '../lib/select';
+import { browserCanSee, qaNotNeeded } from '../lib/test-pick';
 import { chooseModels, describe, modelBook, type Job } from '../lib/models';
 import { FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
 import * as S from './schemas';
@@ -235,7 +237,19 @@ async function qaRun(input: QaInput) {
     return { ...r, spend: k.spend.total, seconds: k.spend.seconds, ...(k.models ? { models: k.models.summary(), est: t!.est, climbs: t!.climbs } : {}) };
   };
 
-  // The preview of this head, and the deployment of the base to compare against.
+  // Is there anything to probe? Not for a change outside the app (the factory, docs — Vercel may still build
+  // a preview of the same app), and not when Jev is sure no browser could show the change differently.
+  const changedFiles = await pullRequestFiles(pr.number).catch(() => null);
+  if (changedFiles && changedFiles.length < 300) {
+    const appChanged = classify(changedFiles).app;
+    const sees = appChanged ? await browserCanSee({ title: pr.title, body: pr.body, files: changedFiles }) : { p: null };
+    const skip = qaNotNeeded(appChanged, sees.p);
+    if (skip) {
+      await setStatus(pr.headSha, 'factory/qa', 'success', skip, runUrl);
+      return outcome({ verdict: 'pass', confidence: 'high', skipped: skip });
+    }
+  }
+
   let preview = await previewForPr(pr.number);
   for (let i = 0; i < 45 && (preview.state === 'pending' || preview.state === 'none'); i++) { await sleep('20s'); preview = await previewForPr(pr.number); }
   if (preview.state === 'skipped') {

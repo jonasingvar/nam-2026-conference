@@ -73,6 +73,44 @@ export async function jevPicksTests(o: { about: string; files: string[]; diff: s
   }
 }
 
+const BROWSER_QUESTION = {
+  type: 'boolean',
+  instructions: 'Could this change alter anything a person using the app in a browser can see or do?',
+  criteria: {
+    true: 'It changes a page, a component, styling, client state, or server behaviour or data that a page shows.',
+    false: 'It changes only docs, comments, tests, tooling, names inside the code, or server internals that no page shows differently.',
+  },
+};
+
+/**
+ * Is there anything for QA to probe in a browser? Jev's P(yes) from the pull request's title, description
+ * and changed files — asked before QA starts a sandbox and an agent. Never throws: no answer is null, and QA runs.
+ */
+export async function browserCanSee(o: { title: string; body: string; files: string[] }): Promise<{ p: number | null; ms: number; error?: string }> {
+  'use step';
+  const t0 = Date.now();
+  try {
+    const d = await decide({
+      model: 'typesafe-ai/jev',
+      ...(process.env.JEV_API_KEY && { providerOptions: { gateway: { byok: { 'typesafe-ai': [{ apiKey: process.env.JEV_API_KEY }] } } } }),
+      state: `A pull request to a conference web app (React pages in src/, an Express API in server/).\n\nTitle: ${o.title}\n\n${o.body.slice(0, 3000)}\n\nFiles changed:\n${o.files.slice(0, 80).map((f) => `- ${f}`).join('\n')}`.slice(0, 8000),
+      questions: { browser: BROWSER_QUESTION },
+    } as any);
+    const a = (d as any).answers.browser;
+    return { p: a?.probability ?? (a?.value ? 1 : 0), ms: Date.now() - t0 };
+  } catch (e: any) {
+    return { p: null, ms: Date.now() - t0, error: String(e?.message || e).slice(0, 160) };
+  }
+}
+browserCanSee.maxRetries = 1;
+
+/** Whether QA has nothing to do, and why — or null when it should run. Pure. */
+export function qaNotNeeded(appChanged: boolean, p: number | null): string | null {
+  if (!appChanged) return 'Not applicable — no app change, so nothing to probe in a browser';
+  if (p !== null && p <= NO_BROWSER) return `Not applicable — Jev: nothing a browser could show differently (${Math.round((1 - p) * 100)}% sure)`;
+  return null;
+}
+
 export type Picked = { mode: 'none' | 'picked' | 'fallback'; specs: string[]; why: string };
 
 /**
