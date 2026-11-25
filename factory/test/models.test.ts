@@ -113,3 +113,13 @@ test('respond starts at the least tier Jev is 60% sure is enough, not at the che
   // A job with no such bar still starts cheap and climbs.
   assert.equal(pickFrom('implement', [0, 0.36, 0.5, 0.14], 'small', KNOWN_PRICES)!.tier, cheapestExpected('implement', [0, 0.36, 0.5, 0.14], KNOWN_PRICES)!.tier);
 });
+
+test('the models table says how long each job has run so far, and a dash for one that has not', () => {
+  const book = modelBook({ picks: { implement: pickFrom('implement', [0, 1, 0, 0], 'small', KNOWN_PRICES)!, audit: pickFrom('audit', [0, 1, 0, 0], 'small', KNOWN_PRICES)! }, catalog: KNOWN_PRICES }, 'small');
+  const p = book.pick('implement');
+  book.record({ job: 'implement', label: 'build', model: p.model, tier: p.tier, est: p.est, cost: 0.2, ok: true, seconds: 431 });
+  const table = book.table();
+  assert.match(table, /\| Job \| Model \| Tier \| Jev \| Est\. \| Actual \| Time \|/);
+  assert.match(table, /Implement.*\| 7 min 11 s \|/);
+  assert.match(table, /Audit.*\| — \| — \|/);
+});

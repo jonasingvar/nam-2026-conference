@@ -58,6 +58,8 @@ test('an agent\'s events read like a terminal: what it said, each tool, what cam
   ]);
   // A line cut short on the way out of the sandbox still names its tool.
   assert.deepEqual(eventLines('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"src/a.js","content":"aaaa'), ['Write src/a.js …']);
+  // A long shell command cut short reads as a command, with the JSON's own escapes undone.
+  assert.deepEqual(eventLines('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cd /repo; cat > a.md <<\'EOF\'\\n# Title\\nsays \\"hi\\"'), ["$ cd /repo; cat > a.md <<'EOF' # Title says \"hi\" …"]);
   assert.deepEqual(eventLines('not json\n\n'), []);
 });
 

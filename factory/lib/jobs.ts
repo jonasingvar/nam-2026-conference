@@ -82,7 +82,9 @@ export function eventLines(jsonl: string, label = ''): string[] {
     let e: any;
     try { e = JSON.parse(raw); } catch {
       const tool = /"type":"tool_use".*?"name":"([A-Za-z_]+)"/.exec(raw)?.[1];
-      if (tool && tool !== 'StructuredOutput') say(`${tool} ${oneLine(/"(?:file_path|command|pattern)":"((?:[^"\\]|\\.){0,200})/.exec(raw)?.[1] ?? '', 200)} …`);
+      // What can be saved of it: the tool and the start of its argument, read as text (the JSON's own \\n and \\" undone).
+      const arg = (/"(?:file_path|command|pattern)":"((?:[^"\\]|\\.){0,300})/.exec(raw)?.[1] ?? '').replace(/\\n/g, ' ').replace(/\\(["\\/])/g, '$1');
+      if (tool && tool !== 'StructuredOutput') say(`${tool === 'Bash' ? '$' : tool} ${oneLine(arg, 200)} …`);
       continue;
     }
     const blocks = Array.isArray(e?.message?.content) ? e.message.content : [];

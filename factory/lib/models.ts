@@ -425,7 +425,9 @@ export function modelBook(choice: Choice, size: Size) {
       const jobs = [...new Set<Job>([...(Object.keys(picks) as Job[]), ...ran.keys()])];
       if (!jobs.length) return '';
       const usd = (n: number) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
-      return `| Job | Model | Tier | Jev | Est. | Actual |\n| --- | --- | --- | ---: | ---: | ---: |\n` +
+      // Time: how long the job's agents have run so far — filled in as each one finishes.
+      const took = (sec: number) => (sec < 60 ? `${Math.round(sec)} s` : `${Math.floor(sec / 60)} min ${String(Math.round(sec % 60)).padStart(2, '0')} s`);
+      return `| Job | Model | Tier | Jev | Est. | Actual | Time |\n| --- | --- | --- | ---: | ---: | ---: | ---: |\n` +
         jobs.map((j) => {
           const as = ran.get(j) ?? [];
           const p = picks[j];
@@ -436,7 +438,7 @@ export function modelBook(choice: Choice, size: Size) {
           const jev = p?.how === 'jev' && p.sure !== null ? `${Math.round(p.sure * 100)}%` : p?.how === 'fallback' ? 'default' : '';
           const est = as.length ? as.reduce((s, a) => s + a.est, 0) : p?.est ?? 0;
           const actual = as.length ? `${usd(as.reduce((s, a) => s + a.cost, 0))}${as.length > 1 ? ` · ${as.length} runs` : ''}${failed ? ` · ${failed} failed` : ''}` : '—';
-          return `| ${JOB_LABEL[j] ?? j} | \`${models}\`${climbed ? ` ↑ <sub>${climbed}</sub>` : ''} | ${tier} | ${jev} | ${usd(est)} | ${actual} |`;
+          return `| ${JOB_LABEL[j] ?? j} | \`${models}\`${climbed ? ` ↑ <sub>${climbed}</sub>` : ''} | ${tier} | ${jev} | ${usd(est)} | ${actual} | ${as.length ? took(as.reduce((t, a) => t + (a.seconds || 0), 0)) : '—'} |`;
         }).join('\n');
     },
   };
