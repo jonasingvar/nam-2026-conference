@@ -92,17 +92,55 @@ export function buildMap({ sha, known, unit, browser, seconds }) {
   return { version: 1, sha, builtAt: new Date().toISOString(), seconds, known: [...known].sort(), tests, files };
 }
 
+/** The relative imports in a module's text, resolved to repo paths (each with the endings it may have). */
+function importsIn(file, text) {
+  const dir = file.split('/').slice(0, -1);
+  const out = new Set();
+  for (const m of text.matchAll(/(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s+)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+    const parts = [...dir];
+    for (const seg of m[1].split('/')) { if (seg === '..') parts.pop(); else if (seg !== '.') parts.push(seg); }
+    const path = parts.join('/');
+    for (const end of ['', '.js', '.jsx', '.mjs', '/index.js', '/index.jsx']) out.add(path + end);
+  }
+  return out;
+}
+
+/**
+ * The new files a change itself brings in: a file the map has never seen that
+ * a changed file the map does know imports — directly, or through another
+ * such new file. Its code can only run where that importer runs, and the map
+ * has measured the importer, so the importer's tests stand for it. On #51 one
+ * new 24-line helper, imported by the page the ticket changed, sent the gate
+ * to all 98 browser tests. A new file nothing changed imports (a route found
+ * by scanning a folder, an entry point) stays unmapped: nothing vouches for it.
+ */
+export function carriedBy(changed, known, sources) {
+  const imports = new Map(changed.map((f) => [f, importsIn(f, sources.get(f) || '')]));
+  const carried = new Set();
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const f of changed) {
+      if (known.has(f) || carried.has(f)) continue;
+      if (changed.some((g) => g !== f && (known.has(g) || carried.has(g)) && imports.get(g).has(f))) { carried.add(f); grew = true; }
+    }
+  }
+  return carried;
+}
+
 /**
  * The map's candidates for a change: per project, spec file → the titles
  * that ran a changed file; the unit and API files that did; which changed
  * files reach each spec (the status's "these reach …"); and the changed code
  * files the map has never seen — new, so nothing can be said about them.
+ * `sources` (changed file → its text) lets a new file be vouched for: see `carriedBy`.
  */
-export function candidatesFor(map, changed) {
+export function candidatesFor(map, changed, sources = new Map()) {
   const out = { desktop: {}, mobile: {}, unit: [], reach: {}, unmapped: [] };
   const known = new Set(map.known || []);
+  const carried = carriedBy(changed.filter((f) => CODE.test(f)), known, sources);
   for (const f of changed) {
     if (!CODE.test(f)) continue;
+    if (carried.has(f)) continue;
     if (!known.has(f)) { out.unmapped.push(f); continue; }
     const e = map.files?.[f];
     if (!e) continue;
@@ -159,7 +197,8 @@ async function facts(base, mapFile) {
       // Stale is measured in commits that changed what the map describes: a docs or factory commit moves nothing.
       let behind = null;
       try { behind = Number(git('rev-list', '--count', `${m.sha}..${base}`, '--', ...APP_PATHS)); } catch { /* not in this history */ }
-      map = { sha: m.sha, builtAt: m.builtAt, behind, ...candidatesFor(m, changed) };
+      const sources = new Map(changed.filter((f) => CODE.test(f)).map((f) => { try { return [f, readFileSync(join(ROOT, f), 'utf8')]; } catch { return [f, '']; } }));
+      map = { sha: m.sha, builtAt: m.builtAt, behind, ...candidatesFor(m, changed, sources) };
     } catch { map = null; }
   }
   return { changed, static: reached, branch: reached || fastFallback(changed), deck: deckTouched(changed.join('\n')), tests: listTests(), map };
