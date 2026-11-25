@@ -210,3 +210,45 @@ test('mapProblem: none for a current map', () => {
   assert.equal(mapProblem(map()), null);
   assert.equal(mapProblem(null), 'no test map yet');
 });
+
+import { pickSpecs } from '../lib/test-pick';
+
+test('Jev picks the verticals: the change\'s own specs and the ones Jev names; none when no browser can see it; smoke when Jev cannot say', () => {
+  const jev = (browser: number | null, specs: Record<string, number> = {}) => ({ browser, specs, ms: 1 });
+  const picked = pickSpecs(jev(0.9, { 'tests/agenda.spec.js': 0.92, 'tests/schedule.spec.js': 0.1, 'tests/home.spec.js': 0.49 }), []);
+  assert.deepEqual(picked.specs, ['tests/agenda.spec.js']);
+  assert.match(picked.why, /Jev picked agenda\.spec\.js 92%/);
+  const s = decideSelection(app, facts(), null, { jev: true, picked });
+  assert.equal(s.mode, 'selected');
+  assert.deepEqual(s.breakdown, { jev: 2 });
+  assert.ok(s.tests.desktop.every((t) => t.startsWith('tests/agenda.spec.js')));
+  // An unmapped file, or a stale map, widens nothing here.
+  assert.equal(decideSelection(app, facts({ map: map({ unmapped: ['src/lib/new.js'] }) }), null, { jev: true, picked }).ran, 2);
+
+  // The change's own spec always runs, whatever Jev says of it.
+  assert.deepEqual(pickSpecs(jev(0.9, { 'tests/home.spec.js': 0.05 }), ['tests/home.spec.js']).specs, ['tests/home.spec.js']);
+
+  // Sure no browser test can tell: none at all.
+  const none = pickSpecs(jev(0.04, { 'tests/agenda.spec.js': 0.1 }), []);
+  assert.equal(none.mode, 'none');
+  assert.equal(decideSelection(app, facts(), null, { jev: true, picked: none }).ran, 0);
+
+  // A browser may see it but no vertical was picked, or Jev did not answer: smoke, not everything.
+  assert.equal(pickSpecs(jev(0.7, { 'tests/agenda.spec.js': 0.2 }), []).mode, 'fallback');
+  const down = decideSelection(app, facts(), null, { jev: true, picked: pickSpecs(jev(null), []) });
+  assert.ok(down.ran < down.total);
+  assert.ok((down.breakdown.smoke ?? 0) > 0, 'the smoke set runs when Jev has no answer');
+  assert.deepEqual(Object.keys(down.breakdown).filter((k) => k !== 'smoke'), []);
+
+  // What runs the tests changed: everything, whoever picked.
+  assert.equal(decideSelection(classify(['playwright.config.js']), facts({ changed: ['playwright.config.js'], branch: null }), null, { jev: true, picked }).mode, 'full');
+});
+
+test('QA is not needed for a change outside the app, or one Jev is sure no browser can show; it runs when Jev cannot say', async () => {
+  const { qaNotNeeded } = await import('../lib/test-pick');
+  assert.match(qaNotNeeded(false, null)!, /no app change/);
+  assert.match(qaNotNeeded(true, 0.05)!, /Jev: nothing a browser could show differently \(95% sure\)/);
+  assert.equal(qaNotNeeded(true, 0.21), null);
+  assert.equal(qaNotNeeded(true, 0.9), null);
+  assert.equal(qaNotNeeded(true, null), null);
+});

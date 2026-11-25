@@ -9,6 +9,7 @@ import {
   classify as classifyFiles, decideSelection, escapesFrom, readAnswer, selectorPrompt, SELECTOR_SCHEMA,
   type Classified, type Escape, type Facts, type GateRecord, type SelectOptions, type SelectorAnswer,
 } from './select';
+import { jevPicksTests, pickSpecs, type JevPick } from './test-pick';
 
 /**
  * One durable step per kind of work, so a run's trace in Vercel reads as its
@@ -261,13 +262,33 @@ stageTestMap.maxRetries = 3;
 export async function chooseTests(o: {
   classified: Classified; facts: Facts | null; diff: string; escapes: Escape[];
   pick: { model: string; price: Price | null } | null; options: SelectOptions;
+  /** With `options.jev`: what was asked for, in words — the ticket's title, or a person's comment. */
+  about?: string;
 }) {
   'use step';
   const t0 = Date.now();
+  // Jev picks the verticals: one yes/no per spec file, from what was asked and the diff (lib/test-pick.ts).
+  if (o.options.jev && o.classified.app && o.facts?.tests && !o.options.full) {
+    const f = o.facts;
+    const bySpec = new Map<string, string[]>();
+    for (const t of [...f.tests!.desktop, ...f.tests!.mobile]) {
+      if (t.spec === 'tests/presentation.spec.js' && !f.deck) continue;
+      const titles = bySpec.get(t.spec) ?? [];
+      if (!titles.includes(t.title)) titles.push(t.title);
+      bySpec.set(t.spec, titles);
+    }
+    const seen = new Set([...Object.keys(f.map?.desktop ?? {}), ...Object.keys(f.map?.mobile ?? {})]);
+    const verticals = [...bySpec].map(([spec, titles]) => ({ spec, titles, ranChanged: seen.has(spec) }));
+    const jev = await jevPicksTests({ about: o.about || '', files: o.classified.files, diff: o.diff, verticals });
+    const own = f.changed.filter((x) => bySpec.has(x));
+    const picked = pickSpecs(jev, own);
+    const selection = decideSelection(o.classified, f, null, { ...o.options, picked });
+    return { selection, answer: null as SelectorAnswer | null, asked: false, cost: 0, error: jev.error ?? '', seconds: Math.round((Date.now() - t0) / 1000), jev };
+  }
   let answer: SelectorAnswer | null = null;
   let cost = 0;
   let error = '';
-  const ask = o.classified.app && o.facts && !o.options.full && o.pick;
+  const ask = o.classified.app && o.facts && !o.options.full && !o.options.jev && o.pick;
   if (ask) {
     try {
       const r = await generateText({
@@ -285,7 +306,7 @@ export async function chooseTests(o: {
     }
   }
   const selection = decideSelection(o.classified, o.facts, answer, o.options);
-  return { selection, answer, asked: !!ask, cost, error, seconds: Math.round((Date.now() - t0) / 1000) };
+  return { selection, answer, asked: !!ask, cost, error, seconds: Math.round((Date.now() - t0) / 1000), jev: null as JevPick | null };
 }
 chooseTests.maxRetries = 1;
 

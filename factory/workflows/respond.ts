@@ -7,6 +7,8 @@ import { FACTORY_DASHBOARD } from '../lib/constants';
 import type { Intent } from '../lib/intent';
 import { respondCard, readLine, type RespondPhase, type RespondView } from '../lib/respond-view';
 import { stopwatch, timeLine } from '../lib/timing';
+import { chooseTests } from '../lib/phases';
+import { classify as classifyFiles, type Facts } from '../lib/select';
 import * as S from './schemas';
 
 /**
@@ -109,25 +111,51 @@ async function respondRun(input: RespondInput) {
 
   // The gate on the commit before anyone sees it: red gets one fix, aimed at what failed, and a second gate.
   // Then the push — green or not, so the work is never lost; a red one says so, here and on the commit's status.
+  // Which browser tests: Jev reads the request and the diff of this request's own commits and picks the
+  // verticals (lib/test-pick.ts) — often one spec, sometimes none. The unit and API tests always run.
+  let testsLine = '';
+  const pickTests = async () => {
+    const got = await k.command('select', [
+      `[ -f scripts/test-map.mjs ] && node scripts/test-map.mjs facts ${pr.headSha} /nonexistent-map 2>"$JOB/facts.err" | tail -1 > "$JOB/facts.json"`,
+      `git diff ${pr.headSha}..HEAD -- . ':!package-lock.json' | head -c 20000 > "$JOB/diff.txt"`,
+      `node -e 'const fs=require("fs"),e=process.env;let f=null;try{f=JSON.parse(fs.readFileSync(e.JOB+"/facts.json","utf8"))}catch{}fs.writeFileSync(e.JOB+"/result.json",JSON.stringify({facts:f,diff:fs.readFileSync(e.JOB+"/diff.txt","utf8")}))'`,
+    ].join('\n'));
+    const facts = (got?.facts ?? null) as Facts | null;
+    if (!facts) return null;
+    const chosen = await chooseTests({ classified: classifyFiles(facts.changed), facts, diff: String(got?.diff || ''), escapes: [], pick: null, about: input.ask, options: { jev: true } });
+    const sel = chosen.selection;
+    // The gate here runs spec files whole. The smoke fallback is five named tests in three files: the smoke
+    // spec alone stands for it, so the card never claims five tests while thirty run.
+    const smokeOnly = Object.keys(sel.breakdown).every((x) => x === 'smoke') && sel.ran > 0;
+    const specs = smokeOnly ? ['tests/smoke.spec.js'] : [...new Set([...sel.tests.desktop, ...sel.tests.mobile].map((t) => t.split(' › ')[0]))].filter((x) => /^tests\/[\w.-]+\.spec\.js$/.test(x));
+    testsLine = sel.mode === 'full' ? `the whole suite — ${sel.reason}` : sel.mode === 'none' || !specs.length ? `no browser test — ${sel.reason}` : `${specs.map((x) => `\`${x.replace('tests/', '')}\``).join(', ')}${smokeOnly ? '' : ` (${sel.ran} of ${sel.total} browser tests)`} — ${sel.reason}`;
+    k.log(`select: ${testsLine}`);
+    return sel.mode === 'full' ? '' : specs.length ? specs.join(' ') : 'none';
+  };
+  let gateSpecs: string | null = null;
   const runGate = async (label: string) => {
     const g = await k.command(label, [
-      // Tight: the unit tests, and only the browser specs this request's own commits touched (the smoke spec when
-      // they touched none). The push starts verify, which runs what else the change reaches, beside the person.
-      `SPECS=$(git diff --name-only --diff-filter=d ${pr.headSha}..HEAD -- 'tests/*.spec.js' | grep -v qa-probe | tr '\n' ' ' || true)`,
-      `GATE=$(GATE_SPECS="\${SPECS:-tests/smoke.spec.js}" GATE_BASE=${pr.headSha} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
+      // gateSpecs: what Jev picked ('' is the whole suite). No pick (an old commit, no listing): the specs this
+      // request's commits touched, else the smoke spec.
+      gateSpecs === null
+        ? `SPECS=$(git diff --name-only --diff-filter=d ${pr.headSha}..HEAD -- 'tests/*.spec.js' | grep -v qa-probe | tr '\n' ' ' || true); SPECS="\${SPECS:-tests/smoke.spec.js}"`
+        : `SPECS='${gateSpecs}'`,
+      `GATE=$(GATE_SPECS="$SPECS" GATE_BASE=${pr.headSha} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
       `GATE="$GATE" node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",JSON.stringify({gate:process.env.GATE}))'`,
     ].join('\n'));
     try {
       const r = JSON.parse(g?.gate || '');
       const failed: { test: string; error?: string }[] = [...(r.unit.failed ? [{ test: 'npm test' }] : []), ...r.browser.failed];
-      return { ok: Boolean(r.ok), failed, line: r.ok ? `✅ green — unit ${r.unit.passed}, browser ${r.browser.passed} (the specs this request touched; verify runs the rest)` : `❌ red — ${failed.map((x) => x.test).join(', ')}` };
+      return { ok: Boolean(r.ok), failed, line: r.ok ? `✅ green — unit ${r.unit.passed}, browser ${r.browser.passed}` : `❌ red — ${failed.map((x) => x.test).join(', ')}` };
     } catch { return { ok: false, failed: [], line: '⚠️ the gate did not report' }; }
   };
   let gateLine = '';
   let pushed = false;
   let green = true;
   if (change?.changed) {
-    await show('Gate');
+    await show('Gate', { doing: 'Picking the tests' });
+    gateSpecs = await pickTests();
+    await show('Gate', { doing: undefined, ...(testsLine ? { tests: testsLine } : {}) });
     let g = await runGate('gate');
     gateLine = g.line;
     if (!g.ok && g.failed.length) {
@@ -146,7 +174,12 @@ async function respondRun(input: RespondInput) {
     green = g.ok;
     await show('Push', { doing: undefined, gate: gateLine });
     const sq = `'${pr.head.replaceAll("'", `'\\''`)}'`;
-    const out = await k.command('push', `git push -q origin HEAD:refs/heads/${sq} >"$JOB/push.log" 2>&1; echo "{\\"ok\\":$([ $? = 0 ] && echo true || echo false),\\"sha\\":\\"$(git rev-parse --short HEAD)\\"}" > "$JOB/result.json"`);
+    // Someone else pushed to the branch while this ran: take their commits in with a merge, and push again.
+    const out = await k.command('push', [
+      `push() { git push -q origin HEAD:refs/heads/${sq} >>"$JOB/push.log" 2>&1; }`,
+      `OK=false; if push; then OK=true; elif git fetch -q origin && git merge --no-edit ${sq.replace(/^'/, "'origin/")} >>"$JOB/push.log" 2>&1 && push; then OK=true; else git merge --abort >/dev/null 2>&1 || true; fi`,
+      `echo "{\\"ok\\":$OK,\\"sha\\":\\"$(git rev-parse --short HEAD)\\"}" > "$JOB/result.json"`,
+    ].join('\n'));
     pushed = Boolean(out?.ok);
     gateLine = `${gateLine}${pushed ? ` · pushed as ${out.sha}` : ' · ⚠️ the push failed — nothing reached the branch'}`;
   }

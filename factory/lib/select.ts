@@ -19,6 +19,8 @@
  * skipped is an escape, and the next selections are told about it.
  */
 
+import type { Picked } from './test-pick';
+
 export type Kind = 'none' | 'docs' | 'factory' | 'app' | 'mixed';
 export type Classified = { kind: Kind; app: boolean; factory: boolean; docs: boolean; context: boolean; files: string[] };
 
@@ -64,7 +66,7 @@ export type SpecWhy = { spec: string; why: string };
 export type SelectorAnswer = { add: SpecWhy[]; remove: SpecWhy[]; confidence: number; summary: string };
 
 /** Why a test is in a selection — the first reason that put it there. */
-export type Source = 'smoke' | 'own' | 'map' | 'added' | 'floor' | 'widened';
+export type Source = 'smoke' | 'own' | 'map' | 'added' | 'floor' | 'widened' | 'jev';
 
 export type Selection = {
   mode: 'none' | 'selected' | 'widened' | 'full';
@@ -154,6 +156,13 @@ export type SelectOptions = {
   full?: string;
   /** Ship's gate: never weaker than GATE_SCOPE=branch — its choice is a floor, and where it cannot be told, everything. */
   floor?: boolean;
+  /**
+   * Jev picks the verticals (lib/test-pick.ts): the change's own specs, whole, and each spec Jev says must run —
+   * nothing else, and no browser test at all when Jev is sure none can see the change. `picked` is its answer;
+   * null (Jev unavailable) falls back to the change's own specs and the smoke set. No map and no floor.
+   */
+  jev?: boolean;
+  picked?: Picked | null;
 };
 
 export const none = (f: Facts | null, reason: string): Selection => ({
@@ -171,6 +180,22 @@ export function decideSelection(c: Classified, f: Facts | null, a: SelectorAnswe
   const runnable = (t: Listed) => f.deck || t.spec !== DECK;
   const allSpecs = new Set([...listed.desktop, ...listed.mobile].filter(runnable).map((t) => t.spec));
   if (o.floor && f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
+
+  if (o.jev) {
+    if (f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
+    const own = f.changed.filter(isSpec).filter((sp) => allSpecs.has(sp));
+    const picked = o.picked ?? { mode: 'fallback' as const, specs: own, why: 'Jev was not asked — the change\'s own specs and smoke' };
+    if (picked.mode === 'none') return none(f, picked.why);
+    const mine: Record<Project, Map<string, Source>> = { desktop: new Map(), mobile: new Map() };
+    const put = (p: Project, t: Listed, why: Source) => { if (runnable(t) && !mine[p].has(nameOf(t))) mine[p].set(nameOf(t), why); };
+    const want = new Set(picked.specs.filter((sp) => allSpecs.has(sp)));
+    for (const p of PROJECTS) for (const t of listed[p]) {
+      if (own.includes(t.spec)) put(p, t, 'own');
+      else if (want.has(t.spec)) put(p, t, 'jev');
+      else if (picked.mode === 'fallback' && SMOKE_SET.some((x) => x.spec === t.spec && x.title === t.title)) put(p, t, 'smoke');
+    }
+    return finish({ mode: 'selected', reason: picked.why, confidence: null, notes: [] }, f, mine);
+  }
 
   const problem = mapProblem(f.map) ?? (!a ? 'the selector did not answer' : a.confidence < threshold ? `the selector was ${Math.round(a.confidence * 100)}% sure` : null);
   if (problem && f.branch === null) return everything(f, `${problem}, and its reach cannot be told`, confidence);
@@ -244,7 +269,7 @@ function finish(head: Pick<Selection, 'mode' | 'reason' | 'confidence' | 'notes'
 
 /** "map 2 · smoke 5 · added 1": what brought the tests in. */
 export const breakdownLine = (s: Selection) =>
-  (['map', 'smoke', 'own', 'added', 'floor', 'widened'] as Source[]).filter((k) => s.breakdown[k]).map((k) => `${k} ${s.breakdown[k]}`).join(' · ');
+  (['jev', 'map', 'smoke', 'own', 'added', 'floor', 'widened'] as Source[]).filter((k) => s.breakdown[k]).map((k) => `${k} ${s.breakdown[k]}`).join(' · ');
 
 /**
  * What is left once an earlier gate on the same code ran `done` green (ship's,

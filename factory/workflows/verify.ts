@@ -62,8 +62,9 @@ async function verifyRun(input: VerifyInput) {
 
   // ── classify ──────────────────────────────────────────────────────────────
   const ch = await classify(input.sha, onMain ? null : base);
-  // Main runs the whole app suite whatever the commit touched: it is the safety net under every selection.
-  const c = onMain ? { ...ch.classified, app: true } : ch.classified;
+  // Main runs the whole app suite when the commit touched the app: it is the safety net under every selection.
+  // A merge that changed only the factory or docs leaves the app as the commit before it, which ran everything.
+  const c = ch.classified;
   await setAttributes({ kind: ch.classified.kind });
   if (!c.app && !c.factory && !c.context) {
     const line = statusLine(c, { mode: 'none' } as Selection, {});
@@ -94,7 +95,9 @@ async function verifyRun(input: VerifyInput) {
     const pick = book?.pick('testSelect') ?? null;
     const chosen = await chooseTests({
       classified: c, facts, diff: ch.diff, escapes: staged.escapes,
-      pick: pick ? { model: pick.model, price: book!.catalog[pick.model] ?? null } : null, options: { full },
+      pick: pick ? { model: pick.model, price: book!.catalog[pick.model] ?? null } : null,
+      // A pull request runs the verticals Jev picks for its diff; main and the full-suite label run everything.
+      about: `${input.ref.replace(/^issue-\d+-/, '').replaceAll('-', ' ')}`, options: { full, jev: !full },
     });
     sel = chosen.selection;
     if (book && pick && chosen.asked) book.record({ job: 'testSelect', label: 'select', model: pick.model, tier: pick.tier, est: pick.est, cost: chosen.cost, ok: !!chosen.answer, seconds: chosen.seconds });

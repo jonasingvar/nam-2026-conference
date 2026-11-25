@@ -163,30 +163,30 @@ For the app: `select` (*Test selection*), then `runDesktop` ∥ `runMobile`, eac
 in its own fork of the warm sandbox, npm test with desktop. On a pull request
 ship opened, verify reads ship's gate record for that commit and runs only
 what its own selection adds. Tests are counted once, each running on both
-shards; the status reads like *ran 7 of 92 browser tests (map 2, smoke 5) ·
-selected: these reach MyAgendaPage.jsx · unit/API all (330)*. The run's
+shards; the status reads like *ran 14 of 92 browser tests (jev 14) ·
+selected: Jev picked home.spec.js 94% · unit/API all (330)*. The run's
 attributes keep `kind`, `selection`, `selected`, `of`, `breakdown`, `reason`,
 `confidence` and `reused`. The `full-suite` label runs everything.
 
-**Test selection** (`lib/select.ts`, pure and tested). With a current map, the
-tests are the map's — the ones whose run executed a changed file, picked by
-exact title (`GATE_SPECS` + `GATE_GREP`) — plus the **smoke set**, five named
-tests (`SMOKE_SET`: the layout shell and Home, the seeded API, a seat that
-survives a reload, a clash refused with a swap, a check-in that unlocks a
-rating), plus the branch's own specs whole. The import graph is not consulted
-then: a shared import "reaches" every page that pulls it in, and ran nothing.
-A cheap model (`testSelect`, called from the function through AI Gateway, so
-verify's sandbox keeps no credential) reads the diff, the candidates, every
-spec and recent escapes, and adds what a map cannot see (CSS, seed data,
-helpers, config, routes) or drops a candidate with a reason, with a
-confidence. Below 0.7, no map, a map more than 40 app commits behind, or a
-changed file the map has never seen (a new file that a changed, mapped
-file imports does not count: it runs only where its importer does, so the
-importer's tests stand for it — `carriedBy`): widen to the branch scope
-(`affectedSpecs || fastFallback`) and the map's candidate specs, whole — or
-everything where that cannot be told. Every selection is broken down by what
-brought each test in (`map`, `smoke`, `own`, `added`, `floor`, `widened`).
-Ship's gate adds the branch scope as a floor. Main runs everything.
+**Test selection** is Jev's (`lib/test-pick.ts`; the rule that turns its
+answers into a run is `lib/select.ts`, pure and tested). Each spec file in
+`tests/` is one vertical of the app. Jev reads what was asked (the ticket's
+title, or the comment), the files changed and the diff, and answers one yes/no
+per vertical — must these tests run again to trust this change — and one for
+the whole: can a browser test see this change at all. What runs is the
+change's own specs, whole, and each vertical Jev gives 50% or more; nothing
+else. Jev 80% sure no browser test can tell, with no vertical picked: no
+browser test at all. Jev unavailable, or a browser-visible change with no
+vertical picked: the **smoke set** (`SMOKE_SET`, five named tests) — never
+the whole suite. The unit and API tests always run; they take seconds. The
+coverage map only tells Jev which verticals executed a changed file. Ship's
+gate, respond's gate (on the diff of that request's own commits) and verify
+on a pull request all choose this way; the status and the run log say what
+Jev picked and how sure it was (`jev`, `own`, `smoke` in the breakdown).
+A change to what runs the tests (`playwright.config.js`, `package.json`…),
+the `full-suite` label, and main after a merge that touched the app run
+everything. A merge that changed only the factory or docs leaves the app as
+the commit before it: main runs the factory's checks and no app suite.
 
 **The test map** (`scripts/test-map.mjs build`) is built on every push to
 main that touches the app, in a third sandbox beside verify's shards so the
@@ -201,7 +201,8 @@ coverage. A file counts when one of its functions ran, not when it loaded
 at it. **Escapes:** each gate records what it ran at `test-select/<sha>.json`;
 when main's full run fails a test the merged pull request's record skipped,
 it is appended to `test-map/escapes.json` (last 50) and the run gets an
-`escapes` attribute, and the selector reads the recent ones.
+`escapes` attribute. The list is a record of what Jev's picks let through, for a
+person to read; Jev is not given it.
 
 **Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
 or crashes. A run's sandbox keeps one snapshot that expires in a day. Under

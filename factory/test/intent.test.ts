@@ -38,7 +38,7 @@ import { quoted, readLine, respondCard, RESPOND_MARK } from '../lib/respond-view
 
 test('the respond card says how the comment was read, on what model, and where the run is', () => {
   const card = respondCard({ phase: 'Change', ask: 'the tiles flicker\nplease fix', author: 'sam', issue: 51, read: { intent: 'change', sure: 0.912 }, model: '`deepseek-v4.1-flash` (standard, Jev 68%, est $0.049)', runUrl: 'https://x/run' });
-  assert.match(card, /Working on it · Change/);
+  assert.match(card, /Respond on Vercel · Change/);
   assert.match(card, /✅ Read → \*\*⏳ Change\*\* → Gate → Push → Reply/);
   assert.match(card, /> the tiles flicker\n> please fix/);
   assert.match(card, /\*\*Asked by:\*\* sam on #51/);
@@ -50,10 +50,10 @@ test('the respond card says how the comment was read, on what model, and where t
 test('a /fix is not classified; a question skips the gate; the cap counts cards', () => {
   assert.match(readLine(undefined), /explicit request/);
   const done = respondCard({ phase: null, outcome: 'answered', ask: 'why?', author: 'sam', read: { intent: 'question', sure: null }, runUrl: 'u' });
-  assert.match(done, /Factory · Answered/);
+  assert.match(done, /Respond on Vercel · Answered/);
   assert.match(done, /✅ Read → ✅ Change → <s>Gate<\/s> → <s>Push<\/s> → ✅ Reply/);
   assert.match(done, /a question to answer — Jev\n/);
-  assert.match(respondCard({ phase: 'Gate', doing: 'Fixing what the gate found', ask: 'x', author: 'sam', runUrl: 'u' }), /Working on it · Fixing what the gate found/);
+  assert.match(respondCard({ phase: 'Gate', doing: 'Fixing what the gate found', ask: 'x', author: 'sam', runUrl: 'u' }), /Respond on Vercel · Fixing what the gate found/);
   assert.equal(quoted(`a <!-- factory --> b\n${'x\n'.repeat(20)}`).split('\n').length, 6);
   assert.ok(tooManyPickups(Array(MAX_PICKUPS_AN_HOUR).fill(done)));
 });
