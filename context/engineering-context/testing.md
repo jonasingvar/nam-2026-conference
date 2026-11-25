@@ -128,8 +128,9 @@ Playwright directly).
 
 **CI** is the factory's `verify` workflow (`factory/workflows/verify.ts`, harness doc): every push to a
 pull request and to `main` reports the commit status `factory/verify`. A pull request runs the tests its
-change needs — the test map's candidates, a five-test smoke set and its own specs — desktop and
-mobile in two sandboxes at once (`GATE_SPECS`, `GATE_GREP`, `GATE_PROJECT`, `GATE_UNIT=skip` in
+change needs: its own specs and the spec files Jev picks for its diff (harness doc, *Test selection*) —
+the five-test smoke set only when Jev cannot say, and no browser test at all when Jev is sure none
+could tell — desktop and mobile in two sandboxes at once (`GATE_SPECS`, `GATE_GREP`, `GATE_PROJECT`, `GATE_UNIT=skip` in
 `scripts/gate.mjs`); the `full-suite` label and `main` run the whole suite. There are no GitHub Actions.
 
 ## Invariants

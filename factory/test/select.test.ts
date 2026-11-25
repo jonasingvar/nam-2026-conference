@@ -237,6 +237,7 @@ test('Jev picks the verticals: the change\'s own specs and the ones Jev names; n
   assert.equal(pickSpecs(jev(0.7, { 'tests/agenda.spec.js': 0.2 }), []).mode, 'fallback');
   const down = decideSelection(app, facts(), null, { jev: true, picked: pickSpecs(jev(null), []) });
   assert.ok(down.ran < down.total);
+  assert.ok((down.breakdown.smoke ?? 0) > 0, 'the smoke set runs when Jev has no answer');
   assert.deepEqual(Object.keys(down.breakdown).filter((k) => k !== 'smoke'), []);
 
   // What runs the tests changed: everything, whoever picked.

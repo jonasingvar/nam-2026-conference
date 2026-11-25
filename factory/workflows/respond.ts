@@ -124,8 +124,11 @@ async function respondRun(input: RespondInput) {
     if (!facts) return null;
     const chosen = await chooseTests({ classified: classifyFiles(facts.changed), facts, diff: String(got?.diff || ''), escapes: [], pick: null, about: input.ask, options: { jev: true } });
     const sel = chosen.selection;
-    const specs = [...new Set([...sel.tests.desktop, ...sel.tests.mobile].map((t) => t.split(' › ')[0]))].filter((x) => /^tests\/[\w.-]+\.spec\.js$/.test(x));
-    testsLine = sel.mode === 'full' ? `the whole suite — ${sel.reason}` : sel.mode === 'none' || !specs.length ? `no browser test — ${sel.reason}` : `${specs.map((x) => `\`${x.replace('tests/', '')}\``).join(', ')} (${sel.ran} of ${sel.total} browser tests) — ${sel.reason}`;
+    // The gate here runs spec files whole. The smoke fallback is five named tests in three files: the smoke
+    // spec alone stands for it, so the card never claims five tests while thirty run.
+    const smokeOnly = Object.keys(sel.breakdown).every((x) => x === 'smoke') && sel.ran > 0;
+    const specs = smokeOnly ? ['tests/smoke.spec.js'] : [...new Set([...sel.tests.desktop, ...sel.tests.mobile].map((t) => t.split(' › ')[0]))].filter((x) => /^tests\/[\w.-]+\.spec\.js$/.test(x));
+    testsLine = sel.mode === 'full' ? `the whole suite — ${sel.reason}` : sel.mode === 'none' || !specs.length ? `no browser test — ${sel.reason}` : `${specs.map((x) => `\`${x.replace('tests/', '')}\``).join(', ')}${smokeOnly ? '' : ` (${sel.ran} of ${sel.total} browser tests)`} — ${sel.reason}`;
     k.log(`select: ${testsLine}`);
     return sel.mode === 'full' ? '' : specs.length ? specs.join(' ') : 'none';
   };
@@ -171,7 +174,12 @@ async function respondRun(input: RespondInput) {
     green = g.ok;
     await show('Push', { doing: undefined, gate: gateLine });
     const sq = `'${pr.head.replaceAll("'", `'\\''`)}'`;
-    const out = await k.command('push', `git push -q origin HEAD:refs/heads/${sq} >"$JOB/push.log" 2>&1; echo "{\\"ok\\":$([ $? = 0 ] && echo true || echo false),\\"sha\\":\\"$(git rev-parse --short HEAD)\\"}" > "$JOB/result.json"`);
+    // Someone else pushed to the branch while this ran: take their commits in with a merge, and push again.
+    const out = await k.command('push', [
+      `push() { git push -q origin HEAD:refs/heads/${sq} >>"$JOB/push.log" 2>&1; }`,
+      `OK=false; if push; then OK=true; elif git fetch -q origin && git merge --no-edit ${sq.replace(/^'/, "'origin/")} >>"$JOB/push.log" 2>&1 && push; then OK=true; else git merge --abort >/dev/null 2>&1 || true; fi`,
+      `echo "{\\"ok\\":$OK,\\"sha\\":\\"$(git rev-parse --short HEAD)\\"}" > "$JOB/result.json"`,
+    ].join('\n'));
     pushed = Boolean(out?.ok);
     gateLine = `${gateLine}${pushed ? ` · pushed as ${out.sha}` : ' · ⚠️ the push failed — nothing reached the branch'}`;
   }

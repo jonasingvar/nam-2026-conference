@@ -201,7 +201,8 @@ coverage. A file counts when one of its functions ran, not when it loaded
 at it. **Escapes:** each gate records what it ran at `test-select/<sha>.json`;
 when main's full run fails a test the merged pull request's record skipped,
 it is appended to `test-map/escapes.json` (last 50) and the run gets an
-`escapes` attribute, and the selector reads the recent ones.
+`escapes` attribute. The list is a record of what Jev's picks let through, for a
+person to read; Jev is not given it.
 
 **Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
 or crashes. A run's sandbox keeps one snapshot that expires in a day. Under

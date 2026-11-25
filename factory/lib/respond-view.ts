@@ -51,9 +51,10 @@ export function respondCard(v: RespondView): string {
   // A question is answered without a gate; a run that failed stops where it was.
   const skipped = (p: RespondPhase) => (p === 'Gate' || p === 'Push') && v.outcome === 'answered';
   const path = RESPOND_PHASES.map((p, i) => skipped(p) ? `<s>${p}</s>` : i < at ? `✅ ${p}` : i === at ? `**⏳ ${p}**` : p).join(' → ');
-  const headline = v.outcome === 'changed' ? 'Changed and pushed' : v.outcome === 'answered' ? 'Answered' : v.outcome === 'failed' ? 'Could not finish' : `Working on it · ${v.doing ?? v.phase}`;
+  // As ship's card reads "Ship on Vercel · Gate": the workflow, then where it is.
+  const headline = v.outcome === 'changed' ? 'Changed and pushed' : v.outcome === 'answered' ? 'Answered' : v.outcome === 'failed' ? 'Could not finish' : (v.doing ?? v.phase);
   return [
-    `### 🏭 Factory · ${headline}`,
+    `### 🏭 Respond on Vercel · ${headline}`,
     '',
     v.outcome === 'failed' ? '' : path,
     '',
