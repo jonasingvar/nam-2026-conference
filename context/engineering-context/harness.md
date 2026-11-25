@@ -260,7 +260,7 @@ filtered by ticket or phase, and `models` (`job=model` per job, `↑` a climb),
 `est_usd`, `spend_usd` and `climbs`. **The `progress` stream** (the run's
 Streams tab): every phase change, after every command its seconds, and after
 every agent its model, the tier and Jev's odds behind it, turns, seconds, its
-cost priced from the catalog against the estimate, and its own final answer.
+cost priced from the catalog against the estimate, and its own final answer. While an agent works, the same stream follows it turn by turn, as a terminal would: what it said, each tool call (`$ npm test`, `Read src/…`), and the first line of what came back (`lib/jobs.ts:eventLines`, from Claude Code's stream-json events; read every five seconds by the poll that already waits on the job).
 
 **Progress.** One issue comment (`<!-- ship-on-vercel -->`), edited at every
 phase: the phases, the profile and why, the branch and spec, each round, the

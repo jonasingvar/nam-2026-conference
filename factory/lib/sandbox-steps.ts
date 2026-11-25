@@ -1,5 +1,6 @@
 import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
+import { eventLines } from './jobs';
 import { AGENT_ENV, isPreviewHost, lockedPolicy, policySealed, sealPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, FACTORY_DEPS, REPO_DIR } from './constants';
 import { priceUsage, short, type Catalog } from './models';
@@ -264,13 +265,32 @@ export async function pollJob(name: string, id: string): Promise<JobPoll> {
   return pollJobImpl(name, id, 40_000);
 }
 
+/**
+ * An agent's new events since the last look, written to the run's Streams tab as it works: what it said,
+ * each tool it called, what came back. How far it has read is kept beside the job, so a retried step or the
+ * next poll carries on from there. One short command each look; a job that is not an agent has no events.
+ */
+async function streamAgent(sb: Sandbox, dir: string, id: string) {
+  try {
+    const f = `${dir}/events.jsonl`;
+    const r = await sh(sb, `[ -f ${f} ] || exit 0; n=$(cat ${dir}/streamed 2>/dev/null || echo 0); t=$(wc -l < ${f}); [ "$t" -gt "$n" ] || exit 0; ` +
+      `e=$(( t < n + 200 ? t : n + 200 )); sed -n "$((n + 1)),\${e}p" ${f} | cut -c1-4000; echo $e > ${dir}/streamed`);
+    const lines = r.out ? eventLines(r.out, id.replace(/^\d+-/, '')) : [];
+    if (!lines.length) return;
+    const w = getWritable<string>({ namespace: 'progress' }).getWriter();
+    try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
+  } catch { /* watching the work never fails the work */ }
+}
+
 async function pollJobImpl(name: string, id: string, waitMs: number): Promise<JobPoll> {
   const sb = await Sandbox.get({ name });
   const dir = `${ROOT}/${id}`;
   const until = Date.now() + waitMs;
   for (;;) {
+    await streamAgent(sb, dir, id);
     const s = await sh(sb, `if [ -f ${dir}/exit ]; then echo "done $(cat ${dir}/exit) $(( $(cat ${dir}/ended 2>/dev/null || echo 0) - $(cat ${dir}/started 2>/dev/null || echo 0) ))"; elif [ -f ${dir}/pid ] && kill -0 "$(cat ${dir}/pid)" 2>/dev/null; then echo running; else echo lost; fi`);
     if (s.out.startsWith('done')) {
+      await streamAgent(sb, dir, id); // what it did between the last look and the end
       const result = await sh(sb, `cat ${dir}/result.json 2>/dev/null || true`);
       const tail = await sh(sb, `tail -c 3000 ${dir}/out.log 2>/dev/null || true`);
       const [, exit, secs] = s.out.split(' ');

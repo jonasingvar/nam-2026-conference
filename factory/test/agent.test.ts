@@ -29,3 +29,50 @@ test('an empty AI Gateway stops the run with a plain message, instead of reading
   assert.throws(() => readAgent(done('', 1), schema) && readAgent({ ...done('', 1), tail: 'API Error: 402 Payment Required — insufficient funds' }, schema), /out of credit/);
   assert.equal(readAgent(done({ is_error: true, result: 'tool failed' }), schema).value, null, 'other errors are still a dead agent');
 });
+
+import { agentScript, eventLines } from '../lib/jobs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const EVENTS = [
+  { type: 'system', subtype: 'init' },
+  { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'hm' }, { type: 'text', text: 'I will read\nthe page first.' }] } },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'src/pages/HomePage.jsx' } }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', content: [{ type: 'text', text: '1\timport React\n2\t…' }] }] } },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'npm test' } }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', is_error: true, content: 'exit 1' }] } },
+  { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'StructuredOutput', input: { changed: true } }] } },
+  { type: 'user', message: { content: [{ type: 'tool_result', content: 'Structured output provided successfully' }] } },
+  { type: 'result', subtype: 'success', is_error: false, structured_output: { changed: true }, total_cost_usd: 0.01, num_turns: 4, modelUsage: {} },
+].map((e) => JSON.stringify(e)).join('\n');
+
+test('an agent\'s events read like a terminal: what it said, each tool, what came back — no thinking, no bookkeeping', () => {
+  assert.deepEqual(eventLines(EVENTS, 'change'), [
+    '[change] 💬 I will read the page first.',
+    '[change] Read src/pages/HomePage.jsx',
+    '[change]   ↳ 1 import React 2 …',
+    '[change] $ npm test',
+    '[change]   ↳ ✖ exit 1',
+  ]);
+  // A line cut short on the way out of the sandbox still names its tool.
+  assert.deepEqual(eventLines('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"src/a.js","content":"aaaa'), ['Write src/a.js …']);
+  assert.deepEqual(eventLines('not json\n\n'), []);
+});
+
+test('the agent script leaves the final result event in result.json, as --output-format json did, and keeps the agent\'s exit code', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'job-'));
+  writeFileSync(join(dir, 'prompt.md'), 'p'); writeFileSync(join(dir, 'schema.json'), '{}');
+  // A stand-in for the CLI: prints the events, exits 3.
+  writeFileSync(join(dir, 'claude'), `#!/bin/sh\ncat "$JOB/fake.jsonl"\nexit 3\n`, { mode: 0o755 });
+  writeFileSync(join(dir, 'timeout'), `#!/bin/sh\nshift\nexec "$@"\n`, { mode: 0o755 });
+  writeFileSync(join(dir, 'fake.jsonl'), EVENTS + '\n');
+  let code = 0;
+  try { execFileSync('bash', ['-c', agentScript('anthropic/claude-haiku-5.5')], { env: { ...process.env, JOB: dir, PATH: `${dir}:${process.env.PATH}` }, stdio: 'ignore' }); } catch (e: any) { code = e.status; }
+  assert.equal(code, 3);
+  const r = JSON.parse(readFileSync(join(dir, 'result.json'), 'utf8'));
+  assert.equal(r.type, 'result');
+  assert.deepEqual(r.structured_output, { changed: true });
+  assert.ok(readFileSync(join(dir, 'events.jsonl'), 'utf8').includes('"tool_use"'));
+});
