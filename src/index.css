@@ -373,3 +373,29 @@ body::before {
   /* Revealed content must still be visible if the transition is skipped. */
   .reveal { opacity: 1 !important; transform: none !important; }
 }
+
+/* My Agenda: the track-colour rail draws itself down the card, and the card
+   lifts toward you on hover. Both are off for people who ask for less motion. */
+@keyframes agenda-rail-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.agenda-rail {
+  transform-origin: top;
+  animation: agenda-rail-grow 0.7s cubic-bezier(0.65, 0, 0.35, 1) both;
+  animation-delay: calc(0.12s + var(--i, 0) * 90ms);
+}
+.agenda-card {
+  box-shadow: 0 0 0 0 transparent;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, border-color 0.25s, background-color 0.25s;
+}
+.agenda-card:hover, .agenda-card:focus-within {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.22);
+  background-color: var(--color-raised);
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(139, 92, 246, 0.25);
+}
+.agenda-card:hover .agenda-rail { filter: brightness(1.25); }
+.agenda-portrait { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.agenda-portrait:hover { transform: scale(1.06); }
+@media (prefers-reduced-motion: reduce) {
+  .agenda-rail { animation: none; }
+  .agenda-card, .agenda-card:hover, .agenda-card:focus-within, .agenda-portrait:hover { transform: none; transition: none; }
+}

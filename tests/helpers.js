@@ -127,6 +127,7 @@ export const LANES = {
   // read-only: it books nothing, and needs a day the seed sells sessions out on
   'schedule.seats':   { desktop: { user: kenji, day: 1, readOnly: true }, mobile: { user: marcus, day: 0, readOnly: true } },
   'agenda.page':     { desktop: { user: andy, day: 1 },                  mobile: { user: abraham, day: 1 } },
+  'agenda.upcoming': { desktop: { user: marcus, day: 2 },                mobile: { user: kenji, day: 2 } },
   'session.add':      { desktop: { user: sofia, day: 0 },                 mobile: { user: andy, day: 0 } },
   // marcus/day 3 desktop and jonas/day 0 mobile are each used by no other lane,
   // so concurrent tests cannot collide on these attendee+day pairs.

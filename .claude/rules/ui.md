@@ -71,7 +71,7 @@ in each room instead.
 ## Home and My Agenda are blank on purpose
 
 `/` is a way in — hero, links, the latest announcement, sponsors — and
-`/my-agenda` is a *coming soon* placeholder. Personal views are what workshop
+`/my-agenda` lists today's confirmed seats. Personal views are what workshop
 teams build; build one when a ticket asks for it. When you do:
 
 - **Rank suggestions on behaviour, not declaration.** `interests` is what

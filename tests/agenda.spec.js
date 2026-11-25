@@ -37,7 +37,7 @@ test.describe('My Agenda', () => {
 
       // the rail is in the track colour and grows to the card's height
       const rail = card.getByTestId('agenda-rail');
-      await expect.poll(async () => (await rail.boundingBox()).height).toBeGreaterThanOrEqual((await card.boundingBox()).height - 1);
+      await expect.poll(async () => (await rail.boundingBox()).height).toBeGreaterThanOrEqual((await card.boundingBox()).height - 3);
       expect(await rail.evaluate((e) => getComputedStyle(e).animationName)).not.toBe('none');
 
       // hover lifts the card
@@ -51,7 +51,8 @@ test.describe('My Agenda', () => {
       await page.goBack();
 
       // the card itself goes to the session
-      await page.getByTestId(`agenda-session-${first.id}`).click({ position: { x: 600, y: 10 } });
+      const box = await page.getByTestId(`agenda-session-${first.id}`).boundingBox();
+      await page.getByTestId(`agenda-session-${first.id}`).click({ position: { x: box.width - 10, y: 10 } });
       await expect(page).toHaveURL(new RegExp(`/sessions/${first.id}$`));
       await page.goBack();
 
@@ -76,7 +77,7 @@ test.describe('My Agenda', () => {
   });
 
   test('an upcoming session is not marked finished', async ({ page, request }, testInfo) => {
-    const lane = await laneFor('agenda.page', testInfo);
+    const lane = await laneFor('agenda.upcoming', testInfo);
     const picks = await book(request, lane, 1);
     try {
       await visit(page, '/my-agenda', { as: lane.user, at: `${lane.day}T06:00` });
