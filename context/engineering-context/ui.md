@@ -163,14 +163,14 @@ before it was written) → `SponsorMarquee` (venues doc).
 
 **`TodaySeats`** lists every session the attendee holds a **confirmed** seat for
 on `clock.day` (`data-testid="today-seat"`, earliest first): each is a large
-card (`min-h-[10rem]`) with the speaker portraits linking to `/speakers/:id`, the
+card (a fixed `h-[14rem]`, in one horizontally scrolling row so the section is one height whatever the count) with the speaker portraits linking to `/speakers/:id`, the
 title linking to the session, the speaker names, and the room and venue — and a
 `Remove` (`remove-today-seat`) that gives the seat back. It is the only action
 here: there is no way to reserve from Home. It reads `api.getSchedule` through
 `src/lib/agenda.js:todaysSeats` and filters on `reservationFor`, so a removed
 card leaves at once (agenda doc). The schedule and the store's
 `reservationsReady` arrive after the shell and at different times, so the section
-holds a card's height (`today-seat-skeleton`, `h-[10rem]`) until both are in and
+holds that row's height (`today-seat-skeleton`, `h-[14rem]`) until both are in and
 then swaps the list in where the skeleton was — the one section deliberately
 *not* wrapped in `<Reveal>`, and the reason it is a `Skeleton` rather than
 nothing. A day with no seat shows `today-seats-empty`, not `null`.

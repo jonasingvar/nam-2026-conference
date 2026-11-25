@@ -85,7 +85,6 @@ function TodaySeats() {
   const waiting = !ready || !reservationsReady || loading;
   const seats = waiting ? [] : todaysSeats(data?.days, clock.day, reservationFor);
   const today = days.find((d) => d.date === clock.day);
-
   return (
     <section data-testid="today-seats" aria-labelledby="today-seats-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -96,13 +95,13 @@ function TodaySeats() {
       </div>
 
       {waiting ? (
-        <Skeleton className="mt-4 h-[10rem]" data-testid="today-seat-skeleton" />
+        <Skeleton className="mt-4 h-[14rem] w-[min(100%,26rem)]" data-testid="today-seat-skeleton" />
       ) : seats.length === 0 ? (
         <p className="mt-4 text-sm text-muted" data-testid="today-seats-empty">
           Nothing booked for today.
         </p>
       ) : (
-        <ul className="mt-4 space-y-3">
+        <ul className="mt-4 flex h-[14rem] snap-x gap-3 overflow-x-auto overflow-y-hidden">
           {seats.map((s) => (
             <TodaySeat key={s.id} session={s} clock={clock} onRemove={() => releaseSeat(s.id, s)}
               room={roomById[s.room.id]} venue={venueById[s.venue.id]} />
@@ -123,7 +122,7 @@ function TodaySeat({ session: s, clock, room, venue, onRemove }) {
 
   return (
     <li data-testid="today-seat" data-session-id={s.id}
-      className="flex min-h-[10rem] gap-4 rounded-2xl border border-hairline bg-surface p-4">
+      className="flex h-[14rem] w-[min(100%,26rem)] shrink-0 snap-start gap-4 overflow-hidden rounded-2xl border border-hairline bg-surface p-4">
       <div className="flex shrink-0 flex-col gap-2">
         {speakers.map((sp) => (
           <Link key={sp.id} to={`/speakers/${sp.id}`} aria-label={`About ${sp.name}`}

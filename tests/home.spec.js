@@ -186,6 +186,21 @@ test.describe('Your day on Home', () => {
     await page.waitForTimeout(400);
     expect((await section.boundingBox()).height).toBe(settled);
   });
+
+  test('loading the page shifts nothing: cumulative layout shift stays low', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    // Jonas holds several seats on Day 1, so the list is taller than one card.
+    await visit(page, '/', { as: ATTENDEES.jonas, at: await momentOn(0, '10:30') });
+    await expect(page.getByTestId('today-seat').first()).toBeVisible();
+    await expect(page.getByTestId('announcements')).toBeVisible();
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => window.__cls)).toBeLessThan(0.1);
+  });
 });
 
 test.describe('My Agenda is a blank canvas', () => {
