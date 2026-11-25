@@ -125,6 +125,8 @@ export const LANES = {
   'conflict.api':     { desktop: { user: abraham, day: 3 },                 mobile: { user: jonas, day: 3 } },
   // My Agenda books two sessions on day 1 and removes one; pinned to a clock on that day.
   'agenda.page':      { desktop: { user: jonas, day: 1 },                 mobile: { user: abraham, day: 1 } },
+  // read-only: it only looks at the rail on the seeded seats of that day
+  'agenda.rail':      { desktop: { user: sofia, day: 2, readOnly: true },  mobile: { user: jonas, day: 2, readOnly: true } },
   'schedule.grid':    { desktop: { user: sofia, day: 1 },                 mobile: { user: marcus, day: 1 } },
   // read-only: it books nothing, and needs a day the seed sells sessions out on
   'schedule.seats':   { desktop: { user: kenji, day: 1, readOnly: true }, mobile: { user: marcus, day: 0, readOnly: true } },

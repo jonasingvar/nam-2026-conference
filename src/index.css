@@ -382,4 +382,7 @@ body::before {
   }
   /* Revealed content must still be visible if the transition is skipped. */
   .reveal { opacity: 1 !important; transform: none !important; }
+  /* The agenda rail's stagger delay would hold it at scaleY(0) after the shortened
+     animation: under reduced motion it is simply whole. */
+  .agenda-rail { animation: none !important; }
 }

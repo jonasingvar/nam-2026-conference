@@ -32,7 +32,7 @@ the last seat shows `agenda-empty`, not the skeleton. A card is a full-cover lin
 session; portraits (`agenda-speaker`) link to `/speakers/:id` and Remove
 (`agenda-remove`) opens `agenda-confirm` (`agenda-confirm-ok` / `-cancel`) before
 `releaseSeat`. The rail (`agenda-rail`, `data-accent` = track colour) grows top to bottom
-on load (`rail-grow` in `index.css`); the card lifts on hover — a plain `.agenda-card:hover` rule, because Tailwind v4's `hover:` only applies under `(hover: hover)` and so never fires on a phone. Everything underneath it is built and tested:
+on load (`rail-grow` in `index.css`) — under reduced motion it has no animation and is whole from the first paint, since its stagger delay would otherwise hold it at zero height; the card lifts on hover — a plain `.agenda-card:hover` rule, because Tailwind v4's `hover:` only applies under `(hover: hover)` and so never fires on a phone. Everything underneath it is built and tested:
 adding a session takes a seat (seats doc), and the payloads below are served,
 with matching functions in `src/lib/api.js`. What a day is made of is decided in
 `server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
@@ -40,7 +40,7 @@ with matching functions in `src/lib/api.js`. What a day is made of is decided in
 ## How it works
 
 **`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
+Client: `api.getSchedule(userId)` — My Agenda calls it (and filters it to today's confirmed seats).
 `agenda.js:scheduleFor` returns one entry per day that has any reservation:
 `{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
 waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)

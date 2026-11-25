@@ -51,7 +51,8 @@ used by the header, toasts, menus), `hide-scrollbar`. Dark only
 
 **Motion utilities** (all in `index.css`, all neutralised by the
 `prefers-reduced-motion` block at the bottom, which also forces `.reveal`
-visible): `animate-rise` (dialogs, menus, toasts), `stagger` (list entrance; children
+visible and drops `.agenda-rail`'s animation — a shortened animation still waits out its
+`animation-delay` on its first frame, so a delayed reveal needs the same): `animate-rise` (dialogs, menus, toasts), `stagger` (list entrance; children
 delay by `--i` × 40ms — set `style={{ '--i': i }}`, capped by callers at ~12),
 `animate-pulse-dot` (live indicators), `animate-ken-burns`, `animate-slide-in`,
 `animate-fade-zoom` and `animate-fill` (the speaker spotlight and its autoplay progress;

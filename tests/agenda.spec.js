@@ -65,6 +65,29 @@ test.describe('My Agenda is your day', () => {
   });
 });
 
+test.describe('My Agenda rail', () => {
+  const railVsCard = (card) => card.evaluate((el) => {
+    const rail = el.querySelector('[data-testid="agenda-rail"]');
+    return { rail: rail.getBoundingClientRect().height, card: el.getBoundingClientRect().height };
+  });
+
+  test('draws down to the full card height, and is whole from the start under reduced motion', async ({ page }, testInfo) => {
+    const { user, day } = await laneFor('agenda.rail', testInfo);
+    const at = `${day}T08:00`;
+
+    await visit(page, `/my-agenda?at=${at}`, { as: user, at });
+    const card = page.getByTestId('agenda-card').first();
+    await expect(card).toBeVisible();
+    await expect.poll(async () => { const m = await railVsCard(card); return Math.abs(m.card - m.rail); }).toBeLessThanOrEqual(2);
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await visit(page, `/my-agenda?at=${at}`, { as: user, at });
+    await expect(card).toBeVisible();
+    const m = await railVsCard(card);
+    expect(Math.abs(m.card - m.rail)).toBeLessThanOrEqual(2);
+  });
+});
+
 test.describe('My Agenda is in the nav', () => {
   test('the nav link and the old /my-plan address both land on the agenda', async ({ page }, testInfo) => {
     await visit(page, '/');
