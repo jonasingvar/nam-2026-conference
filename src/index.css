@@ -99,6 +99,9 @@ body::before {
   to   { transform: scaleY(1); }
 }
 .agenda-rail { transform-origin: top; animation: rail-grow 0.9s cubic-bezier(0.65, 0, 0.35, 1) both; }
+/* The lift is a plain :hover, not Tailwind's hover: (which is gated on
+   (hover: hover)), so a touch phone gets it on press as well as a mouse. */
+.agenda-card:hover { translate: 0 -0.25rem; }
 
 /* Staggered list entrance. Children opt in with --i for their index. */
 @keyframes rise-in {

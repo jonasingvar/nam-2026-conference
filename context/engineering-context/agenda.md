@@ -32,7 +32,7 @@ the last seat shows `agenda-empty`, not the skeleton. A card is a full-cover lin
 session; portraits (`agenda-speaker`) link to `/speakers/:id` and Remove
 (`agenda-remove`) opens `agenda-confirm` (`agenda-confirm-ok` / `-cancel`) before
 `releaseSeat`. The rail (`agenda-rail`, `data-accent` = track colour) grows top to bottom
-on load (`rail-grow` in `index.css`); the card lifts on hover. Everything underneath it is built and tested:
+on load (`rail-grow` in `index.css`); the card lifts on hover — a plain `.agenda-card:hover` rule, because Tailwind v4's `hover:` only applies under `(hover: hover)` and so never fires on a phone. Everything underneath it is built and tested:
 adding a session takes a seat (seats doc), and the payloads below are served,
 with matching functions in `src/lib/api.js`. What a day is made of is decided in
 `server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.

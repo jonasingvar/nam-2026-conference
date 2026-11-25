@@ -64,3 +64,23 @@ test.describe('My Agenda is your day', () => {
     }
   });
 });
+
+test.describe('My Agenda is in the nav', () => {
+  test('the nav link and the old /my-plan address both land on the agenda', async ({ page }, testInfo) => {
+    await visit(page, '/');
+    // Desktop shows the main nav; a phone hides it behind the menu button.
+    if (testInfo.project.name === 'mobile') {
+      await page.getByRole('button', { name: 'Open menu' }).click();
+      await page.getByRole('navigation', { name: 'Mobile' }).getByRole('link', { name: /My Agenda/ }).click();
+    } else {
+      await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /My Agenda/ }).click();
+    }
+    await expect(page).toHaveURL(/\/my-agenda$/);
+    await expect(page.getByTestId('agenda-hero')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your day' })).toBeVisible();
+
+    await visit(page, '/my-plan');
+    await expect(page).toHaveURL(/\/my-agenda$/);
+    await expect(page.getByTestId('agenda-hero')).toBeVisible();
+  });
+});

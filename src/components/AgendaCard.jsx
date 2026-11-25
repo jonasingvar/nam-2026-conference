@@ -80,8 +80,8 @@ export function AgendaCard({ session, index = 0 }) {
         data-testid="agenda-card"
         data-session-id={session.id}
         className={cx(
-          'group relative flex min-h-[10.5rem] gap-5 overflow-hidden rounded-xl border border-hairline bg-surface py-5 pl-6 pr-5',
-          'transition-all duration-300 ease-out hover:-translate-y-1 hover:border-white/25 hover:bg-raised hover:shadow-2xl hover:shadow-black/50',
+          'agenda-card group relative flex min-h-[10.5rem] gap-5 overflow-hidden rounded-xl border border-hairline bg-surface py-5 pl-6 pr-5',
+          'transition-all duration-300 ease-out hover:border-white/25 hover:bg-raised hover:shadow-2xl hover:shadow-black/50',
         )}
       >
         <Link to={`/sessions/${session.id}`} aria-label={session.title} className="absolute inset-0 z-0 rounded-xl focus-visible:outline-2 focus-visible:outline-violet-400" />
