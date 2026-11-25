@@ -27,7 +27,7 @@ This is the doc map Winnow and `update-context` follow.
 - **How the harness works** — ship, code review, QA, labels, secrets →
   `engineering-context/harness/`.
 - **A rule every change must follow, and why** — product rules included, such
-  as "one action takes a seat" or "My Agenda is unbuilt on purpose" →
+  as "one action takes a seat" or "Home stays static" →
   `CLAUDE.md` at the repo root, which links here for the detail. Do not repeat
   one in the other.
 - **What a conversation decided, including what it decided not to do** → a
