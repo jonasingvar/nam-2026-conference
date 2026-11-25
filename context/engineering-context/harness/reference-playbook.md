@@ -13,6 +13,14 @@ the design. The job is to make the page look like it — not like something
 inspired by it. Only the words of the request override the image, and only where
 they say something specific ("but on My Agenda", "without the sponsors row").
 
+**The whole of it, in five lines** — each has a section below; do all five:
+
+1. Read the image and write an inventory of everything in it, and of what is not.
+2. Map it to this app's data and tokens without changing the design.
+3. Build structure first, then sizes, then type, then colour.
+4. Screenshot the page at the image's own size (`npm run shot -- <route> --like=<image>`), compare row by row, fix, repeat — up to four passes.
+5. A difference nobody asked for is a blocker; what is left after four passes is listed for the person.
+
 ## 1. Read the image before any code
 
 Open it with the Read tool. Then write down what is in it, top to bottom, left

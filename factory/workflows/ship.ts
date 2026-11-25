@@ -140,7 +140,7 @@ async function shipRun(input: ShipInput) {
     // By phase: the comment changes only when a phase does, so "Gate · 10 min" read as a ten-minute gate when the build had taken nine.
     `**Time:** ${timeLine(time.read(Date.now()), { phases: true })}`,
     // The three ways in, where a person looks first: what the agents are doing, the run, and the app itself.
-    '\n| | |',
+    '\n| Follow along | |',
     '| --- | --- |',
     `| 👀 **Agent output** | [Watch the agents work, live](${runUrl}?tab=streams) — what they say and every command they run |`,
     `| ⚙️ **The run** | [Every step and its timing](${runUrl}) — it resumes from its last finished step if anything dies |`,
@@ -611,7 +611,20 @@ async function shipRun(input: ShipInput) {
       const auditing = profile.reaudit || audited === 0;
       if (auditing) { status.Audit = 'running'; current = 'Audit'; }
       const sha = String(ran.sha);
+      // Meanwhile Vercel builds what was just pushed: the card gets the link as soon as it is ready, not at
+      // the next phase. It stops when the gate and the audit are done, a sleep's length later at most.
+      let watching = true;
+      const watched = (async () => {
+        for (let i = 0; i < 30 && watching && !prUrl; i++) {
+          const p = await branchPreview(branch).catch(() => null);
+          if (p?.state === 'ready' && p.url && String(p.sha) === sha) { earlyPreview = { url: p.url, sha: sha.slice(0, 7) }; await show(); return; }
+          if (p?.state === 'failed') return;
+          await sleep('10s');
+        }
+      })();
       const [g, a] = await Promise.all([gateShards(chosen.sel, sha, `#${round}`), auditing ? auditRound(round, sha, chosen.sel, Array.isArray(ran.tampered) ? ran.tampered : []) : Promise.resolve(null)]);
+      watching = false;
+      await watched.catch(() => null);
       gate = g.gate;
       red = parseRed(g.red);
       // The code the last edit wrote fails the gate: the fixer works one tier above that model.
