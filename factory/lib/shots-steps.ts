@@ -1,7 +1,8 @@
 import { put } from '@vercel/blob';
 import { Sandbox } from '@vercel/sandbox';
 import { ALLOWED_REPO } from './constants';
-import { withPreview } from './shots';
+import { experimental_decide as decide } from 'ai';
+import { atPath, landingPath, plainRoutes, withPreview } from './shots';
 
 /**
  * Copy the screenshots (each viewport shot and its full-page one) out of the sandbox into the public Blob store
@@ -48,12 +49,56 @@ export async function postShots(pr: number, body: string) {
 }
 postShots.maxRetries = 3;
 
+/**
+ * The page a preview link for this pull request should open on — where the change is, not the home page.
+ * One changed page with a plain route decides it. Otherwise Jev picks among the app's plain routes from the
+ * title and the files changed, and under 60% sure it stays home. Never throws: no answer is home.
+ */
+export async function landingFor(pr: number, sha = ''): Promise<{ path: string; why: string }> {
+  'use step';
+  try {
+    const p = await gh(`/pulls/${pr}`);
+    const files: string[] = (await gh(`/pulls/${pr}/files?per_page=100`)).map((f: any) => String(f.filename));
+    const ref = sha || p.head.sha;
+    const app = Buffer.from(String((await gh(`/contents/src/App.jsx?ref=${ref}`)).content || ''), 'base64').toString('utf8');
+    const one = landingPath(files, app);
+    if (one) return { path: one, why: 'the one page it changes' };
+    const routes = plainRoutes(app);
+    if (!files.some((f) => f.startsWith('src/')) || Object.keys(routes).length < 2) return { path: '/', why: 'no page of its own' };
+    const d: any = await decide({
+      model: 'typesafe-ai/jev',
+      ...(process.env.JEV_API_KEY && { providerOptions: { gateway: { byok: { 'typesafe-ai': [{ apiKey: process.env.JEV_API_KEY }] } } } }),
+      state: `Pull request "${p.title}" to a conference web app.\n\n${String(p.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 2000)}\n\nFiles changed:\n${files.slice(0, 60).map((f) => `- ${f}`).join('\n')}`.slice(0, 6000),
+      questions: { page: {
+        type: 'choice',
+        instructions: 'A person will click one link to see this change in the running app. Which page should it open on?',
+        criteria: Object.fromEntries(Object.entries(routes).map(([component, path]) => [path, `The ${component.replace(/Page$/, '')} page, at ${path}`])),
+      } },
+    } as any);
+    const a = d.answers.page;
+    const sure = a.probabilities?.[a.choice] ?? 0;
+    return sure >= 0.6 && typeof a.choice === 'string' && Object.values(routes).includes(a.choice)
+      ? { path: a.choice, why: `Jev, ${Math.round(sure * 100)}% sure` }
+      : { path: '/', why: 'Jev could not say which page' };
+  } catch (e: any) {
+    return { path: '/', why: `not worked out (${String(e?.message || e).slice(0, 80)})` };
+  }
+}
+landingFor.maxRetries = 1;
+
+/** A pull request's preview, at the page it changes. */
+export async function previewLink(pr: number, url: string, sha = '') {
+  const where = await landingFor(pr, sha);
+  return atPath(url, where.path);
+}
+
 /** Pin "try it" to the pull request's description (`withPreview`); no url takes it off. */
 export async function pinPreview(pr: number, url: string | null, sha = '') {
   'use step';
   const p = await gh(`/pulls/${pr}`);
   const before = String(p.body ?? '');
-  const body = withPreview(before, url, sha);
+  // The link opens on the page the change is about (landingFor), not the home page.
+  const body = withPreview(before, url ? atPath(url, (await landingFor(pr, sha).catch(() => ({ path: '/' }))).path) : null, sha);
   if (body !== before) await gh(`/pulls/${pr}`, { method: 'PATCH', body: JSON.stringify({ body }) });
   return true;
 }

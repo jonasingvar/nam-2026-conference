@@ -204,6 +204,26 @@ it is appended to `test-map/escapes.json` (last 50) and the run gets an
 `escapes` attribute. The list is a record of what Jev's picks let through, for a
 person to read; Jev is not given it.
 
+**Reference images** (`lib/visuals.ts`). An image pasted into a ticket, a pull
+request or a comment is a link on GitHub's attachment storage. The function
+fetches each one (`stageReferences`; GitHub's hosts only, images only, six at
+most) and writes it into the sandbox under `/vercel/.factory/reference/`; the
+sandbox may also read those hosts itself. Every agent of the run is then given
+`referenceRule`: open the image first, build it exactly, only the request's
+words override it, the spec describes it under `## The reference`, the builder
+compares a screenshot of the page with it before finishing, and an auditor
+does the same — a difference the words did not ask for is a blocker. With an
+image the browser audit always runs, and the jobs that must look at it
+(`SEEING_JOBS`) start at the `strong` tier, because the `standard` models read
+text only. Ship hands back when none of a ticket's images can be fetched,
+rather than build from the words alone. respond stages the images of the
+comment, the pull request, the ticket and the conversation the same way.
+
+**Preview links** open on the page the change is about (`landingFor`): the one
+changed page with a plain route, else the page Jev picks from the title and
+files (60% or home). Used by the *Try it* pin, ship's progress, QA's comment
+and respond's card.
+
 **Sandbox hygiene.** Every workflow deletes its sandbox when it ends, fails
 or crashes. A run's sandbox keeps one snapshot that expires in a day. Under
 that, the `warm` workflow (daily, and on each push to main) sweeps any run

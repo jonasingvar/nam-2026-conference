@@ -67,6 +67,12 @@ export function lockedPolicy(
       'uploads.github.com': api(push ? [{ transform: [{ headers: { authorization: `Bearer ${secrets.githubToken}` } }] }] : []),
       'codeload.github.com': [],
       'objects.githubusercontent.com': [],
+      // Images people paste into issues, pull requests and comments: github.com/user-attachments/… redirects
+      // here. Read-only, no credential sent. The factory also stages a request's images as files
+      // (lib/visuals.ts); this lets an agent open one it finds by itself in a conversation.
+      'github-production-user-asset-6210df.s3.amazonaws.com': [],
+      'user-images.githubusercontent.com': [],
+      'private-user-images.githubusercontent.com': [],
       ...(mode === 'none' ? {} : { 'ai-gateway.vercel.sh': [{ transform: [{ headers: { authorization: `Bearer ${secrets.gatewayKey}` } }] }] }),
       'registry.npmjs.org': [],
       '*.npmjs.org': [],

@@ -6,6 +6,7 @@ import { classify as classifyFiles } from '../lib/select';
 import { browserCanSee, qaNotNeeded } from '../lib/test-pick';
 import { chooseModels, describe, modelBook, type Job } from '../lib/models';
 import { FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
+import { previewLink } from '../lib/shots-steps';
 import * as S from './schemas';
 
 /**
@@ -476,7 +477,7 @@ async function qaRun(input: QaInput) {
       found.question.length ? `#### Questions\n${found.question.map(lineFor).join('\n')}` : '',
       found.environment.length ? `#### Environment, not this change\n${found.environment.map(envFor).join('\n')}` : '',
       `#### Probed\n${probes.map((p) => `- ${mark(p, kinds.get(p.title))} ${p.title}${onApp(p.title) ? ' _(on the branch\'s own app: it writes state)_' : ''}`).join('\n')}`,
-      `\n🔎 Preview: ${previewUrl}`,
+      `\n🔎 Preview: ${await previewLink(pr.number, previewUrl, pr.headSha).catch(() => previewUrl)}`,
     ],
     marker(bugs.map((b) => ({ title: b.title, aim: b.aim })), meaningful > 0));
   await disposeSandbox(box);

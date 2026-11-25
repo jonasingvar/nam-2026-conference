@@ -1,6 +1,7 @@
 import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
 import { eventLines } from './jobs';
+import { REFERENCE_DIR } from './visuals';
 import { AGENT_ENV, isPreviewHost, lockedPolicy, policySealed, sealPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, FACTORY_DEPS, REPO_DIR } from './constants';
 import { priceUsage, short, type Catalog } from './models';
@@ -347,3 +348,37 @@ export async function disposeSandbox(name: string) {
 }
 
 export const shellQuote = q;
+
+/**
+ * Put a request's reference images in the sandbox as files (lib/visuals.ts). The function fetches them:
+ * GitHub's attachment storage is not a host a sandbox may reach, and should not become one. Only images,
+ * each under 8 MB; one that cannot be fetched is reported, not fatal.
+ */
+export async function stageReferences(name: string, urls: string[]) {
+  'use step';
+  const staged: { url: string; path: string }[] = [];
+  const failed: string[] = [];
+  const files: { path: string; content: Buffer }[] = [];
+  for (const [i, url] of urls.entries()) {
+    try {
+      const r = await fetch(url, { redirect: 'follow', headers: { 'user-agent': 'orbit-factory' }, signal: AbortSignal.timeout(20_000) });
+      const type = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' } as Record<string, string>)[type];
+      if (!r.ok || !ext) { failed.push(`${url} (${r.status} ${type || 'no type'})`); continue; }
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!buf.length || buf.length > 8 * 1024 * 1024) { failed.push(`${url} (${buf.length} bytes)`); continue; }
+      const path = `${REFERENCE_DIR}/reference-${i + 1}.${ext}`;
+      files.push({ path, content: buf });
+      staged.push({ url, path });
+    } catch (e: any) {
+      failed.push(`${url} (${String(e?.message || e).slice(0, 80)})`);
+    }
+  }
+  if (files.length) {
+    const sb = await Sandbox.get({ name });
+    await sh(sb, `rm -rf ${REFERENCE_DIR} && mkdir -p ${REFERENCE_DIR}`);
+    await sb.writeFiles(files);
+  }
+  return { staged, failed };
+}
+stageReferences.maxRetries = 2;

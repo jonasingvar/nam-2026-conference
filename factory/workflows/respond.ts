@@ -1,7 +1,8 @@
 import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
-import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, previewForPr, progress, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
+import { disposeSandbox, prepareSandbox, stageReferences } from '../lib/sandbox-steps';
+import { imageUrls, referenceRule, visionFloors } from '../lib/visuals';
+import { comment, peopleSaid, previewForPr, progress, readIssue, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
 import { chooseModels, describe, modelBook } from '../lib/models';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import type { Intent } from '../lib/intent';
@@ -9,6 +10,7 @@ import { respondCard, readLine, type RespondPhase, type RespondView } from '../l
 import { stopwatch, timeLine } from '../lib/timing';
 import { chooseTests } from '../lib/phases';
 import { classify as classifyFiles, type Facts } from '../lib/select';
+import { previewLink } from '../lib/shots-steps';
 import * as S from './schemas';
 
 /**
@@ -95,14 +97,28 @@ async function respondRun(input: RespondInput) {
   const co = await k.command('checkout', checkoutPr(pr.number, pr.head, pr.base));
   if (!co) { await disposeSandbox(box); await release(true); await show(null, { outcome: 'failed', held: false }); await comment(pr.number, `Could not check out ${pr.head}. [run](${runUrl})`); return { outcome: 'failed' }; }
 
+  // The images this request points at: in the comment itself first, then the pull request's description, the
+  // ticket and what people said on either. The function fetches them — a sandbox cannot reach GitHub's
+  // attachment storage — and the agent is held to them (lib/visuals.ts).
+  const ticketBody = ticket ? await readIssue(ticket).then((i) => i.body).catch(() => '') : '';
+  const talk = await peopleSaid(ticket ?? pr.number, ticket ? pr.number : null).catch(() => []);
+  const refUrls = imageUrls(input.ask, pr.body, ticketBody, ...talk.map((c) => c.text));
+  let refs: string[] = [];
+  if (refUrls.length) {
+    const got = await stageReferences(box, refUrls);
+    refs = got.staged.map((x: { path: string }) => x.path);
+    k.log(`reference images: ${refs.length} of ${refUrls.length} staged${got.failed.length ? ` — could not fetch ${got.failed.join('; ')}` : ''}`);
+  }
   // The model for the change: Jev reads the ask and the pull request; a docs-only fix from review is cheap work.
-  const choice = await chooseModels(`Pull request #${pr.number}: ${pr.title}\n\n${pr.body.slice(0, 3000)}\n\nAsked by ${input.author}: ${input.ask}`, 'small', ['respond']);
+  const choice = await chooseModels(`Pull request #${pr.number}: ${pr.title}\n\n${pr.body.slice(0, 3000)}\n\nAsked by ${input.author}: ${input.ask}`, 'small', ['respond'], visionFloors(refs.length > 0));
   const models = modelBook(choice, 'small');
   k.useModels(models);
   k.log(`respond on ${describe(models.pick('respond'))}`);
+  if (refs.length) view.references = refs.length;
   await show('Change', { model: `\`${describe(models.pick('respond')).replace(/ \(/, '` (')}` });
   const change = await k.agent('change',
     `${input.author} asked, on pull request #${pr.number} "${pr.title}" (branch ${pr.head}):\n\n"${input.ask}"\n\n` +
+    referenceRule(refs) + (refs.length ? '\n' : '') +
     `Make the change asked for, and nothing else. Read the conversation for context first (\`gh pr view ${pr.number} --comments\`). If a spec in specs/ for this branch ` +
     `records a decision this changes, update the spec too. Keep the context docs true (\`node scripts/context.mjs for <changed files>\`). \`npm test\` after every edit; ` +
     `a browser test you add or change runs alone by title — never run the whole browser suite. Never edit an existing test to make it pass. Commit in Conventional Commits. Do NOT push: ` +
@@ -206,7 +222,7 @@ async function respondRun(input: RespondInput) {
       preview = await previewForPr(pr.number);
     }
     const mine = preview.state === 'ready' && String(preview.sha || '').startsWith(pushedSha);
-    await show(null, { outcome, held: stays, preview: mine ? { url: preview.url!, sha: pushedSha } : preview.state === 'skipped' ? 'none' : 'late' });
+    await show(null, { outcome, held: stays, preview: mine ? { url: await previewLink(pr.number, preview.url!, String(preview.sha || '')), sha: pushedSha } : preview.state === 'skipped' ? 'none' : 'late' });
   } else {
     await show(null, { outcome, held: stays });
   }

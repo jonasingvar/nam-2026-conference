@@ -96,3 +96,17 @@ test('a factory-and-docs pull request is not an app change; one app file makes i
   assert.equal(classify(['factory/workflows/ship.ts', 'context/engineering-context/harness.md']).app, false);
   assert.equal(classify(['factory/workflows/ship.ts', 'src/App.jsx']).app, true);
 });
+
+import { atPath, landingPath, plainRoutes } from '../lib/shots';
+
+test('a preview link lands on the one page a change is about; several pages, a shared file or a page needing an id is not decided here', () => {
+  const app = `<Route index element={<HomePage />} /><Route path="my-agenda" element={<MyAgendaPage />} /><Route path="sessions/:id" element={<SessionPage />} /><Route path="schedule" element={<SchedulePage />} />`;
+  assert.equal(landingPath(['src/pages/MyAgendaPage.jsx', 'src/components/AgendaSessionPanel.jsx', 'tests/agenda.spec.js'], app), '/my-agenda');
+  assert.equal(landingPath(['src/pages/MyAgendaPage.jsx', 'src/pages/SchedulePage.jsx'], app), null);
+  assert.equal(landingPath(['src/components/ui.jsx'], app), null);
+  assert.equal(landingPath(['src/pages/SessionPage.jsx'], app), null);
+  assert.deepEqual(plainRoutes(app), { HomePage: '/', MyAgendaPage: '/my-agenda', SchedulePage: '/schedule' });
+  assert.equal(atPath('https://p.vercel.app', '/my-agenda'), 'https://p.vercel.app/my-agenda');
+  assert.equal(atPath('https://p.vercel.app/', '/'), 'https://p.vercel.app/');
+  assert.equal(atPath('https://p.vercel.app', null), 'https://p.vercel.app');
+});
