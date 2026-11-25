@@ -27,6 +27,8 @@ export type RespondView = {
   table?: string;
   /** The pull request is a draft because of this run: it cannot be merged. */
   held?: boolean;
+  /** Which tests the gate runs, and who chose them. */
+  tests?: string;
   gate?: string; spend?: string; time?: string; runUrl: string;
 };
 
@@ -61,6 +63,7 @@ export function respondCard(v: RespondView): string {
     `**Read as:** ${readLine(v.read)}`,
     v.held ? (v.outcome ? '**Pull request:** left as a draft — the gate is red on what was pushed, so it cannot be merged as it is' : '**Pull request:** a draft while this runs, so it cannot be merged under the change; ready again when it is done') : '',
     v.model ? `**Model:** ${v.model}` : '',
+    v.tests ? `**Tests:** unit and API, and ${v.tests}` : '',
     v.gate ? `**Gate:** ${v.gate}` : '',
     v.spend ? `**AI spend:** ${v.spend}` : '',
     v.time ? `**Time:** ${v.time}` : '',
