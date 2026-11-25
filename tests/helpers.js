@@ -127,6 +127,10 @@ export const LANES = {
   // read-only: it books nothing, and needs a day the seed sells sessions out on
   'schedule.seats':   { desktop: { user: kenji, day: 1, readOnly: true }, mobile: { user: marcus, day: 0, readOnly: true } },
   'session.add':      { desktop: { user: sofia, day: 0 },                 mobile: { user: andy, day: 0 } },
+  // The page lists an attendee's whole day, so it cannot share an attendee and
+  // day with a seat lane. Day 1 is the only day left free for either attendee;
+  // abraham has waitlist places seeded there, which the page must not show.
+  'agenda.page':      { desktop: { user: abraham, day: 1 },               mobile: { user: andy, day: 1 } },
   // marcus/day 3 desktop and jonas/day 0 mobile are each used by no other lane,
   // so concurrent tests cannot collide on these attendee+day pairs.
   'switcher.live-count': { desktop: { user: marcus, day: 3 }, mobile: { user: jonas, day: 0, clean: true } },
