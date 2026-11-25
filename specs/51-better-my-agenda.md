@@ -43,3 +43,12 @@ Reserving, check-in, rating, other days, `.ics` export, any change to Home or to
 - **The lane is day index 1, not a clean day 0.** Every attendee with a free day 0 pair
   is already claimed by another lane; abraham (desktop) has seeded waitlist places on
   day 1, which is what the "waitlisted seats are not shown" check needs.
+
+## The reference
+The PR's author supplied the Home-style mock (four copies of the same image, plus the first build) and asked for My Agenda to match it exactly. Top to bottom:
+- **Hero card** (full width, rounded, hairline border, violet glow top-left): mono eyebrow "● TODAY" with a cyan dot; large display "Day 1 · 2:26 PM" (the dot muted); beneath, "Wednesday, Nov 25" in muted text. Right, bottom-aligned: the conference dates in bold display text, "LAS VEGAS, NV" under it in faint mono caps.
+- **"Your day"** heading (display, left) and the day in faint mono caps ("WEDNESDAY, NOV 25") on the right.
+- **Session cards**, one per held seat, stacked with a small gap: hairline border, surface fill, a 3px rail on the left edge in the track colour (still drawn top to bottom on load). Left column: round 96px speaker portraits, stacked vertically for several speakers, each linking to the speaker. Next column: a mono caps line "8:00 AM – 8:45 AM · FOUNDATION MODELS · FINISHED" (track in its colour, state faint), the title in display type, speaker names, the first speaker's "title · company" in faint small text, and at the bottom "Room · Venue short name". A rose outlined **Remove** button with an × sits bottom-right.
+- Not there: the "Release seat" wording, clock/pin/building icons, the full venue name and level, the track dot, "N sessions booked" text, and any dimming of finished cards.
+
+Change from the first build: the visible venue is the short name, so the panel assertion in `tests/agenda.spec.js` checks `venue.shortName`.

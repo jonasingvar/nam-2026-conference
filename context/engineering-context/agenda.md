@@ -21,9 +21,12 @@ related: [seats, attendance, clock, venues, schedule, speakers, ui]
 **My Agenda is the day you hold seats for.** `/my-agenda` (`MyAgendaPage`, in the
 nav, `/my-plan` redirects there) fetches `/users/:id/schedule` once per attendee — a
 30 s clock tick must not reflow the page — takes `clock.day` from it and renders one
-`AgendaSessionPanel` per confirmed seat, in time order: the speaker portraits
-(linked to `/speakers/:id`), the title, the track, the room and venue, and a single
-**Release seat**. Sessions already over are dimmed and marked `agenda-finished`; the one
+`AgendaSessionPanel` per confirmed seat, in time order, under a hero (`agenda-hero`: the
+conference day and clock, the dates and city) and a "Your day" heading. A panel is a card with
+a track-coloured rail down its left edge, the speaker portraits stacked (linked to
+`/speakers/:id`), a mono line of time · track · state, the title, speaker names, the first
+speaker's title and company, the room · venue short name, and a single **Remove** button
+(`agenda-release-<id>`). Sessions already over carry `agenda-finished` in that line; the one
 running is `agenda-live`. Nothing here books: the only action is giving a seat back
 (CLAUDE.md § There is exactly one action), and the page draws nothing — `agenda-skeleton` —
 until both the day payload and the store's own reservations have arrived, so a panel never

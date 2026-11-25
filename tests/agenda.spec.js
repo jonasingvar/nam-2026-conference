@@ -112,7 +112,7 @@ test.describe('My Agenda is the day you hold seats for', () => {
       await expect(panel).toContainText(speaker.name);
       await expect(panel).toContainText(speaker.jobTitle);
       await expect(panel).toContainText(mine.room.name);
-      await expect(panel).toContainText(mine.venue.name);
+      await expect(panel).toContainText(mine.venue.shortName);
       const box = await panel.boundingBox();
       expect(box.height, 'the panel is too small to read').toBeGreaterThanOrEqual(150);
       // Still to come, an hour early: not live yet.
