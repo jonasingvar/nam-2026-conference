@@ -49,7 +49,8 @@ export type Finding = {
 export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
   let seq = 0;
   const lines: string[] = [];
-  const spend = { total: 0, agents: 0, byModel: {} as Record<string, number>, byPhase: {} as Record<string, number> };
+  // `seconds`: every agent's own running time, added up (agents side by side each count).
+  const spend = { total: 0, agents: 0, seconds: 0, byModel: {} as Record<string, number>, byPhase: {} as Record<string, number> };
   let phase = 'start';
 
   const preamble =
@@ -74,9 +75,10 @@ export function kit(box: string, task: string, mode: 'read' | 'push' = 'push') {
     if (!book) throw new Error('kit: no models chosen yet (useModels)');
     const { value } = await routedAgent({
       box, jobId: id, book, job, label, prompt: preamble + prompt, schema, log,
-      onRun: (_r, cost) => {
+      onRun: (r, cost) => {
         spend.total += cost.total;
         spend.agents += 1;
+        spend.seconds += r.seconds || 0;
         spend.byPhase[phase] = (spend.byPhase[phase] || 0) + cost.total;
         for (const [m, c] of Object.entries(cost.byModel)) spend.byModel[m] = (spend.byModel[m] || 0) + c;
       },

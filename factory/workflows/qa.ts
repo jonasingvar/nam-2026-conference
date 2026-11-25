@@ -232,7 +232,7 @@ async function qaRun(input: QaInput) {
   };
   const outcome = (r: Record<string, unknown>) => {
     const t = k.models?.totals();
-    return { ...r, spend: k.spend.total, ...(k.models ? { models: k.models.summary(), est: t!.est, climbs: t!.climbs } : {}) };
+    return { ...r, spend: k.spend.total, seconds: k.spend.seconds, ...(k.models ? { models: k.models.summary(), est: t!.est, climbs: t!.climbs } : {}) };
   };
 
   // The preview of this head, and the deployment of the base to compare against.

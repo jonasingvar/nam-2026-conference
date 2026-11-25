@@ -64,6 +64,10 @@ own `total_cost_usd` guesses for models it does not know). The issue's
 progress comment shows the spend as it grows, and the pull request gets a line
 splitting it by phase. A first small ticket: about **$1** to a pull request.
 
+Time is shown beside it, in three numbers: how long the run was working, how
+long its agents ran in total (several run side by side, so this can be the
+larger one), and — once you have merged — how long it waited for you.
+
 ## 🚑 When it goes wrong
 
 | You see | It means | Do this |

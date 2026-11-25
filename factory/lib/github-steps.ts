@@ -7,19 +7,35 @@ import { dismissNumbers, type Dismissed } from './review-policy';
  * made from the function with its token, never from the sandbox. Only ever
  * against the allowed repository.
  */
+/** GitHub answers 502–504 for a minute now and then. A call that is safe to repeat is repeated before anything gives up on it. */
+const RETRY_AFTER_MS = [1_000, 4_000, 10_000];
+const pause = (ms: number) => new Promise((r) => setTimeout(r, process.env.NODE_TEST_CONTEXT ? 0 : ms));
+
 async function gh(path: string, init: RequestInit = {}) {
-  const res = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      accept: 'application/vnd.github+json',
-      'content-type': 'application/json',
-      'user-agent': 'orbit-factory',
-      ...(init.headers || {}),
-    },
-  });
-  if (!res.ok) throw new Error(`GitHub ${init.method || 'GET'} ${path} → ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res.status === 204 ? null : res.json();
+  const method = String(init.method || 'GET').toUpperCase();
+  // A POST that timed out may have gone through (a second comment, a second pull request): only its step may retry it.
+  const repeatable = method !== 'POST';
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`https://api.github.com/repos/${ALLOWED_REPO}${path}`, {
+        ...init,
+        headers: {
+          authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          accept: 'application/vnd.github+json',
+          'content-type': 'application/json',
+          'user-agent': 'orbit-factory',
+          ...(init.headers || {}),
+        },
+      });
+    } catch (e) {
+      if (repeatable && attempt < RETRY_AFTER_MS.length) { await pause(RETRY_AFTER_MS[attempt]); continue; }
+      throw e;
+    }
+    if (repeatable && res.status >= 502 && res.status <= 504 && attempt < RETRY_AFTER_MS.length) { await pause(RETRY_AFTER_MS[attempt]); continue; }
+    if (!res.ok) throw new Error(`GitHub ${method} ${path} → ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return res.status === 204 ? null : res.json();
+  }
 }
 
 async function graphql(query: string, variables: Record<string, unknown>) {
@@ -361,7 +377,12 @@ export async function progress(issue: number, commentId: number | null, body: st
     const w = getWritable<string>({ namespace: 'progress' }).getWriter();
     try { for (const l of lines) await w.write(l + '\n'); } finally { w.releaseLock(); }
   }
-  return editOrPost(issue, commentId, body);
+  // The comment is a report on the work, never the work: GitHub refusing it (an outage, a rate limit)
+  // must not end a run. The next phase's update carries everything this one would have shown.
+  try { return await editOrPost(issue, commentId, body); } catch (e: any) {
+    console.error(`progress comment on #${issue} not updated: ${String(e?.message || e).slice(0, 200)}`);
+    return commentId;
+  }
 }
 progress.maxRetries = 3;
 

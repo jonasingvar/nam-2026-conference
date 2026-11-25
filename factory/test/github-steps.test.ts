@@ -74,3 +74,50 @@ test('a branch name that is shell runs nothing when the pull request is checked 
   assert.ok(!existsSync(proof), 'the branch name was executed');
   assert.throws(() => checkoutPr('7; id' as any, 'a', 'main'));
 });
+
+// ── GitHub having a bad minute ───────────────────────────────────────────────
+import { progress } from '../lib/github-steps';
+
+/** Answer GitHub's calls from a list, and keep what was asked. */
+function fakeGitHub(answers: { status: number; body?: unknown }[]) {
+  const calls: { method: string; url: string }[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (url: any, init: any = {}) => {
+    calls.push({ method: init.method || 'GET', url: String(url) });
+    const a = answers[Math.min(calls.length - 1, answers.length - 1)];
+    return new Response(JSON.stringify(a.body ?? { message: 'no' }), { status: a.status });
+  }) as any;
+  return { calls, restore: () => { globalThis.fetch = real; } };
+}
+
+test('an edit that times out twice is tried again, and lands', async () => {
+  const gh = fakeGitHub([{ status: 504 }, { status: 502 }, { status: 200, body: { id: 7 } }]);
+  try {
+    assert.equal(await editOrPost(48, 7, 'body'), 7);
+    assert.deepEqual(gh.calls.map((c) => c.method), ['PATCH', 'PATCH', 'PATCH']);
+  } finally { gh.restore(); }
+});
+
+test('a new comment that times out is not posted twice by the same call', async () => {
+  const gh = fakeGitHub([{ status: 504 }]);
+  try {
+    await assert.rejects(() => editOrPost(48, null, 'body'), /→ 504/);
+    assert.equal(gh.calls.length, 1);
+  } finally { gh.restore(); }
+});
+
+test('GitHub refusing the progress comment does not end the run', async () => {
+  const gh = fakeGitHub([{ status: 504 }]);
+  try {
+    assert.equal(await progress(48, 7166943511, 'body', []), 7166943511);
+    assert.equal(await progress(48, null, 'body', []), null);
+  } finally { gh.restore(); }
+});
+
+test('an error that is not GitHub being slow is not retried', async () => {
+  const gh = fakeGitHub([{ status: 422 }]);
+  try {
+    await assert.rejects(() => editOrPost(48, 7, 'body'), /→ 422/);
+    assert.equal(gh.calls.length, 1);
+  } finally { gh.restore(); }
+});
