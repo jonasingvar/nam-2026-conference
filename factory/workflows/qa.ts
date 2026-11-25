@@ -2,7 +2,7 @@ import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { allowPreviews, disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import { comment, findDeployment, previewForPr, pullRequestFiles, readIssue, readMarker, readPullRequest, setStatus } from '../lib/github-steps';
-import { classify } from '../lib/select';
+import { classify as classifyFiles } from '../lib/select';
 import { browserCanSee, qaNotNeeded } from '../lib/test-pick';
 import { chooseModels, describe, modelBook, type Job } from '../lib/models';
 import { FACTORY_DASHBOARD, PRODUCTION_URL, REPO_DIR } from '../lib/constants';
@@ -241,7 +241,7 @@ async function qaRun(input: QaInput) {
   // a preview of the same app), and not when Jev is sure no browser could show the change differently.
   const changedFiles = await pullRequestFiles(pr.number).catch(() => null);
   if (changedFiles && changedFiles.length < 300) {
-    const appChanged = classify(changedFiles).app;
+    const appChanged = classifyFiles(changedFiles).app;
     const sees = appChanged ? await browserCanSee({ title: pr.title, body: pr.body, files: changedFiles }) : { p: null };
     const skip = qaNotNeeded(appChanged, sees.p);
     if (skip) {
