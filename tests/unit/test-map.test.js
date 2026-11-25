@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { buildMap, candidatesFor, executedFiles, fileOfUrl, listedTests } from '../../scripts/test-map.mjs';
+import { buildMap, candidatesFor, carriedBy, executedFiles, fileOfUrl, listedTests } from '../../scripts/test-map.mjs';
 
 /**
  * The test map decides which browser tests a pull request skips, so its
@@ -54,6 +54,22 @@ test('candidates: per project, the titles that ran a changed file; which changed
   assert.deepEqual(c.reach, { 'tests/home.spec.js': ['src/pages/MyAgendaPage.jsx'] });
   assert.deepEqual(c.unmapped, ['src/lib/new.js']);
   assert.deepEqual(candidatesFor(map, ['server/lib/seats.js']).unit, ['tests/api/seats.test.js']);
+});
+
+test('a new file a changed, mapped file imports rides on that file\'s tests; one nothing imports stays unmapped', () => {
+  const page = 'src/pages/MyAgendaPage.jsx';
+  const sources = new Map([
+    [page, "import { today } from '../lib/new.js';\nimport x from '../lib/api';"],
+    ['src/lib/new.js', "import { deep } from './deeper';"],
+    ['src/lib/deeper.js', 'export const deep = 1;'],
+    ['server/routes/orphan.js', 'export default 1;'],
+  ]);
+  const c = candidatesFor(map, [page, 'src/lib/new.js', 'src/lib/deeper.js', 'server/routes/orphan.js'], sources);
+  assert.deepEqual(c.unmapped, ['server/routes/orphan.js']);
+  assert.deepEqual(c.desktop, { 'tests/home.spec.js': ['My Agenda › it lists'] });
+  // Imported only by another new file that nothing mapped imports: nothing vouches for either.
+  assert.deepEqual(candidatesFor(map, ['src/lib/new.js', 'src/lib/deeper.js'], sources).unmapped, ['src/lib/new.js', 'src/lib/deeper.js']);
+  assert.deepEqual([...carriedBy(['src/a.js', 'src/b.js'], new Set(['src/a.js']), new Map([['src/a.js', "const b = require('./b')"]]))], ['src/b.js']);
 });
 
 test('the --list report → every test per project, with its describe path and line', () => {

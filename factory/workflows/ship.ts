@@ -130,7 +130,8 @@ async function shipRun(input: ShipInput) {
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
       (Object.keys(spend.byModel).length ? ` (${Object.entries(spend.byModel).map(([m, c]) => `${m} ${dollars(c)}`).join(', ')})` : '') +
       (models && models.attempts.length ? ` · expected ${dollars(models.totals().est)}${models.climbs.length ? ` · ${models.climbs.length} climb${models.climbs.length === 1 ? '' : 's'}` : ''}` : ''),
-    `**Time:** ${timeLine(time.read(Date.now()))}`,
+    // By phase: the comment changes only when a phase does, so "Gate · 10 min" read as a ten-minute gate when the build had taken nine.
+    `**Time:** ${timeLine(time.read(Date.now()), { phases: true })}`,
     models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
