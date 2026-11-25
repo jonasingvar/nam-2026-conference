@@ -26,7 +26,7 @@ Gateway, and size each ticket with Jev. No GitHub Actions, no laptop.
 | 🏭 | **ship** | `ready-for-ai` on an issue, or `/ship` / `@claude` on it | Jev sizes it → spec → failing test → change → gate ⇄ audit → pull request → preview → review & QA → waits for your merge → checks production |
 | 🔍 | **review** | a pull request opens or is marked ready, `/review` on it, or ship | Lenses picked by what the diff touches; every blocker must name a path to harm and survive a skeptic; a re-review looks only at what changed |
 | 🧪 | **qa** | with review | Probes the gaps the PR's own tests leave, in a browser, **on the PR's Vercel preview**, desktop and mobile; a failure counts only if it reproduces there and not on the base's deployment |
-| 💬 | **respond** | `@claude …` on a pull request | Makes the change asked for, nothing else; gate; push; reply |
+| 💬 | **respond** | a comment that asks for something, on a pull request or its ticket (`/fix …`, `@claude …`, or plain words Jev reads) | A small ship aimed at that comment: the pull request goes to draft and the ticket to `ai-working`; one agent makes the change and commits; the gate runs on it, a red gate gets one fix; push; reply; ready again. One card on the pull request shows how the comment was read, the model, each step, time and spend |
 | ✅ | **verify** | every push to a pull request, and to main | CI: the gate in a sandbox, as the commit status `factory/verify` |
 | 🔥 | **warm** | every push to main, and daily | Rebuilds the sandbox every run forks: installed, with Chromium |
 

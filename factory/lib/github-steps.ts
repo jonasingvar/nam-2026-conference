@@ -356,6 +356,22 @@ export async function setStatus(sha: string, context: string, state: 'pending' |
   return true;
 }
 
+/**
+ * Put a pull request into draft, or take it out. A draft cannot be merged: that is how a pull request
+ * the factory is working on again is kept from being merged under it. REST cannot do either; GraphQL can.
+ * Returns whether it changed anything.
+ */
+export async function setDraft(pr: number, draft: boolean) {
+  'use step';
+  const p = await gh(`/pulls/${pr}`);
+  if (p.state !== 'open' || Boolean(p.draft) === draft) return false;
+  await graphql(draft
+    ? `mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`
+    : `mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`, { id: p.node_id });
+  return true;
+}
+setDraft.maxRetries = 3;
+
 export async function setLabels(issue: number, add: string[], remove: string[]) {
   'use step';
   if (add.length) await gh(`/issues/${issue}/labels`, { method: 'POST', body: JSON.stringify({ labels: add }) });

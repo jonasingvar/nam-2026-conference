@@ -27,9 +27,9 @@ export function explicitAsk(body: string): string | null {
 /** Whether the factory should pick a comment up, given how Jev read it. Unsure, or unavailable, is no. */
 export const actsOn = (intent: Intent | null, sure: number | null) => (intent === 'change' || intent === 'question') && sure !== null && sure >= SURE_ENOUGH;
 
-/** How many plain comments the factory will pick up on one pull request in an hour, counted by its own "On it" replies. */
+/** How many plain comments the factory will pick up on one pull request in an hour, counted by its own progress cards (respond-view.ts; "On it" was the card before it). */
 export const MAX_PICKUPS_AN_HOUR = 5;
-export const tooManyPickups = (recentComments: string[]) => recentComments.filter((b) => b.startsWith('👀 On it')).length >= MAX_PICKUPS_AN_HOUR;
+export const tooManyPickups = (recentComments: string[]) => recentComments.filter((b) => b.includes('<!-- factory-respond') || b.startsWith('👀 On it')).length >= MAX_PICKUPS_AN_HOUR;
 
 export async function readIntent(comment: string, about: { pr: number; title: string; where: 'issue' | 'pull request' }): Promise<{ intent: Intent | null; sure: number | null; ms: number; error?: string }> {
   const t0 = Date.now();
@@ -56,3 +56,7 @@ export async function readIntent(comment: string, about: { pr: number; title: st
     return { intent: null, sure: null, ms: Date.now() - t0, error: String(e?.message || e).slice(0, 160) };
   }
 }
+
+/** Whether the factory's review has already given its verdict at a commit, from that commit's statuses. */
+export const alreadyReviewed = (statuses: { context?: string; state?: string }[] | null | undefined) =>
+  (statuses || []).some((s) => s.context === 'factory/review' && s.state !== 'pending');

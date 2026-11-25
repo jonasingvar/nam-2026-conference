@@ -33,3 +33,36 @@ test('past the hourly cap, plain comments wait for a /fix', () => {
   assert.ok(tooManyPickups(Array(MAX_PICKUPS_AN_HOUR).fill(on)));
   assert.ok(!tooManyPickups(Array(20).fill('Looks good to me')));
 });
+
+import { quoted, readLine, respondCard, RESPOND_MARK } from '../lib/respond-view';
+
+test('the respond card says how the comment was read, on what model, and where the run is', () => {
+  const card = respondCard({ phase: 'Change', ask: 'the tiles flicker\nplease fix', author: 'sam', issue: 51, read: { intent: 'change', sure: 0.912 }, model: '`deepseek-v4.1-flash` (standard, Jev 68%, est $0.049)', runUrl: 'https://x/run' });
+  assert.match(card, /Working on it · Change/);
+  assert.match(card, /✅ Read → \*\*⏳ Change\*\* → Gate → Push → Reply/);
+  assert.match(card, /> the tiles flicker\n> please fix/);
+  assert.match(card, /\*\*Asked by:\*\* sam on #51/);
+  assert.match(card, /\*\*Read as:\*\* a change to make — Jev, 91% sure/);
+  assert.match(card, /\*\*Model:\*\* `deepseek-v4\.1-flash` \(standard, Jev 68%/);
+  assert.ok(card.includes(RESPOND_MARK) && card.includes('<!-- factory'), 'marked as the factory\'s own, and countable');
+});
+
+test('a /fix is not classified; a question skips the gate; the cap counts cards', () => {
+  assert.match(readLine(undefined), /explicit request/);
+  const done = respondCard({ phase: null, outcome: 'answered', ask: 'why?', author: 'sam', read: { intent: 'question', sure: null }, runUrl: 'u' });
+  assert.match(done, /Factory · Answered/);
+  assert.match(done, /✅ Read → ✅ Change → <s>Gate<\/s> → <s>Push<\/s> → ✅ Reply/);
+  assert.match(done, /a question to answer — Jev\n/);
+  assert.match(respondCard({ phase: 'Gate', doing: 'Fixing what the gate found', ask: 'x', author: 'sam', runUrl: 'u' }), /Working on it · Fixing what the gate found/);
+  assert.equal(quoted(`a <!-- factory --> b\n${'x\n'.repeat(20)}`).split('\n').length, 6);
+  assert.ok(tooManyPickups(Array(MAX_PICKUPS_AN_HOUR).fill(done)));
+});
+
+test('a commit the review has judged is not reviewed again when the pull request is marked ready', async () => {
+  const { alreadyReviewed } = await import('../lib/intent');
+  assert.ok(alreadyReviewed([{ context: 'factory/review', state: 'success' }]));
+  assert.ok(alreadyReviewed([{ context: 'factory/verify', state: 'success' }, { context: 'factory/review', state: 'failure' }]));
+  assert.ok(!alreadyReviewed([{ context: 'factory/review', state: 'pending' }]));
+  assert.ok(!alreadyReviewed([{ context: 'factory/verify', state: 'success' }]));
+  assert.ok(!alreadyReviewed(null));
+});

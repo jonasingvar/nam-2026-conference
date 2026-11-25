@@ -3,7 +3,7 @@ import { resumeHook } from 'workflow/api';
 import { HookNotFoundError } from 'workflow/errors';
 import { ALLOWED_REPO, FULL_SUITE_LABEL } from '@/lib/constants';
 import { dismissNumbers } from '@/lib/review-policy';
-import { actsOn, explicitAsk, MAX_PICKUPS_AN_HOUR, readIntent, tooManyPickups } from '@/lib/intent';
+import { actsOn, alreadyReviewed, explicitAsk, MAX_PICKUPS_AN_HOUR, readIntent, tooManyPickups } from '@/lib/intent';
 import { startChecks, startRespond, startShip, startShots, startVerify, startWarm } from '@/lib/start';
 
 /**
@@ -56,7 +56,7 @@ async function plainComment(pr: any, body: string, comment: any, issue?: number)
   if (tooManyPickups(Array.isArray(recent) ? recent.map((c) => String(c.body || '')) : [])) return { ignored: `${MAX_PICKUPS_AN_HOUR} requests picked up on this pull request in the last hour: write /fix … to ask for another` };
   const read = await readIntent(body, { pr: pr.number, title: String(pr.title || ''), where: issue ? 'issue' : 'pull request' });
   if (!actsOn(read.intent, read.sure)) return { ignored: read.error ? `Jev was unavailable: ${read.error}` : `Jev read it as ${read.intent} (${Math.round((read.sure ?? 0) * 100)}% sure): not a request to the factory` };
-  return { intent: read.intent, sure: read.sure, ...(await startRespond({ pr: pr.number, ask: body.trim(), author: comment.user.login, ...(issue ? { issue } : {}) }, comment.id)) };
+  return { intent: read.intent, sure: read.sure, ...(await startRespond({ pr: pr.number, ask: body.trim(), author: comment.user.login, read: { intent: read.intent!, sure: read.sure }, ...(issue ? { issue } : {}) }, comment.id)) };
 }
 
 export async function POST(req: Request) {
@@ -148,7 +148,12 @@ export async function POST(req: Request) {
   }
 
   if (event === 'pull_request' && p.action === 'ready_for_review' && p.pull_request.head?.repo?.full_name?.toLowerCase() === ALLOWED_REPO && WRITERS.has(p.pull_request.author_association)) {
-    return Response.json(await startChecks(p.pull_request.number, p.pull_request.head.sha));
+    // respond holds a pull request as a draft while it works and marks it ready after: that is this event too.
+    // A commit the factory has already reviewed is not reviewed (and paid for) again; a new commit is.
+    const sha = p.pull_request.head.sha;
+    const seen = await github(`/commits/${sha}/status`).catch(() => null);
+    if (alreadyReviewed(seen?.statuses)) return Response.json({ ignored: 'already reviewed at this commit' });
+    return Response.json(await startChecks(p.pull_request.number, sha));
   }
 
   // ready-for-ai on a pull request ship opened (issue-<n>-…) means "ship #n again": put the label on the

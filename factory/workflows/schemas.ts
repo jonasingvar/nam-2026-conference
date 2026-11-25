@@ -191,7 +191,7 @@ export const QA_WRITTEN = {
 export const RESPONSE = {
   type: 'object', required: ['changed', 'reply'],
   properties: {
-    changed: { type: 'boolean', description: 'did you commit and push a change' },
+    changed: { type: 'boolean', description: 'did you commit a change' },
     reply: { type: 'string', description: 'the reply to post: what you changed and why, or the answer — short, in plain words' },
   },
 };
