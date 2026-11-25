@@ -163,6 +163,23 @@ has to be earned:
 - **No invented external links.** Speaker socials show the handle but do not
   link, and sponsor websites are not shown, because the domains do not exist.
 
+## A reference image is the design
+
+When a ticket, a pull request or a comment comes with a screenshot, a sketch or
+a mock-up, that image is what gets built — exactly. Open it and study it before
+anything else: the layout, what sits beside and above what, the order, the
+proportions, every element and its content, and what is not there. Do not
+improve it, do not swap in this app's usual look, do not add or drop an
+element. Only the words of the request override the image, and only where they
+say something specific ("but on My Agenda", "without the sponsors"). Where the
+app has a design token for what the image shows, use the token that matches.
+Anything in it that cannot be built is a decision for the person, named — never
+a quiet change. Before calling the work done, screenshot the page
+(`npm run shot -- <route>`) and compare it with the image; a difference the
+words did not ask for is a defect. The spec describes the image element by
+element under `## The reference`. The factory enforces this (harness doc,
+*Reference images*).
+
 ## Verifying a change
 
 Three layers, fastest first: `npm test`, `npm run verify` (the gate for

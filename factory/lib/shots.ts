@@ -22,6 +22,32 @@ export function routesFrom(app: string): Record<string, string> {
 }
 
 /**
+ * Where a preview link should land: the one page this change is about. A change to exactly one page with a
+ * plain route (no `:id`) lands there; anything else is `null` — several pages, a shared component, a page
+ * that needs an id — and the caller asks Jev, or keeps the home page.
+ */
+export function landingPath(changed: string[], app: string): string | null {
+  const routes = routesFrom(app);
+  const raw = new Map([...app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{<(\w+)/g)].map((m) => [m[2], m[1]]));
+  const paths = new Set<string>();
+  for (const f of changed) {
+    const page = (/^src\/pages\/(\w+)\.\w+$/.exec(f) || [])[1];
+    if (page && routes[page] && !(raw.get(page) || '').includes(':')) paths.add(routes[page]);
+  }
+  return paths.size === 1 ? [...paths][0] : null;
+}
+
+/** The plain routes a link can land on (no `:id`), by page component: what Jev chooses among. */
+export function plainRoutes(app: string): Record<string, string> {
+  const routes = routesFrom(app);
+  const raw = new Map([...app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{<(\w+)/g)].map((m) => [m[2], m[1]]));
+  return Object.fromEntries(Object.entries(routes).filter(([c]) => !(raw.get(c) || '').includes(':')));
+}
+
+/** A preview's address at a page of the app. */
+export const atPath = (url: string, path: string | null | undefined) => (path && path !== '/' ? `${url.replace(/\/+$/, '')}${path}` : url);
+
+/**
  * The pages a change shows up on. A changed page is shot directly; a changed
  * component, hook or style is shot on the pages that import it; a UI change
  * that maps to no page is shot on the home page. At most four pages.
@@ -129,7 +155,7 @@ export type Uploaded = { path: string; viewport: string; which: string; url?: st
 export function withPreview(body: string, url: string | null, sha = ''): string {
   const rest = body.replace(/<!-- factory-preview -->[\s\S]*?<!-- \/factory-preview -->\n*/g, '');
   if (!url) return rest;
-  return `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — this pull request's Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->\n\n${rest}`;
+  return `<!-- factory-preview -->\n> [!TIP]\n> **🔎 Try it:** ${url} — ${/\.vercel\.app\/./.test(url) ? 'the page this pull request changes, on its' : "this pull request's"} Vercel preview, at ${sha.slice(0, 7)}.\n<!-- /factory-preview -->\n\n${rest}`;
 }
 
 export function shotsComment(pr: number, sha: string, pages: Shot[], shots: Uploaded[], previewUrl: string, beforeLabel: string | null, footer: string) {

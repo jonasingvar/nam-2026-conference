@@ -29,6 +29,8 @@ export type RespondView = {
   held?: boolean;
   /** Vercel's preview of the commit this run pushed: its link; 'none' when the app was not rebuilt; 'late' when it was not ready in time. */
   preview?: { url: string; sha: string } | 'none' | 'late';
+  /** How many reference images the agent was given to match. */
+  references?: number;
   /** Which tests the gate runs, and who chose them. */
   tests?: string;
   gate?: string; spend?: string; time?: string; runUrl: string;
@@ -70,6 +72,7 @@ export function respondCard(v: RespondView): string {
     `**Asked by:** ${v.author}${v.issue ? ` on #${v.issue}` : ''}`,
     `**Read as:** ${readLine(v.read)}`,
     v.held ? (v.outcome ? '**Pull request:** left as a draft — the gate is red on what was pushed, so it cannot be merged as it is' : '**Pull request:** a draft while this runs, so it cannot be merged under the change; ready again when it is done') : '',
+    v.references ? `**Reference:** ${v.references} image${v.references === 1 ? '' : 's'} from the request — the design, to be matched exactly` : '',
     v.model ? `**Model:** ${v.model}` : '',
     v.tests ? `**Tests:** unit and API, and ${v.tests}` : '',
     v.gate ? `**Gate:** ${v.gate}` : '',

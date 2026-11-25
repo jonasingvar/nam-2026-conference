@@ -3,12 +3,13 @@ import { start } from 'workflow/api';
 import { review } from './review';
 import { qa } from './qa';
 import { shots } from './shots';
-import { pinPreview } from '../lib/shots-steps';
+import { pinPreview, previewLink } from '../lib/shots-steps';
 import { runJob } from '../lib/jobs';
 import { routedAgent } from '../lib/kit';
 import { stopwatch, timeLine } from '../lib/timing';
+import { imageUrls, referenceRule, visionFloors } from '../lib/visuals';
 import { chooseModels, describe, modelBook, type Job, type ModelBook } from '../lib/models';
-import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
+import { disposeSandbox, prepareSandbox, stageReferences } from '../lib/sandbox-steps';
 import {
   comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, pullRequestFiles, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
@@ -113,6 +114,8 @@ async function shipRun(input: ShipInput) {
   let specPath = '';
   let prUrl = '';
   let previewUrl = '';
+  /** The preview at the page this change is about (landingFor): what a person clicks. */
+  let previewLanding = '';
 
   const dollars = (x: number) => `$${x.toFixed(2)}`;
   const render = (headline: string) => [
@@ -123,7 +126,7 @@ async function shipRun(input: ShipInput) {
     '',
     profile ? `**Size:** ${profile.size}${profile.escalated ? ' (escalated on its diff)' : ''} — ${profile.why.replace(/^Jev: \w+ \((\d+% sure)\)$/, 'Jev, $1')}` : '',
     branch ? `**Branch:** \`${branch}\`${specPath ? ` · 📄 [Spec](https://github.com/${ALLOWED_REPO}/blob/${branch}/${specPath})` : ''}` : '',
-    prUrl ? `**Pull request:** ${prUrl}${previewUrl ? ` · 🔎 [Preview](${previewUrl})` : ''}` : '',
+    prUrl ? `**Pull request:** ${prUrl}${previewUrl ? ` · 🔎 [Preview](${previewLanding || previewUrl})` : ''}` : '',
     rounds.length ? `\n| Round | Gate | Audit |\n| --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed |`).join('\n')}` : '',
     '',
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
@@ -199,7 +202,9 @@ async function shipRun(input: ShipInput) {
     return value;
   }
   const chooseFor = async (size: Size, jobs: Job[]) => {
-    const choice = await chooseModels(`GitHub issue #${n}: ${issueTitle}\n\n${issue.body}` + (input.notes ? `\n\nThe person who asked wrote: ${input.notes}` : ''), size, jobs);
+    const choice = await chooseModels(`GitHub issue #${n}: ${issueTitle}\n\n${issue.body}` + (input.notes ? `\n\nThe person who asked wrote: ${input.notes}` : ''),
+      // With a reference image, the jobs that must look at it start on a model that can see.
+      size, jobs, visionFloors(refUrls.length > 0));
     if (models) models.adopt(choice); else models = modelBook(choice, size);
     // The per-job choice is the Models table; the log keeps one line, and the stream the detail.
     log(`models chosen for a ${size} run by Jev in ${choice.ms} ms${choice.live ? '' : ' (last known prices)'}${choice.why ? ` — ${choice.why}` : ''}`);
@@ -290,10 +295,14 @@ async function shipRun(input: ShipInput) {
 
   // What people said — the comment that asked for this run, and every answer on the issue or an earlier attempt's PR.
   let said: { at: string; who: string; where: string; text: string }[] = [];
+  // The images the request came with — in the ticket, the note that asked for this run, or what people said — and where they are in the sandbox.
+  let refUrls: string[] = [];
+  let refs: string[] = [];
   const ticketText = (issue: Issue, doneWhen: string[]) =>
     `GitHub issue #${n}: ${issue.title}\n\n${issue.body}\n` +
     (doneWhen.length ? `\nDone when (as the plan read it):\n${doneWhen.map((c) => `- ${c}`).join('\n')}\n` : '') +
     (input.notes ? `\nThe person who asked for this run wrote: "${input.notes}" — where it changes what to build, it amends the ticket.\n` : '') +
+    referenceRule(refs) +
     (said.length ? `\nPeople have said, in order (newest last) — a person's answer amends the ticket where it changes what to build, and settles what a hand-back asked:\n` +
       said.map((c) => `- ${c.who} on ${c.where}: "${c.text.replace(/\s+/g, ' ')}"`).join('\n') + '\n' : '');
 
@@ -349,6 +358,7 @@ async function shipRun(input: ShipInput) {
   // An earlier attempt handed back as a draft? Continue it, with what people answered.
   const earlier = await findEarlierAttempt(n);
   said = await peopleSaid(n, earlier?.number ?? null);
+  refUrls = imageUrls(issue.body, input.notes, ...said.map((c) => c.text));
   // A comment on a ticket waiting on a person: resume only if it answers what is open.
   if (input.answer && earlier) {
     const body = (await readPullRequest(earlier.number)).body;
@@ -376,6 +386,13 @@ async function shipRun(input: ShipInput) {
   // ════════════════════════════════════════════════════════════════════════
   await enter('Plan');
   await prepareSandbox(box, BASE, 'push');
+  if (refUrls.length) {
+    const got = await stageReferences(box, refUrls);
+    refs = got.staged.map((x) => x.path);
+    log(`reference images: ${refs.length} of ${refUrls.length} staged for the agents${got.failed.length ? ` — could not fetch ${got.failed.join('; ')}` : ''}`);
+    // The design could not be read: building from the words alone is how a ticket with a screenshot got a different page.
+    if (!refs.length) return handBack('Plan', `the ticket's image${refUrls.length === 1 ? '' : 's'} could not be downloaded (${got.failed.join('; ').slice(0, 200)}) — attach ${refUrls.length === 1 ? 'it' : 'them'} again, or describe the design in words`);
+  }
   const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').split('-').slice(0, 5).join('-') || 'change';
   const made = await command('branch', earlier
     // Continue the earlier attempt's branch, brought up to date with the base.
@@ -507,7 +524,9 @@ async function shipRun(input: ShipInput) {
       `if the change depends on the time, one probe pins the clock before it applies (Day 1 08:00). A reproduced bug in this change is a blocker; one that is already on ${BASE} is minor. ` +
       `If nothing visible changed, say so in covered and return no findings.`,
   };
-  const lensesFor = (p: Profile) => p.lenses.filter((l) => l !== 'browser' || p.size === 'full' || p.browserAlways || (built.ui && !built.browserTest));
+  // A reference image is always checked in a browser, against a screenshot of what was built.
+  const lensesFor = (p: Profile) => (refs.length && !p.lenses.includes('browser') ? [...p.lenses, 'browser'] : p.lenses)
+    .filter((l) => l !== 'browser' || refs.length > 0 || p.size === 'full' || p.browserAlways || (built.ui && !built.browserTest));
 
   const streak = new Map<string, number>();
   let gate: any = null;
@@ -732,6 +751,7 @@ async function shipRun(input: ShipInput) {
   }
   if (preview.state === 'ready') {
     previewUrl = preview.url!;
+    previewLanding = await previewLink(pr.number, previewUrl, preview.sha ?? '').catch(() => previewUrl);
     log(`preview ready: ${previewUrl}`);
     // "Try it" goes on the pull request only when the app changed: a factory or docs change builds the same app.
     const files = await pullRequestFiles(pr.number).catch(() => null);
@@ -778,6 +798,13 @@ async function shipRun(input: ShipInput) {
     await show();
     box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}-r${round}`;
     await prepareSandbox(box, BASE, 'push');
+    // A new sandbox, forked from the warm one: the reference images are not in it until they are put there,
+    // and the fixer is told to open them first.
+    if (refUrls.length) {
+      const again = await stageReferences(box, refUrls);
+      refs = again.staged.map((x: { path: string }) => x.path);
+      if (again.failed.length) log(`reference images: could not fetch ${again.failed.join('; ')} for fix round ${round}`);
+    }
     const onBranch = await command(`branch#r${round}`, `git fetch -q --prune origin && git checkout -q -B "${branch}" "origin/${branch}" && echo '{"ok":true}' > "$JOB/result.json"`);
     if (!onBranch) { log('could not check the branch out again'); break; }
     const fixed = await agent(`fix#r${round}`,
