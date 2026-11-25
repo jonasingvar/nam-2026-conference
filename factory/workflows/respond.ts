@@ -113,7 +113,7 @@ async function respondRun(input: RespondInput) {
     const g = await k.command(label, [
       // Tight: the unit tests, and only the browser specs this request's own commits touched (the smoke spec when
       // they touched none). The push starts verify, which runs what else the change reaches, beside the person.
-      `SPECS=$(git diff --name-only --diff-filter=d ${pr.headSha}..HEAD -- 'tests/*.spec.js' | grep -v qa-probe | tr '\n' ' ')`,
+      `SPECS=$(git diff --name-only --diff-filter=d ${pr.headSha}..HEAD -- 'tests/*.spec.js' | grep -v qa-probe | tr '\n' ' ' || true)`,
       `GATE=$(GATE_SPECS="\${SPECS:-tests/smoke.spec.js}" GATE_BASE=${pr.headSha} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
       `GATE="$GATE" node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",JSON.stringify({gate:process.env.GATE}))'`,
     ].join('\n'));
