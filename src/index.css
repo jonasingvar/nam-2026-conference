@@ -385,7 +385,7 @@ body::before {
   }
   /* Revealed content must still be visible if the transition is skipped. */
   .reveal { opacity: 1 !important; transform: none !important; }
-  /* Duration alone is not enough for a delayed animation: the rail has to be
-     at full height immediately, not after its stagger. */
-  .rail-draw { animation-delay: 0ms !important; }
+  /* A near-zero animation still paints its first frame at scaleY(0): the rail
+     has to be at full height immediately, so it does not animate at all. */
+  .rail-draw { animation: none !important; }
 }
