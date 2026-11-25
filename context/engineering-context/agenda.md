@@ -1,6 +1,6 @@
 ---
 area: agenda
-summary: The attendee's own conference — the My Agenda placeholder page, and the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), none of which has a UI yet.
+summary: The attendee's own conference — the My Agenda placeholder page, the endpoints a team builds an agenda on (/users/:id/schedule and /today, the speaker's own sessions, the .ics exports), and the one section that already uses them, Home's today list.
 read_when: touching My Agenda, an attendee's day or schedule, suggestions, clashes or booked-hours totals, a speaker's own sessions, or calendar export
 files:
   - server/lib/agenda.js
@@ -21,13 +21,16 @@ related: [seats, attendance, clock, venues, schedule, speakers, ui]
 (`agenda-coming-soon`) with a `Browse the schedule` button — nothing else. Workshop
 teams design the page from scratch. Everything underneath it is built and tested:
 adding a session takes a seat (seats doc), and the payloads below are served,
-with matching functions in `src/lib/api.js`. What a day is made of is decided in
+with matching functions in `src/lib/api.js`. Home's `TodaySessions` is the one
+thing built on them so far (it reads the day out of `schedule`; the ui doc
+describes the section). What a day is made of is decided in
 `server/lib/agenda.js`; routes in `server/routes/users.js` only validate and call it.
 
 ## How it works
 
 **`GET /api/users/:id/schedule`** → `{ user: toUser(row), days: scheduleFor(id) }`.
-Client: `api.getSchedule(userId)` — no UI calls it yet.
+Client: `api.getSchedule(userId)` — `HomePage`'s `TodaySessions` is its only
+caller: it takes the `clock.day` entry and filters it as below.
 `agenda.js:scheduleFor` returns one entry per day that has any reservation:
 `{ date, sessions (each with reservation, checkedIn, myStars), conflicts, totalMinutes,
 waitlistedMinutes, venuesVisited }`. `checkedIn` (bool) and `myStars` (number or `null`)
@@ -39,8 +42,9 @@ statuses) → `{ type: 'overlap', sessionIds: [a, b] }`. `venuesVisited` is venu
 `shortName`s.
 
 **Building on it.** The store, not the fetched payload, is the source of truth for
-the attendee's own reservations (CLAUDE.md § There is exactly one action). A page
-that lists the schedule must re-filter each day through `reservationFor(s.id)` and
+the attendee's own reservations (CLAUDE.md § There is exactly one action);
+`HomePage`'s `TodaySessions` is a small instance of it — one day, confirmed seats
+only. A page that lists the schedule must re-filter each day through `reservationFor(s.id)` and
 recompute `conflicts`, both minute totals and `venuesVisited` client-side (dropping
 empty days), or a removed session stays on screen until a refresh. Per-session
 attendance for a row is `SessionCard variant="row"`'s `attendance` prop

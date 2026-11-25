@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 import { useConference, useFetch } from '../lib/store.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
 import * as api from '../lib/api.js';
-import { relativeDate, time as fmtTime } from '../lib/format.js';
+import { plural, relativeDate, time as fmtTime, timeRange } from '../lib/format.js';
 import { SponsorMarquee } from '../components/SponsorMarquee.jsx';
 import { Reveal } from '../components/Reveal.jsx';
 import { HeroMedia } from '../components/HeroMedia.jsx';
-import { Button, Chip, cx } from '../components/ui.jsx';
+import { Avatar, Button, Chip, TrackPill, cx } from '../components/ui.jsx';
 import { Icon } from '../components/Icon.jsx';
 
 /**
@@ -50,6 +50,103 @@ function HeroBar({ conference }) {
           <Button to="/speakers" size="sm">Speakers</Button>
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * The seats held for the day the conference is on, earliest first.
+ *
+ * The store, not the schedule payload the page was fetched with, decides what
+ * is still mine: a seat given back here has to leave immediately, and one
+ * dropped on another page must not be resurrected by a stale payload.
+ */
+function TodaySessions() {
+  const { currentUser, clock, reservationFor, releaseSeat, roomById, venueById } = useConference();
+  const { data } = useFetch(
+    () => (currentUser ? api.getSchedule(currentUser.id) : Promise.resolve(null)),
+    [currentUser?.id],
+  );
+
+  // Only a confirmed seat is a chair held; a waitlist place may never come good.
+  const booked = (data?.days?.find((d) => d.date === clock.day)?.sessions ?? [])
+    .filter((s) => reservationFor(s.id) === 'confirmed');
+  if (booked.length === 0) return null;
+
+  return (
+    <section data-testid="home-today" className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="font-display text-xl sm:text-2xl">Your day</h2>
+        <p className="text-[12px] text-muted">{plural(booked.length, 'session')} with a seat held</p>
+      </div>
+
+      <ul className="space-y-3">
+        {booked.map((s) => {
+          const room = roomById[s.room.id];
+          const venue = venueById[s.venue.id];
+          return (
+            <li key={s.id}>
+              <article
+                data-testid={`home-session-${s.id}`}
+                className="flex flex-col gap-4 rounded-2xl border border-hairline bg-surface p-4 sm:flex-row sm:items-start sm:gap-5 sm:p-5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <TrackPill track={s.track} />
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted">
+                      <Icon name="clock" className="size-3 shrink-0 text-faint" />
+                      {timeRange(s.startsAt, s.endsAt)}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-2 font-display text-lg leading-snug sm:text-xl">
+                    <Link to={`/sessions/${s.id}`} className="transition-colors hover:text-violet-200">
+                      {s.title}
+                    </Link>
+                  </h3>
+
+                  <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="pin" className="size-3.5 shrink-0 text-faint" />
+                      {room?.name ?? s.room.name}
+                    </span>
+                    <span aria-hidden="true" className="text-overlay">·</span>
+                    <span className="truncate">{venue?.name ?? s.venue.name}</span>
+                  </p>
+
+                  {s.speakers?.length > 0 && (
+                    <div className="mt-3.5 flex flex-wrap gap-x-5 gap-y-3 border-t border-hairline pt-3.5">
+                      {s.speakers.map((sp) => (
+                        <Link
+                          key={sp.id}
+                          to={`/speakers/${sp.id}`}
+                          className="group flex min-w-0 items-center gap-3 rounded-xl"
+                        >
+                          <Avatar name={sp.name} initials={sp.initials} accent={sp.accent} imageUrl={sp.imageUrl} size="lg" />
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold transition-colors group-hover:text-violet-200">
+                              {sp.name}
+                            </span>
+                            <span className="block truncate text-xs text-muted">{sp.company}</span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  variant="danger" size="sm" className="shrink-0 self-start"
+                  data-testid={`home-unreserve-${s.id}`}
+                  onClick={() => releaseSeat(s.id, s)}
+                >
+                  <Icon name="close" className="size-3.5" /> Remove seat
+                </Button>
+              </article>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -136,6 +233,7 @@ export function HomePage() {
     // each one leaves a blank gap in the stack.
     <div className="space-y-8 [&>:empty]:hidden">
       <HeroBar conference={conference} />
+      <Reveal><TodaySessions /></Reveal>
       <QuickLinks />
       <Reveal><LatestAnnouncement /></Reveal>
       <SponsorMarquee />

@@ -11,10 +11,11 @@ blank on purpose — build it when a ticket asks, never as a side effect of
 another change:
 
 - **My Agenda** (`/my-agenda`) is a *coming soon* placeholder.
-- **Home** is static: a hero, links into the app, the latest announcement and
-  the sponsors. Nothing on it is about the signed-in attendee.
+- **Home** shows the seats you hold for *today*, and nothing past that: a hero,
+  links into the app, the latest announcement and the sponsors around it. No
+  plan for the days ahead, no suggestions, no waitlists, no live panel.
 - **Following** works on the speaker pages, but nothing shows what you follow
-  outside them — that, like your seats, is for My Agenda or Home to use.
+  outside them — that, like the rest of your seats, is for My Agenda to use.
 
 Everything underneath is real and tested: seats, the waitlist, clashes,
 check-in, ratings, follows, `/users/:id/schedule`, `/users/:id/today`, `/live`

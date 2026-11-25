@@ -105,14 +105,15 @@ test.describe('Your day', () => {
         await expect(portrait).toContainText(speaker.company);
       }
 
-      // Roomier than the same session's row on the schedule, which is the
-      // tightest the app draws it.
+      // Roomier than the compact row the app draws a session with — the session
+      // page's competing list — because it has to hold a portrait, the speaker's
+      // name and company, and where the room is.
       const cardBox = await card.boundingBox();
-      await visit(page, `/schedule?day=${lane.day}&view=list`, { as: lane.user, at });
-      const row = page.locator('[data-testid="session-card"]', { has: page.locator(`a[href="/sessions/${first.id}"]`) });
+      await visit(page, `/sessions/${first.id}`, { as: lane.user, at });
+      const row = page.getByTestId('session-card').first();
       await expect(row).toBeVisible();
-      const rowBox = await row.boundingBox();
-      expect(cardBox.height, 'a home card is roomier than a schedule row').toBeGreaterThan(rowBox.height);
+      expect(cardBox.height, 'a home card is roomier than a schedule row')
+        .toBeGreaterThan((await row.boundingBox()).height);
 
       // One action, and it is not a reserve or a check-in.
       await visit(page, '/', { as: lane.user, at });

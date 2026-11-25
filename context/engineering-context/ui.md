@@ -1,6 +1,6 @@
 ---
 area: ui
-summary: The shared look and chrome — design tokens, primitives in ui.jsx, icons, accents, toasts, generated art, motion utilities, the header/nav/footer, the attendee switcher, the static home page and the not-found page.
+summary: The shared look and chrome — design tokens, primitives in ui.jsx, icons, accents, toasts, generated art, motion utilities, the header/nav/footer, the attendee switcher, the home page and the not-found page.
 read_when: adding a component or page, styling anything, touching the home page, the nav or footer, the attendee switcher, icons, toasts, generated avatars or covers, animation, formatting times/dates/plurals
 files:
   - src/index.css
@@ -152,20 +152,35 @@ sticky `glass` header, `<main id="main">`, and the footer.
   `/speakers/<currentUser.speakerId>`, which marks itself "This is you"
   (speakers doc). `tests/switcher.spec.js` covers the switcher and that link.
 
-**`HomePage`** (`/`) — static: nothing on it is about the signed-in attendee or
-what is live. It stacks `HeroBar` (`hero`: name, `conference.dates · city`, a
-`Day n · time` chip from `clock`, and `Browse today` → `/schedule?day=<clock.day>`
-plus `Speakers` buttons) → `QuickLinks` (`quick-links`, a `nav` of the `LINKS`
-array: Schedule, Speakers, Venues, Food & drink, Expo) → `LatestAnnouncement`
-(`announcements`: the single newest posted one, pinned first, filtered by
-`postedAt <= clock`, so nothing appears before it was written) →
-`SponsorMarquee` (venues doc). Sections that return `null` would leave their
-`<Reveal>` wrapper as a gap, so the container has `[&>:empty]:hidden`.
-`tests/home.spec.js` asserts the five links, the announcement cut-off, and that
-none of `today-panel`, `live-now`, `speaking-strip`, `followed-sessions`, `next-up`
-is on the page — no component renders those ids; a ticket that puts a personal or
-live section on Home updates that test. A new home section is a component that
-returns `null` when empty, wrapped in `<Reveal>`.
+**`HomePage`** (`/`) — a way in, plus the one personal thing worth seeing before
+you leave for the venue. It stacks `HeroBar` (`hero`: name,
+`conference.dates · city`, a `Day n · time` chip from `clock`, and `Browse today`
+→ `/schedule?day=<clock.day>` plus `Speakers` buttons) → `TodaySessions` →
+`QuickLinks` (`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers,
+Venues, Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single
+newest posted one, pinned first, filtered by `postedAt <= clock`, so nothing
+appears before it was written) → `SponsorMarquee` (venues doc). Sections that
+return `null` would leave their `<Reveal>` wrapper as a gap, so the container has
+`[&>:empty]:hidden`.
+
+**`TodaySessions`** (`home-today`) — the seats held for `clock.day`, earliest
+first: `api.getSchedule(currentUser.id)`, the `clock.day` entry, filtered on
+`reservationFor(s.id) === 'confirmed'`. The store decides, not the payload, so a
+seat given back here — or dropped on another page — leaves at once; a waitlist
+place is not a chair and is never listed, and a day with nothing confirmed
+returns `null`. Each large card (`home-session-<id>`) shows the track, the time
+range, the room and the venue, and each speaker's portrait (`Avatar` with
+`imageUrl`) inside a `Link` to `/speakers/:id` with their name and company. Its
+only action is **Remove seat** (`home-unreserve-<id>`, the store's
+`releaseSeat(s.id, s)`) — no reserving, no check-in. `tests/home.spec.js` covers
+the day, the other days' seats that must stay off it, the waitlist place that
+must too, the portrait link, the cards being roomier than the compact
+`variant="row"` session card, and the single action.
+
+`tests/home.spec.js` also asserts the five links, the announcement cut-off, and
+that none of `today-panel`, `live-now`, `speaking-strip`, `followed-sessions`,
+`next-up` is on the page — no component renders those ids. A new home section is
+a component that returns `null` when empty, wrapped in `<Reveal>`.
 
 **`RouteChange`** — on `pathname` change only (not search), scrolls to top and
 focuses `#main`. **`NotFoundPage`** — the `*` route; its heading "Nothing
@@ -311,6 +326,9 @@ How to test one: `context/engineering-context/testing.md` § Testing a dialog.
 
 - A nav item: `NAV` in `Layout.jsx` (icon must exist in `Icon.jsx`).
 - A link on the home page: `LINKS` in `HomePage.jsx`, and the count in `tests/home.spec.js`.
+- Another personal section on Home: a component in `HomePage.jsx` that returns
+  `null` when it has nothing, wrapped in `<Reveal>` — and drive it from
+  `clock.day` (agenda doc).
 - A footer link: the column array in `Layout`'s footer; add the route first.
 - A new primitive used by more than one page: `ui.jsx`.
 - A new token or utility: `@theme` / `@utility` in `index.css`.

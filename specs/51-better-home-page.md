@@ -19,7 +19,8 @@ Home gains a "Your day" section listing every session the signed-in attendee hol
 ## Decisions
 Waitlisted sessions: the ticket says "reserved seat for", so only confirmed seats are listed and waitlist places are not shown.
 Sessions already finished today stay listed (the ticket says all booked for today) and keep Remove; the store drops Undo for ended sessions.
-The existing test "nothing on it is personal or live" is amended: it keeps the ids it forbids, which the new section does not use.
+The existing test "nothing on it is personal or live" is amended: it keeps the ids it forbids, which the new section does not use, and is retitled — Home is personal now.
+The size check compares the card with `SessionCard variant="row"` — the session page's competing list, ~68px — because `/schedule?view=list` draws the same large card as the grid, so there is nothing smaller there to beat.
 
 ## Out of scope
 Reserving, check-in, rating, My Agenda, and any live "now/next" logic.

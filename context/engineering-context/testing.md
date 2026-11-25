@@ -100,7 +100,7 @@ instead of silently testing another worktree's app.
   Typical use: `.find((s) => s.seatsLeft > 3)` or `.find((s) => s.isFull)`.
 
 `LANES` is **not exported**; it is the table inside `helpers.js` that `laneFor` reads.
-Entry shape: `'area.case': { desktop: { user, day, slot?, clean? }, mobile: {…} }`, with
+Entry shape: `'area.case': { desktop: { user, day, slot?, clean?, readOnly? }, mobile: {…} }`, with
 `day` a 0-based index. Its comment lists read-only fixtures and the rule that lanes with a
 `slot` own their slot on day index 2 outright — they assert an exact seat count, so any other
 lane booking *a session in one of those slots* that day, even for a different attendee, can

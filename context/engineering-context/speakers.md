@@ -47,7 +47,7 @@ related: [seed, ui, agenda, architecture]
 `followingIds` (a `Set`), `isFollowing(id)` and `toggleFollow(id)` (store.jsx —
 calls the API, updates the set, toasts). Nothing shows a followed speaker's
 sessions yet — `GET /api/sessions?followedBy=` (`api.getFollowedSessions`) is
-there for whoever builds Home or My Agenda.
+there for whoever builds My Agenda.
 
 **`SpeakersPage` — URL params** (`useSearchParams`, `'all'`/empty deletes the
 key): `q`, `track` (sent as `trackSlug`), `day`, `show`
