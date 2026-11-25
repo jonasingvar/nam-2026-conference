@@ -37,15 +37,70 @@ export type AgentRun = {
   usage: Record<string, any>;
 };
 
-/** The bash that runs one headless Claude Code agent with a typed result. */
+/**
+ * The bash that runs one headless Claude Code agent with a typed result.
+ * It writes every event as it happens to $JOB/events.jsonl (stream-json), so the
+ * run's Streams tab can follow the agent turn by turn (`eventLines`); the last
+ * event, `result`, is what `--output-format json` would have printed, and is
+ * copied to $JOB/result.json for `readAgent`.
+ */
 export function agentScript(model: Model, effort?: Effort) {
   if (!/^[a-z0-9][a-z0-9._/:-]*$/i.test(model)) throw new Error(`not a model id: ${model}`);
   return [
-    'set -o pipefail',
     `timeout 2400 claude -p "$(cat "$JOB/prompt.md")" --model '${model}'${effort ? ` --effort ${effort}` : ''} \\`,
     '  --dangerously-skip-permissions --no-session-persistence \\',
-    '  --output-format json --json-schema "$(cat "$JOB/schema.json")" > "$JOB/result.json"',
+    '  --output-format stream-json --verbose --json-schema "$(cat "$JOB/schema.json")" > "$JOB/events.jsonl"',
+    'RC=$?',
+    `node -e 'const fs=require("fs"),d=process.env.JOB;let r="";try{for(const l of fs.readFileSync(d+"/events.jsonl","utf8").split("\\n")){if(l.startsWith("{\\"type\\":\\"result\\"")||l.includes("\\"type\\":\\"result\\"")){try{if(JSON.parse(l).type==="result")r=l}catch{}}}}catch{}fs.writeFileSync(d+"/result.json",r)'`,
+    'exit $RC',
   ].join('\n');
+}
+
+const oneLine = (s: unknown, max: number) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > max ? `${t.slice(0, max)}…` : t; };
+
+/** One tool call, as a person would read it in a terminal. */
+function toolLine(name: string, input: any): string | null {
+  if (name === 'StructuredOutput') return null; // the typed result: the run reports it when the agent ends
+  const i = input || {};
+  if (name === 'Bash') return `$ ${oneLine(i.command, 400)}`;
+  if (name === 'Read' || name === 'Edit' || name === 'Write' || name === 'NotebookEdit') return `${name} ${oneLine(i.file_path ?? i.notebook_path, 200)}`;
+  if (name === 'Grep' || name === 'Glob') return `${name} ${oneLine(i.pattern, 160)}${i.path ? ` in ${oneLine(i.path, 120)}` : ''}`;
+  return `${name} ${oneLine(JSON.stringify(i), 240)}`;
+}
+
+/**
+ * Claude Code's stream-json events → the lines a person follows an agent by:
+ * what it said, each tool it called, and the first line of what came back.
+ * Thinking, hooks and bookkeeping events are left out. A line cut short on
+ * the way here (a file's whole content in a Write) still names its tool.
+ */
+export function eventLines(jsonl: string, label = ''): string[] {
+  const out: string[] = [];
+  const say = (l: string | null) => { if (l) out.push(label ? `[${label}] ${l}` : l); };
+  for (const raw of jsonl.split('\n')) {
+    if (!raw.trim()) continue;
+    let e: any;
+    try { e = JSON.parse(raw); } catch {
+      const tool = /"type":"tool_use".*?"name":"([A-Za-z_]+)"/.exec(raw)?.[1];
+      if (tool && tool !== 'StructuredOutput') say(`${tool} ${oneLine(/"(?:file_path|command|pattern)":"((?:[^"\\]|\\.){0,200})/.exec(raw)?.[1] ?? '', 200)} …`);
+      continue;
+    }
+    const blocks = Array.isArray(e?.message?.content) ? e.message.content : [];
+    if (e.type === 'assistant') {
+      for (const b of blocks) {
+        if (b?.type === 'text' && String(b.text || '').trim()) say(`💬 ${oneLine(b.text, 500)}`);
+        else if (b?.type === 'tool_use') say(toolLine(String(b.name), b.input));
+      }
+    } else if (e.type === 'user') {
+      for (const b of blocks) {
+        if (b?.type !== 'tool_result') continue;
+        const text = typeof b.content === 'string' ? b.content : Array.isArray(b.content) ? b.content.map((c: any) => c?.text ?? '').join(' ') : '';
+        if (/^Structured output provided/.test(text)) continue;
+        say(`  ↳ ${b.is_error ? '✖ ' : ''}${oneLine(text, 220) || '(no output)'}`);
+      }
+    }
+  }
+  return out;
 }
 
 /** The one failure no retry fixes: the AI Gateway has no credit left. Every run stops and says so. */
