@@ -137,6 +137,12 @@ export const LANES = {
   // Rates for real, so it must land on day index 0 — `today` — per
   // smoke.spec.js's "no session in the future carries a rating".
   'attendance.rating-toast':  { desktop: { user: marcus, day: 0, slot: '09:00', agenda: false }, mobile: { user: abraham, day: 0, slot: '09:00', agenda: false } },
+  // My Agenda books its own seats and queues for its own full rooms, so each
+  // pane needs a pair no other booking lane holds. A hop needs day 0 or 1 —
+  // the seed sells nothing out on day 2; kenji holds nothing at all from day 2 on.
+  'agenda.plan':      { desktop: { user: jonas, day: 1 },  mobile: { user: andy, day: 1 } },
+  'agenda.clash':     { desktop: { user: abraham, day: 1 }, mobile: { user: kenji, day: 1 } },
+  'agenda.empty':     { desktop: { user: kenji, day: 2, readOnly: true }, mobile: { user: kenji, day: 2, readOnly: true } },
 };
 
 /**
