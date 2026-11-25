@@ -137,6 +137,10 @@ export const LANES = {
   // Rates for real, so it must land on day index 0 — `today` — per
   // smoke.spec.js's "no session in the future carries a rating".
   'attendance.rating-toast':  { desktop: { user: marcus, day: 0, slot: '09:00', agenda: false }, mobile: { user: abraham, day: 0, slot: '09:00', agenda: false } },
+  // Home's day is whatever `clock.day` says, so this lane pins the clock to day
+  // 1 and books there: andy/1 and abraham/1 are held by no other pane at all
+  // (day 0 is spoken for six times over), and day 1's 13:30 is free for both.
+  'home.today':       { desktop: { user: andy, day: 1, slot: '13:30' },    mobile: { user: abraham, day: 1, slot: '13:30' } },
 };
 
 /**
