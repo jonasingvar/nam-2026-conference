@@ -133,8 +133,9 @@ export async function POST(req: Request) {
     const full = (pr.labels || []).some((l: any) => l.name === FULL_SUITE_LABEL);
     const v = await startVerify({ sha: pr.head.sha, ref: pr.head.ref, base: pr.base.ref, full, pr: pr.number });
     // A push moves the preview: the "Try it" link and the screenshots follow the branch, or they
-    // show the commit before the one just asked for. No model and no credential, so every push gets it
-    // (once per commit — ship's own start of it for the same head is the same run).
+    // show the commit before the one just asked for. No model and no credential, so every push gets it.
+    // The token is per commit, so a redelivered push reuses this run; ship's own start of `shots` for
+    // a fix round carries no token, so that push runs it twice.
     if (p.action === 'synchronize') {
       const follows = trusted && pr.user?.type !== 'Bot';
       return Response.json({ verify: v, ...(follows ? { shots: await startShots(pr.number, pr.head.sha) } : {}) });
