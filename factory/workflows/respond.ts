@@ -1,7 +1,7 @@
-import { getWorkflowMetadata, setAttributes } from 'workflow';
+import { getWorkflowMetadata, setAttributes, sleep } from 'workflow';
 import { kit, checkoutPr } from '../lib/kit';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
-import { comment, progress, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
+import { comment, previewForPr, progress, readPullRequest, setDraft, setLabels } from '../lib/github-steps';
 import { chooseModels, describe, modelBook } from '../lib/models';
 import { FACTORY_DASHBOARD } from '../lib/constants';
 import type { Intent } from '../lib/intent';
@@ -151,6 +151,7 @@ async function respondRun(input: RespondInput) {
   };
   let gateLine = '';
   let pushed = false;
+  let pushedSha = '';
   let green = true;
   if (change?.changed) {
     await show('Gate', { doing: 'Picking the tests' });
@@ -181,6 +182,7 @@ async function respondRun(input: RespondInput) {
       `echo "{\\"ok\\":$OK,\\"sha\\":\\"$(git rev-parse --short HEAD)\\"}" > "$JOB/result.json"`,
     ].join('\n'));
     pushed = Boolean(out?.ok);
+    pushedSha = pushed ? String(out.sha || '') : '';
     gateLine = `${gateLine}${pushed ? ` · pushed as ${out.sha}` : ' · ⚠️ the push failed — nothing reached the branch'}`;
   }
   await show('Reply', gateLine ? { gate: gateLine } : {});
@@ -193,7 +195,21 @@ async function respondRun(input: RespondInput) {
   // Red and pushed: it stays a draft, so it cannot be merged as it is.
   const stays = drafted && pushed && !green;
   await release(!stays);
-  await show(null, { outcome: !change || (change.changed && !pushed) ? 'failed' : change.changed ? 'changed' : 'answered', held: stays });
+  const outcome = !change || (change.changed && !pushed) ? 'failed' as const : change.changed ? 'changed' as const : 'answered' as const;
+  // The person is watching this card: once Vercel has built the commit just pushed, its preview goes at the
+  // top of it. Nothing runs meanwhile — the sandbox is gone and the pull request is already handed back.
+  if (outcome === 'changed' && pushedSha) {
+    await show('Preview', { held: stays });
+    let preview = await previewForPr(pr.number);
+    for (let i = 0; i < 40 && (preview.state === 'pending' || preview.state === 'none' || (preview.state === 'ready' && !String(preview.sha || '').startsWith(pushedSha))); i++) {
+      await sleep('10s');
+      preview = await previewForPr(pr.number);
+    }
+    const mine = preview.state === 'ready' && String(preview.sha || '').startsWith(pushedSha);
+    await show(null, { outcome, held: stays, preview: mine ? { url: preview.url!, sha: pushedSha } : preview.state === 'skipped' ? 'none' : 'late' });
+  } else {
+    await show(null, { outcome, held: stays });
+  }
   await setAttributes({ outcome: change?.changed ? 'changed' : 'answered', spend_usd: k.spend.total.toFixed(2), models: models.summary().slice(0, 250), est_usd: models.totals().est.toFixed(2) });
   return { outcome: change?.changed ? 'changed' : 'answered', gate: gateLine, spend: k.spend.total };
   }
