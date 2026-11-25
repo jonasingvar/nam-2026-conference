@@ -25,6 +25,10 @@ export function ConferenceProvider({ children }) {
   const [followingIds, setFollowingIds] = useState(() => new Set());
   // sessionId -> 'confirmed' | 'waitlisted'
   const [reservations, setReservations] = useState(() => new Map());
+  // Whether that map has been filled for the current attendee. An empty map
+  // means "nothing held" *and* "not loaded yet", and a view that shows your own
+  // seats must tell those apart or it flashes an empty day on the way in.
+  const [reservationsReady, setReservationsReady] = useState(false);
   // sessionId -> live seat counts, so a reservation updates every view at once
   const [seatCounts, setSeatCounts] = useState(() => new Map());
   // an overlapping booking the attendee has to resolve
@@ -42,13 +46,16 @@ export function ConferenceProvider({ children }) {
     // Never let one attendee act on the previous attendee's state.
     setFollowingIds(new Set());
     setReservations(new Map());
+    setReservationsReady(false);
     api.getUser(currentUserId)
       .then((u) => {
         if (!active) return;
         setFollowingIds(new Set(u.followedSpeakers.map((s) => s.id)));
         setReservations(new Map((u.reservations ?? []).map((r) => [r.sessionId, r.status])));
+        setReservationsReady(true);
       })
-      .catch(() => {});
+      // A failed load still ends the wait, or a skeleton waits forever.
+      .catch(() => { if (active) setReservationsReady(true); });
     return () => { active = false; };
   }, [currentUserId]);
 
@@ -183,6 +190,7 @@ export function ConferenceProvider({ children }) {
       isFollowing: (id) => followingIds.has(id),
       toggleFollow,
       reservations,
+      reservationsReady,
       reservationFor: (id) => reservations.get(id) ?? null,
       seatCounts,
       seatsFor: (id) => seatCounts.get(id) ?? null,
@@ -197,7 +205,7 @@ export function ConferenceProvider({ children }) {
       roomById: Object.fromEntries((data?.rooms ?? []).map((r) => [r.id, r])),
     };
   }, [data, error, clock, currentUserId, followingIds, toggleFollow,
-      reservations, seatCounts, reserveSeat, releaseSeat, toggleSeat,
+      reservations, reservationsReady, seatCounts, reserveSeat, releaseSeat, toggleSeat,
       conflict, resolveConflict]);
 
   return <ConferenceContext.Provider value={value}>{children}</ConferenceContext.Provider>;

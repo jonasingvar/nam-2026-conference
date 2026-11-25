@@ -193,8 +193,8 @@ export function Spinner({ className }) {
   );
 }
 
-export function Skeleton({ className }) {
-  return <div className={cx('animate-pulse rounded-lg bg-surface', className)} />;
+export function Skeleton({ className, ...rest }) {
+  return <div className={cx('animate-pulse rounded-lg bg-surface', className)} {...rest} />;
 }
 
 export function EmptyState({ icon = 'search', title, description, action }) {

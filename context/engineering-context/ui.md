@@ -1,6 +1,6 @@
 ---
 area: ui
-summary: The shared look and chrome — design tokens, primitives in ui.jsx, icons, accents, toasts, generated art, motion utilities, the header/nav/footer, the attendee switcher, the static home page and the not-found page.
+summary: The shared look and chrome — design tokens, primitives in ui.jsx, icons, accents, toasts, generated art, motion utilities, the header/nav/footer, the attendee switcher, the home page and the not-found page.
 read_when: adding a component or page, styling anything, touching the home page, the nav or footer, the attendee switcher, icons, toasts, generated avatars or covers, animation, formatting times/dates/plurals
 files:
   - src/index.css
@@ -152,20 +152,36 @@ sticky `glass` header, `<main id="main">`, and the footer.
   `/speakers/<currentUser.speakerId>`, which marks itself "This is you"
   (speakers doc). `tests/switcher.spec.js` covers the switcher and that link.
 
-**`HomePage`** (`/`) — static: nothing on it is about the signed-in attendee or
-what is live. It stacks `HeroBar` (`hero`: name, `conference.dates · city`, a
-`Day n · time` chip from `clock`, and `Browse today` → `/schedule?day=<clock.day>`
-plus `Speakers` buttons) → `QuickLinks` (`quick-links`, a `nav` of the `LINKS`
-array: Schedule, Speakers, Venues, Food & drink, Expo) → `LatestAnnouncement`
-(`announcements`: the single newest posted one, pinned first, filtered by
-`postedAt <= clock`, so nothing appears before it was written) →
-`SponsorMarquee` (venues doc). Sections that return `null` would leave their
-`<Reveal>` wrapper as a gap, so the container has `[&>:empty]:hidden`.
-`tests/home.spec.js` asserts the five links, the announcement cut-off, and that
-none of `today-panel`, `live-now`, `speaking-strip`, `followed-sessions`, `next-up`
-is on the page — no component renders those ids; a ticket that puts a personal or
-live section on Home updates that test. A new home section is a component that
-returns `null` when empty, wrapped in `<Reveal>`.
+**`HomePage`** (`/`) — a way in, and one thing about the person reading it. It
+stacks `HeroBar` (`hero`: name, `conference.dates · city`, a `Day n · time` chip
+from `clock`, and `Browse today` → `/schedule?day=<clock.day>` plus `Speakers`
+buttons) → `TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
+(`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers, Venues,
+Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single newest
+posted one, pinned first, filtered by `postedAt <= clock`, so nothing appears
+before it was written) → `SponsorMarquee` (venues doc).
+
+**`TodaySeats`** lists every session the attendee holds a **confirmed** seat for
+on `clock.day` (`data-testid="today-seat"`, earliest first): each is a large
+card (`min-h-[10rem]`) with the speaker portraits linking to `/speakers/:id`, the
+title linking to the session, the speaker names, and the room and venue — and a
+`Remove` (`remove-today-seat`) that gives the seat back. It is the only action
+here: there is no way to reserve from Home. It reads `api.getSchedule` through
+`src/lib/agenda.js:todaysSeats` and filters on `reservationFor`, so a removed
+card leaves at once (agenda doc). The schedule and the store's
+`reservationsReady` arrive after the shell and at different times, so the section
+holds a card's height (`today-seat-skeleton`, `h-[10rem]`) until both are in and
+then swaps the list in where the skeleton was — the one section deliberately
+*not* wrapped in `<Reveal>`, and the reason it is a `Skeleton` rather than
+nothing. A day with no seat shows `today-seats-empty`, not `null`.
+
+Sections that return `null` would leave their `<Reveal>` wrapper as a gap, so the
+container has `[&>:empty]:hidden`. `tests/home.spec.js` asserts the five links,
+the announcement cut-off, and that none of `live-now`, `speaking-strip`,
+`followed-sessions`, `next-up` is on the page — no component renders those ids; a
+ticket that puts another personal or live section on Home updates that test (and
+this paragraph). A new *deferred* home section is a component that returns `null`
+when empty, wrapped in `<Reveal>`.
 
 **`RouteChange`** — on `pathname` change only (not search), scrolls to top and
 focuses `#main`. **`NotFoundPage`** — the `*` route; its heading "Nothing

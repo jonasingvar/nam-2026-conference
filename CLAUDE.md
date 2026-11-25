@@ -6,15 +6,18 @@ engineering harness implement them. **Read this file before writing code here.**
 
 ## Deliberately unbuilt
 
-The personal side of the app is left for workshop teams to build, so it is
-blank on purpose — build it when a ticket asks, never as a side effect of
+Most of the personal side of the app is left for workshop teams to build, so it
+is blank on purpose — build it when a ticket asks, never as a side effect of
 another change:
 
 - **My Agenda** (`/my-agenda`) is a *coming soon* placeholder.
-- **Home** is static: a hero, links into the app, the latest announcement and
-  the sponsors. Nothing on it is about the signed-in attendee.
+- **Home** opens with **Your day** — the sessions you hold a confirmed seat for
+  today, each with a Remove — and is otherwise a way in: a hero, links into the
+  app, the latest announcement and the sponsors. Nothing else on it is about the
+  signed-in attendee.
 - **Following** works on the speaker pages, but nothing shows what you follow
-  outside them — that, like your seats, is for My Agenda or Home to use.
+  outside them — that, and what *else* you could do with your seats, is for My
+  Agenda or Home to use.
 
 Everything underneath is real and tested: seats, the waitlist, clashes,
 check-in, ratings, follows, `/users/:id/schedule`, `/users/:id/today`, `/live`

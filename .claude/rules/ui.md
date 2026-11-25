@@ -68,18 +68,26 @@ lat/lng are real. There was once a per-venue "floor plan" built from invented
 removed. Do not bring it back — `VenueBoard` shows what is actually happening
 in each room instead.
 
-## Home and My Agenda are blank on purpose
+## The personal side is blank on purpose
 
-`/` is a way in — hero, links, the latest announcement, sponsors — and
-`/my-agenda` is a *coming soon* placeholder. Personal views are what workshop
-teams build; build one when a ticket asks for it. When you do:
+`/` is a way in — hero, **Your day** (`today-seats`: the seats your own agenda
+holds today, and the only action there is giving one back), links, the latest
+announcement, sponsors — and `/my-agenda` is a *coming soon* placeholder. The
+rest of the personal side is what workshop teams build; build it when a ticket
+asks for it. When you do:
 
 - **Rank suggestions on behaviour, not declaration.** `interests` is what
   someone ticked at registration; the topic tags on what they have actually
   booked are what they want. `/users/:id/today` already ranks that way.
 - **Drive everything from `clock.day`**, never `days[0]` — otherwise on day 3
   the page presents day 1 as if it were happening.
-- Sections **self-hide when empty** — follow `LatestAnnouncement`.
+- Sections **self-hide when empty** — follow `LatestAnnouncement`. The exception
+  is one whose *absence* is the message (`TodaySeats` says "nothing booked"
+  rather than vanishing).
+- A section that needs data the shell does not have **reserves its height** while
+  it waits (a `Skeleton` the size of its content), and reads the store's
+  `ready`/`reservationsReady` so it never flashes the empty state first — see
+  `TodaySeats`; that is the flicker #51 was about.
 - Home is not a brochure: an attendee bought a ticket, so the dates and track
   list tell them nothing new. A section there has to answer "why here and not on
   the page that owns it?" (how: `context/engineering-context/agenda.md`)

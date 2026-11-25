@@ -107,8 +107,10 @@ the routes. `/product-presentation` and `/engineering-presentation` sit outside 
 `levels`, `cuisines`) and adds: `ready`, `error`, `clock` (from `useConferenceClock(days)`),
 `currentUser`, `currentUserId`, `setCurrentUserId`; follows — `followingIds`,
 `isFollowing(id)`, `toggleFollow(id)`; seats — `reservations` (Map sessionId →
-`'confirmed'|'waitlisted'`), `reservationFor(id)`, `onAgenda(id)`, `seatCounts`,
-`seatsFor(id)`, `reserveSeat`, `releaseSeat`, `toggleSeat`, `conflict`,
+`'confirmed'|'waitlisted'`), `reservationFor(id)`, `onAgenda(id)`, `reservationsReady`
+(false until that Map has been loaded for the current attendee — an empty Map means
+"nothing held" *and* "not loaded yet", so a view of your own seats needs both),
+`seatCounts`, `seatsFor(id)`, `reserveSeat`, `releaseSeat`, `toggleSeat`, `conflict`,
 `resolveConflict(swap)`; lookups — `trackBySlug`, `venueById`, `roomById`.
 Changing `currentUserId` writes `orbit:currentUserId`, clears follows/reservations, then
 reloads them from `GET /users/:id`. `seatCounts` holds live counts from seat responses so
