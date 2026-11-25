@@ -22,7 +22,7 @@ today: a hero (`agenda-hero`: Day N · clock time, weekday, conference dates and
 **Your day** (`agenda-day`) — one large card per **confirmed** seat on `clock.day`, in time order
 (`agenda-session-<id>`). It fetches `api.getSchedule` once, takes `clock.day`'s entry and
 filters through the store's `reservationFor(id) === 'confirmed'`, so Remove
-(`agenda-remove-<id>` → `toggleSeat` → release + Undo toast) drops the card at once.
+(`agenda-remove-<id>` → `toggleSeat` → release + Undo toast) drops the card at once; on a finished session (no Undo possible) it first shows an inline confirm (`agenda-remove-confirm-<id>` / `agenda-remove-cancel-<id>`). The whole card is a stretched link to the session.
 Each card: an accent line down the left in the **track** colour (`agenda-line-<id>`,
 `animate-line-grow`, `scaleY` from the top, staggered by `--i`), 96px speaker portraits linking
 to `/speakers/<id>` (`agenda-speaker-<id>`), `time · TRACK · Finished|Live|Upcoming`, title (links

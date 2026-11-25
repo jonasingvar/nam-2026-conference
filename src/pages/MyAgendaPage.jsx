@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useConference, useFetch } from '../lib/store.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
@@ -45,6 +46,9 @@ function AgendaCard({ session, index }) {
   const a = accent(session.track.color);
   const speakers = session.speakers ?? [];
   const lead = speakers[0];
+  // A finished session cannot be re-booked, so there is no Undo: ask first.
+  const final = hasEnded(session, clock);
+  const [confirming, setConfirming] = useState(false);
   return (
     <article
       data-testid={`agenda-session-${session.id}`}
@@ -60,7 +64,7 @@ function AgendaCard({ session, index }) {
         <div className="flex shrink-0 flex-col gap-2">
           {speakers.map((sp) => (
             <Link key={sp.id} to={`/speakers/${sp.id}`} aria-label={sp.name} data-testid={`agenda-speaker-${sp.id}`}
-              className="agenda-portrait block rounded-full">
+              className="agenda-portrait relative z-10 block rounded-full">
               <Avatar name={sp.name} initials={sp.initials} accent={sp.accent} imageUrl={sp.imageUrl} size="xl" />
             </Link>
           ))}
@@ -74,7 +78,7 @@ function AgendaCard({ session, index }) {
             {statusOf(session, clock)}
           </p>
           <h3 className="mt-1.5 font-display text-xl font-semibold leading-snug">
-            <Link to={`/sessions/${session.id}`} className="hover:text-violet-200 focus-visible:underline">
+            <Link to={`/sessions/${session.id}`} className="after:absolute after:inset-0 after:content-[''] hover:text-violet-200 focus-visible:underline">
               {session.title}
             </Link>
           </h3>
@@ -86,14 +90,37 @@ function AgendaCard({ session, index }) {
           )}
           <div className="mt-auto flex items-end justify-between gap-3 pt-6">
             <p className="text-xs text-muted">{session.room.name} · {session.venue.shortName}</p>
-            <button
-              type="button"
-              data-testid={`agenda-remove-${session.id}`}
-              onClick={() => toggleSeat(session.id, session)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/20"
-            >
-              <Icon name="close" className="size-3" /> Remove
-            </button>
+            {confirming ? (
+              <div className="relative z-10 flex items-center gap-2" role="group" aria-label="Confirm removal">
+                <span className="text-xs text-muted">Give up this seat?</span>
+                <button
+                  type="button"
+                  autoFocus
+                  data-testid={`agenda-remove-confirm-${session.id}`}
+                  onClick={() => toggleSeat(session.id, session)}
+                  className="rounded-lg border border-rose-500/50 bg-rose-500/25 px-3 py-1.5 text-xs font-semibold text-rose-200 transition-colors hover:bg-rose-500/40"
+                >
+                  Yes, remove
+                </button>
+                <button
+                  type="button"
+                  data-testid={`agenda-remove-cancel-${session.id}`}
+                  onClick={() => setConfirming(false)}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-white"
+                >
+                  Keep
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid={`agenda-remove-${session.id}`}
+                onClick={() => (final ? setConfirming(true) : toggleSeat(session.id, session))}
+                className="relative z-10 inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/20"
+              >
+                <Icon name="close" className="size-3" /> Remove
+              </button>
+            )}
           </div>
         </div>
       </div>
