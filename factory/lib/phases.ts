@@ -7,7 +7,7 @@ import { changesOf, pullOfCommit } from './github-steps';
 import type { Price } from './models';
 import {
   classify as classifyFiles, decideSelection, escapesFrom, readAnswer, selectorPrompt, SELECTOR_SCHEMA,
-  type Classified, type Escape, type Facts, type GateRecord, type SelectOptions, type SelectorAnswer,
+  type Classified, type Escape, type Facts, type GateRecord, type SelectOptions, type SelectorAnswer, SMOKE,
 } from './select';
 import { jevPicksTests, pickSpecs, type JevPick } from './test-pick';
 
@@ -278,7 +278,9 @@ export async function chooseTests(o: {
       bySpec.set(t.spec, titles);
     }
     const seen = new Set([...Object.keys(f.map?.desktop ?? {}), ...Object.keys(f.map?.mobile ?? {})]);
-    const verticals = [...bySpec].map(([spec, titles]) => ({ spec, titles, ranChanged: seen.has(spec) }));
+    // The smoke spec is not a vertical: it opens every page, so Jev always finds it plausible (67% on a
+    // home-page fix, which added 18 tests to the 13 that mattered). It is the fallback, never a pick.
+    const verticals = [...bySpec].filter(([spec]) => spec !== SMOKE).map(([spec, titles]) => ({ spec, titles, ranChanged: seen.has(spec) }));
     const jev = await jevPicksTests({ about: o.about || '', files: o.classified.files, diff: o.diff, verticals });
     const own = f.changed.filter((x) => bySpec.has(x));
     const picked = pickSpecs(jev, own);
