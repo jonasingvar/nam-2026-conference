@@ -159,30 +159,29 @@ buttons) → `TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
 (`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers, Venues,
 Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single newest
 posted one, pinned first, filtered by `postedAt <= clock`, so nothing appears
-before it was written) → `SponsorMarquee` (venues doc). `HomePage` — not
-`TodaySeats` — owns the day's `useFetch`, the `waiting` flag and the `seats`
-list, because everything from `QuickLinks` down is held back until that settles
-and then plays in; a new section below the day goes inside that gate (`TodaySeats`
-is handed `waiting`/`seats` as props).
+before it was written) → `SponsorMarquee` (venues doc). Every way out of the page
+enters a beat behind the last (`stagger`).
 
 **`TodaySeats`** lists every session the attendee holds a **confirmed** seat for
 on `clock.day` (`data-testid="today-seat"`, earliest first): each is a large
-card (`min-h-[10rem]`) with the speaker portraits linking to `/speakers/:id`, the
-title linking to the session, the speaker names, and the room and venue — and a
+card (a fixed `h-[14rem]`, in one horizontally scrolling row so the section is
+one height whatever the count) with the speaker portraits linking to
+`/speakers/:id`, the title linking to the session, the speaker names, and the
+room and venue — and a
 `Remove` (`remove-today-seat`) that gives the seat back. It is the only action
 here: there is no way to reserve from Home. It reads `api.getSchedule` through
 `src/lib/agenda.js:todaysSeats` and filters on `reservationFor`, so a removed
 card leaves at once (agenda doc). The schedule and the store's
 `reservationsReady` arrive after the shell and at different times, so the section
-holds a card's height (`today-seat-skeleton`, `h-[10rem]`) until both are in and
+holds that row's height (`today-seat-skeleton`, `h-[14rem]`) until both are in and
 then swaps the list in where the skeleton was — the one section deliberately
 *not* wrapped in `<Reveal>`, and the reason it is a `Skeleton` rather than
 nothing. A day with no seat shows `today-seats-empty`, not `null`.
 
-Cards and tiles enter with `stagger` (each child `--i`, capped at 12), and the
-rest of the page waits for the day so nothing is bumped down by it: a three-card
-day is taller than the one-card skeleton, so tiles rendered under it arrived
-first and were shoved as the seats landed.
+The fixed row is what keeps the tiles below from moving: the day's card count
+cannot change the section's height, so a day with one seat and a day with four
+hold the tiles in the same place. Cards and tiles enter with `stagger` (each
+child `--i`, capped at 12).
 
 Sections that return `null` would leave their `<Reveal>` wrapper as a gap, so the
 container has `[&>:empty]:hidden`. `tests/home.spec.js` asserts the five links,

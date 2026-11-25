@@ -180,7 +180,9 @@ verify's sandbox keeps no credential) reads the diff, the candidates, every
 spec and recent escapes, and adds what a map cannot see (CSS, seed data,
 helpers, config, routes) or drops a candidate with a reason, with a
 confidence. Below 0.7, no map, a map more than 40 app commits behind, or a
-changed file the map has never seen: widen to the branch scope
+changed file the map has never seen (a new file that a changed, mapped
+file imports does not count: it runs only where its importer does, so the
+importer's tests stand for it — `carriedBy`): widen to the branch scope
 (`affectedSpecs || fastFallback`) and the map's candidate specs, whole — or
 everything where that cannot be told. Every selection is broken down by what
 brought each test in (`map`, `smoke`, `own`, `added`, `floor`, `widened`).
