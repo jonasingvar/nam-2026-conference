@@ -77,7 +77,9 @@ export function respondCard(v: RespondView): string {
     v.time ? `**Time:** ${v.time}` : '',
     v.table ? `\n<details><summary>Models — which job ran on what, and what it cost</summary>\n\n${v.table}\n\n<sub>Picked by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough.</sub>\n</details>` : '',
     '',
-    `<sub>[run](${v.runUrl})${v.outcome || v.phase === 'Preview' ? ' · the reply is the next comment' : ''}</sub>`,
+    v.outcome ? '' : `👀 **[Watch the agent work, live](${v.runUrl}?tab=streams)** — each thing it says and every command it runs.`,
+    '',
+    `<sub>[run](${v.runUrl}) · [stream](${v.runUrl}?tab=streams)${v.outcome || v.phase === 'Preview' ? ' · the reply is the next comment' : ''}</sub>`,
     RESPOND_MARK,
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
 }

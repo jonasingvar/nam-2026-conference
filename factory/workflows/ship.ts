@@ -135,7 +135,7 @@ async function shipRun(input: ShipInput) {
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
     // An HTML link: GitHub does not render markdown links inside a <sub> line.
-    `<sub>Durable run <a href="${runUrl}">${workflowRunId}</a> · resumes from its last finished step if anything dies</sub>`,
+    `<sub>Durable run <a href="${runUrl}">${workflowRunId}</a> · <a href="${runUrl}?tab=streams">watch the agents work, live</a> · resumes from its last finished step if anything dies</sub>`,
     '<!-- ship-on-vercel -->',
   ].filter((l) => l !== '').join('\n');
 

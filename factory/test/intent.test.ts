@@ -44,6 +44,7 @@ test('the respond card says how the comment was read, on what model, and where t
   assert.match(card, /\*\*Asked by:\*\* sam on #51/);
   assert.match(card, /\*\*Read as:\*\* a change to make — Jev, 91% sure/);
   assert.match(card, /\*\*Model:\*\* `deepseek-v4\.1-flash` \(standard, Jev 68%/);
+  assert.match(card, /Watch the agent work, live\]\(https:\/\/x\/run\?tab=streams\)/);
   assert.ok(card.includes(RESPOND_MARK) && card.includes('<!-- factory'), 'marked as the factory\'s own, and countable');
 });
 
