@@ -159,7 +159,11 @@ buttons) → `TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
 (`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers, Venues,
 Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single newest
 posted one, pinned first, filtered by `postedAt <= clock`, so nothing appears
-before it was written) → `SponsorMarquee` (venues doc).
+before it was written) → `SponsorMarquee` (venues doc). `HomePage` — not
+`TodaySeats` — owns the day's `useFetch`, the `waiting` flag and the `seats`
+list, because everything from `QuickLinks` down is held back until that settles
+and then plays in; a new section below the day goes inside that gate (`TodaySeats`
+is handed `waiting`/`seats` as props).
 
 **`TodaySeats`** lists every session the attendee holds a **confirmed** seat for
 on `clock.day` (`data-testid="today-seat"`, earliest first): each is a large
@@ -174,6 +178,11 @@ holds a card's height (`today-seat-skeleton`, `h-[10rem]`) until both are in and
 then swaps the list in where the skeleton was — the one section deliberately
 *not* wrapped in `<Reveal>`, and the reason it is a `Skeleton` rather than
 nothing. A day with no seat shows `today-seats-empty`, not `null`.
+
+Cards and tiles enter with `stagger` (each child `--i`, capped at 12), and the
+rest of the page waits for the day so nothing is bumped down by it: a three-card
+day is taller than the one-card skeleton, so tiles rendered under it arrived
+first and were shoved as the seats landed.
 
 Sections that return `null` would leave their `<Reveal>` wrapper as a gap, so the
 container has `[&>:empty]:hidden`. `tests/home.spec.js` asserts the five links,

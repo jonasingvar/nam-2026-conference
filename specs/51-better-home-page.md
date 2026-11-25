@@ -1,7 +1,7 @@
 # Better home page: today's reserved sessions
 
 ## What this changes
-Home is static today. It will open with a "Your day" section listing every session the signed-in attendee holds a **confirmed** seat for on the current conference day (`clock.day`), earliest first. Each entry is a large card: the speaker portrait(s) linking to `/speakers/:id`, title, time, room and venue, and a Remove button that gives the seat back. Nothing else can be done from it. The section reserves its height until its data is ready, so nothing pops in or shifts.
+Home is static today. It will open with a "Your day" section listing every session the signed-in attendee holds a **confirmed** seat for on the current conference day (`clock.day`), earliest first. Each entry is a large card: the speaker portrait(s) linking to `/speakers/:id`, title, time, room and venue, and a Remove button that gives the seat back. Nothing else can be done from it. The section reserves its height until its data is ready, and the rest of the page waits for it, so nothing pops in or shifts (follow-up below).
 
 ## Where
 - `src/lib/agenda.js` (new, tiny) — pure `todaysSeats(days, day, reservationFor)`: picks the day's sessions from `getSchedule` output, keeps those whose store reservation is `'confirmed'`, sorts by `startsAt`; test in `tests/unit/agenda.test.js` (plain node:test like `tests/unit/format.test.js`).
@@ -29,3 +29,29 @@ Home is static today. It will open with a "Your day" section listing every sessi
 
 ## Out of scope
 Reserving, check-in, rating, swapping or any other action from Home; My Agenda; other days.
+
+## Follow-up: the tiles no longer arrive first and get shoved
+
+Review found the flicker the original "No flicker on load" check missed. The
+skeleton holds **one** card, but the section is as tall as the day is long, so
+on a day with three seats the page grew by two cards while the attendee watched:
+`QuickLinks` was static, so the tiles were on screen instantly and then bumped
+down the page as the schedule and the reservations landed. Reserving a height
+the section cannot know in advance was the wrong fix; holding the page back is
+the right one.
+
+- `src/pages/HomePage.jsx` — the day's `useFetch`, the `waiting` flag
+  (`!ready || !reservationsReady || loading`) and the `seats` list move from
+  `TodaySeats` up into `HomePage`, which hands them down as props. Everything
+  from `QuickLinks` down renders only once `waiting` is false, so nothing that
+  is already on screen can move; `TodaySeats` keeps its skeleton and its place.
+  It does delay `LatestAnnouncement`'s and `SponsorMarquee`'s own fetches to
+  that moment — both are below the fold, and the trade is deliberate.
+- The tiles and the day's cards enter with the existing `stagger` utility
+  (children `--i`, capped at 12), so the page reads in a beat rather than
+  snapping. No new keyframes, and the reduced-motion block already neutralises
+  `stagger`, so nothing ends up hidden.
+- `tests/home.spec.js` — `the tiles wait for your day, then play in behind it`:
+  with the attendee's reservations held back, `quick-links` is absent
+  altogether; released, it is there, and both its tiles and the day's cards
+  carry distinct animation delays. The original section test is untouched.

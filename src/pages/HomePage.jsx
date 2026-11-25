@@ -69,23 +69,15 @@ function HeroBar({ conference }) {
  * paint and swaps the list in where the skeleton was; a section that is absent
  * until its data lands — or that says "nothing booked" and then grows cards —
  * shoves the page around, which is the flicker this avoids. For the same reason
- * it is not wrapped in `<Reveal>`, which would animate the swap.
+ * it is not wrapped in `<Reveal>`, which would animate the swap. The cards
+ * themselves rise in, one behind the next.
+ *
+ * `waiting` and `seats` come from `HomePage`, which also holds everything below
+ * this section back until they settle: a day with three seats is three cards
+ * tall, and rendering the tiles underneath before that is known would bump them
+ * down the page as the seats land.
  */
-function TodaySeats() {
-  const { clock, days, ready, reservationsReady, currentUser, reservationFor,
-    releaseSeat, roomById, venueById } = useConference();
-  const { data, loading } = useFetch(
-    () => (currentUser ? api.getSchedule(currentUser.id) : null),
-    [currentUser?.id],
-  );
-
-  // Not until the store has both: an empty store means "nothing held" *and*
-  // "not loaded yet", and the section must not claim the day is empty while the
-  // attendee's own seats are still in flight.
-  const waiting = !ready || !reservationsReady || loading;
-  const seats = waiting ? [] : todaysSeats(data?.days, clock.day, reservationFor);
-  const today = days.find((d) => d.date === clock.day);
-
+function TodaySeats({ waiting, seats, clock, today, roomById, venueById, onRemove }) {
   return (
     <section data-testid="today-seats" aria-labelledby="today-seats-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -102,9 +94,9 @@ function TodaySeats() {
           Nothing booked for today.
         </p>
       ) : (
-        <ul className="mt-4 space-y-3">
-          {seats.map((s) => (
-            <TodaySeat key={s.id} session={s} clock={clock} onRemove={() => releaseSeat(s.id, s)}
+        <ul className="stagger mt-4 space-y-3">
+          {seats.map((s, i) => (
+            <TodaySeat key={s.id} index={i} session={s} clock={clock} onRemove={() => onRemove(s)}
               room={roomById[s.room.id]} venue={venueById[s.venue.id]} />
           ))}
         </ul>
@@ -118,11 +110,11 @@ function TodaySeats() {
  * The portrait is the way to the speaker, as the ticket asks; the title opens
  * the session itself.
  */
-function TodaySeat({ session: s, clock, room, venue, onRemove }) {
+function TodaySeat({ session: s, index, clock, room, venue, onRemove }) {
   const speakers = s.speakers ?? [];
 
   return (
-    <li data-testid="today-seat" data-session-id={s.id}
+    <li data-testid="today-seat" data-session-id={s.id} style={{ '--i': Math.min(index, 12) }}
       className="flex min-h-[10rem] gap-4 rounded-2xl border border-hairline bg-surface p-4">
       <div className="flex shrink-0 flex-col gap-2">
         {speakers.map((sp) => (
@@ -173,9 +165,9 @@ const LINKS = [
 function QuickLinks() {
   return (
     <nav aria-label="Explore the conference" data-testid="quick-links">
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {LINKS.map((l) => (
-          <li key={l.to}>
+      <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {LINKS.map((l, i) => (
+          <li key={l.to} style={{ '--i': i }}>
             <Link to={l.to}
               className="group flex items-start gap-3 rounded-xl border border-hairline bg-surface p-4 transition-colors hover:border-white/20 hover:bg-raised">
               <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
@@ -235,18 +227,43 @@ function LatestAnnouncement() {
 }
 
 export function HomePage() {
-  const { conference } = useConference();
+  const { conference, clock, days, ready, reservationsReady, currentUser, reservationFor,
+    releaseSeat, roomById, venueById } = useConference();
   useDocumentTitle("ORBIT '26");
+
+  // Your day is Home's reason for existing, so the page waits on it: the
+  // schedule and the attendee's own reservations both land after the shell,
+  // and rendering the tiles under a one-card skeleton while a three-card day is
+  // still in flight is what bumped them down the page as it arrived.
+  const { data, loading } = useFetch(
+    () => (currentUser ? api.getSchedule(currentUser.id) : null),
+    [currentUser?.id],
+  );
+  // Not until the store has both: an empty store means "nothing held" *and*
+  // "not loaded yet", and the section must not claim the day is empty while the
+  // attendee's own seats are still in flight.
+  const waiting = !ready || !reservationsReady || loading;
+  const seats = waiting ? [] : todaysSeats(data?.days, clock.day, reservationFor);
+  const today = days.find((d) => d.date === clock.day);
 
   return (
     // Sections hide themselves when empty; hide their Reveal wrapper too, or
     // each one leaves a blank gap in the stack.
     <div className="space-y-8 [&>:empty]:hidden">
       <HeroBar conference={conference} />
-      <TodaySeats />
-      <QuickLinks />
-      <Reveal><LatestAnnouncement /></Reveal>
-      <SponsorMarquee />
+      <TodaySeats waiting={waiting} seats={seats} clock={clock} today={today}
+        roomById={roomById} venueById={venueById} onRemove={(s) => releaseSeat(s.id, s)} />
+      {/* Everything below the day is a way out of the page, not the point of
+          it, so it arrives once the day has settled — and then it plays in,
+          each tile a beat behind the last, rather than being there to be
+          shoved down. */}
+      {!waiting && (
+        <>
+          <QuickLinks />
+          <Reveal><LatestAnnouncement /></Reveal>
+          <SponsorMarquee />
+        </>
+      )}
     </div>
   );
 }

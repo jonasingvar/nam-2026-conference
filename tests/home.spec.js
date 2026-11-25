@@ -148,6 +148,39 @@ test.describe('Your day on Home', () => {
     }
   });
 
+  test('the tiles wait for your day, then play in behind it', async ({ page }) => {
+    // Hold the attendee's own reservations back, so the moment before their day
+    // lands can be looked at.
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route(`**/api/users/${ATTENDEES.kenji}`, async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    await visit(page, '/', { as: ATTENDEES.kenji, at: await momentOn(1, '10:30') });
+
+    // The way-in tiles are not parked there to be shoved down the page as the
+    // seats arrive: they are not on the page until your day is known.
+    await expect(page.getByTestId('today-seat-skeleton')).toBeVisible();
+    await expect(page.getByTestId('quick-links')).toHaveCount(0);
+
+    release();
+
+    const links = page.getByTestId('quick-links');
+    await expect(links).toBeVisible();
+    await expect(links.getByRole('link')).toHaveCount(5);
+
+    // Then both the tiles and the day's cards enter in a stagger, each a beat
+    // after the one before it — not all at once.
+    for (const [items, what] of [[links.locator('li'), 'tiles'], [page.getByTestId('today-seat'), 'cards']]) {
+      await expect(items.first()).toHaveCSS('animation-name', 'rise-in');
+      const delays = await items.evaluateAll((els) =>
+        els.map((e) => getComputedStyle(e).animationDelay));
+      expect(new Set(delays).size, `${what} enter one after another`).toBeGreaterThan(1);
+    }
+  });
+
   test('the section reserves its space and swaps in place, so nothing pops in', async ({ page }) => {
     // Hold the attendee's own reservations back, so the section is seen in both
     // of its states: waiting, then holding their seats.
