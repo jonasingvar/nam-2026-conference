@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { captureScript, choosePages, routesFrom, shotsComment } from '../lib/shots';
+import { captureScript, choosePages, routesFrom, shotsComment, withPreview } from '../lib/shots';
+import { classify } from '../lib/select';
 
 const app = readFileSync(new URL('../../src/App.jsx', import.meta.url), 'utf8');
 
@@ -74,4 +75,24 @@ test('with no base deployment, one larger this-PR column; later pages fold away'
   assert.equal(body.match(/<details>/g)?.length, 1);
   assert.match(body, /<details><summary><a href="[^"]*\/schedule"><code>\/schedule<\/code><\/a>[\s\S]*<\/details>/);
   assert.doesNotMatch(body, /#### \[`\/schedule`\]/); // the summary is its title: no second heading
+});
+
+test('"try it" is pinned once at the top, and replaced on the next push', () => {
+  const first = withPreview('What this does.', 'https://a.vercel.app', 'abcdef1234567');
+  assert.match(first, /^<!-- factory-preview -->\n> \[!TIP\]\n> \*\*🔎 Try it:\*\* https:\/\/a\.vercel\.app — this pull request's Vercel preview, at abcdef1\./);
+  assert.ok(first.endsWith('What this does.'));
+  const second = withPreview(first, 'https://b.vercel.app', '1234567abcdef');
+  assert.equal(second.match(/factory-preview -->/g)!.length, 2); // one block: its opening and closing marks
+  assert.ok(!second.includes('a.vercel.app'));
+});
+
+test('with nothing to try, the tip comes off and the description is left as it was', () => {
+  const pinned = withPreview('What this does.', 'https://a.vercel.app', 'abcdef1');
+  assert.equal(withPreview(pinned, null), 'What this does.');
+  assert.equal(withPreview('Never pinned.', null), 'Never pinned.');
+});
+
+test('a factory-and-docs pull request is not an app change; one app file makes it one', () => {
+  assert.equal(classify(['factory/workflows/ship.ts', 'context/engineering-context/harness.md']).app, false);
+  assert.equal(classify(['factory/workflows/ship.ts', 'src/App.jsx']).app, true);
 });

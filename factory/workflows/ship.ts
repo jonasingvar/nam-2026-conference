@@ -9,7 +9,7 @@ import { routedAgent } from '../lib/kit';
 import { chooseModels, describe, modelBook, type Job, type ModelBook } from '../lib/models';
 import { disposeSandbox, prepareSandbox } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, readIssue, readPullRequest, setLabels, type Issue,
+  comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, pullRequestFiles, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { isTestGap } from '../lib/review-policy';
@@ -720,7 +720,13 @@ async function shipRun(input: ShipInput) {
     await sleep('20s');
     preview = await previewForPr(pr.number);
   }
-  if (preview.state === 'ready') { previewUrl = preview.url!; log(`preview ready: ${previewUrl}`); await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null); }
+  if (preview.state === 'ready') {
+    previewUrl = preview.url!;
+    log(`preview ready: ${previewUrl}`);
+    // "Try it" goes on the pull request only when the app changed: a factory or docs change builds the same app.
+    const files = await pullRequestFiles(pr.number).catch(() => null);
+    if (!files || files.length >= 300 || classifyFiles(files).app) await pinPreview(pr.number, previewUrl, preview.sha ?? '').catch(() => null);
+  }
   else if (preview.state === 'skipped') log('preview skipped — this change builds nothing of the app');
   else { status.Preview = 'failed'; log(`preview ${preview.state}${preview.url ? `: ${preview.url}` : ''}`); }
 
