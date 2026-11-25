@@ -252,6 +252,11 @@ phase: the phases, the profile and why, the branch and spec, each round, the
 spend by model against what was expected, a *Models* table (per job: the
 model, why, expected and actual cost, climbs), a log, and a link to the run in
 the Workflows tab. Review and QA put the same table in their verdict comments.
+The comment is a report, never the work: `progress` swallows a failure to
+update it, so GitHub refusing an edit cannot end a run — the next phase's
+update shows everything the missed one would have. `gh()` itself repeats a
+call GitHub answered 502–504 (three more tries, up to ten seconds apart),
+except a `POST`, which may have gone through; a step's own retries cover those.
 
 **Time.** `lib/timing.ts` times a ship run by its phases, three ways: *working*
 (wall-clock, every phase but the wait for a person's merge), *waiting for you*
