@@ -110,3 +110,8 @@ test('a preview link lands on the one page a change is about; several pages, a s
   assert.equal(atPath('https://p.vercel.app/', '/'), 'https://p.vercel.app/');
   assert.equal(atPath('https://p.vercel.app', null), 'https://p.vercel.app');
 });
+
+test('a pinned link that opens on a page says so; one that opens on the home page does not', () => {
+  assert.match(withPreview('x', 'https://a.vercel.app/my-agenda', 'abcdef1234567'), /Try it:\*\* https:\/\/a\.vercel\.app\/my-agenda — the page this pull request changes, on its Vercel preview, at abcdef1\./);
+  assert.match(withPreview('x', 'https://a.vercel.app/', 'abcdef1234567'), /— this pull request's Vercel preview/);
+});

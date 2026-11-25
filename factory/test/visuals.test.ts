@@ -7,6 +7,9 @@ const A = 'https://github.com/user-attachments/assets/41355025-e8c5-4f95-8dcf-35
 test('the images a person pasted are found in a ticket, a pull request or a comment — each once, GitHub\'s storage only', () => {
   const body = `Make it look like the image below.\n\n<img width="1329" height="933" alt="image" src="${A}" />\n\nand ![sketch](https://user-images.githubusercontent.com/1/abc-def.png) — see ${A}.`;
   assert.deepEqual(imageUrls(body, null, `again ![x](${A})`), [A, 'https://user-images.githubusercontent.com/1/abc-def.png']);
+  // The older, repository-scoped attachment link.
+  assert.deepEqual(imageUrls('![old](https://github.com/jonasingvar/nam-2026-conference/assets/1158594/41355025-e8c5-4f95-8dcf-35d56fe964a2)'),
+    ['https://github.com/jonasingvar/nam-2026-conference/assets/1158594/41355025-e8c5-4f95-8dcf-35d56fe964a2']);
   // Not an attachment: never fetched, whatever it calls itself.
   assert.deepEqual(imageUrls('![x](https://evil.example/a.png) http://169.254.169.254/latest https://github.com/o/r/blob/main/a.png'), []);
   assert.equal(imageUrls(Array.from({ length: 9 }, (_, i) => `https://github.com/user-attachments/assets/0000000${i}-aaaa`).join(' ')).length, MAX_REFERENCES);

@@ -798,6 +798,13 @@ async function shipRun(input: ShipInput) {
     await show();
     box = `ship-${n}-${workflowRunId.slice(-8).toLowerCase()}-r${round}`;
     await prepareSandbox(box, BASE, 'push');
+    // A new sandbox, forked from the warm one: the reference images are not in it until they are put there,
+    // and the fixer is told to open them first.
+    if (refUrls.length) {
+      const again = await stageReferences(box, refUrls);
+      refs = again.staged.map((x: { path: string }) => x.path);
+      if (again.failed.length) log(`reference images: could not fetch ${again.failed.join('; ')} for fix round ${round}`);
+    }
     const onBranch = await command(`branch#r${round}`, `git fetch -q --prune origin && git checkout -q -B "${branch}" "origin/${branch}" && echo '{"ok":true}' > "$JOB/result.json"`);
     if (!onBranch) { log('could not check the branch out again'); break; }
     const fixed = await agent(`fix#r${round}`,
