@@ -103,7 +103,7 @@ async function respondRun(input: RespondInput) {
     `${input.author} asked, on pull request #${pr.number} "${pr.title}" (branch ${pr.head}):\n\n"${input.ask}"\n\n` +
     `Make the change asked for, and nothing else. Read the conversation for context first (\`gh pr view ${pr.number} --comments\`). If a spec in specs/ for this branch ` +
     `records a decision this changes, update the spec too. Keep the context docs true (\`node scripts/context.mjs for <changed files>\`). \`npm test\` after every edit; ` +
-    `a browser test you add or change runs alone by title. Never edit an existing test to make it pass. Commit in Conventional Commits. Do NOT push: ` +
+    `a browser test you add or change runs alone by title — never run the whole browser suite. Never edit an existing test to make it pass. Commit in Conventional Commits. Do NOT push: ` +
     `the run tests your commit and pushes it. If the ask is a question rather than a change, answer it and change nothing. Leave \`git status\` clean.`,
     S.RESPONSE, 'respond');
 
@@ -111,13 +111,16 @@ async function respondRun(input: RespondInput) {
   // Then the push — green or not, so the work is never lost; a red one says so, here and on the commit's status.
   const runGate = async (label: string) => {
     const g = await k.command(label, [
-      `GATE=$(GATE_SCOPE=branch GATE_BASE=origin/${pr.base} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
+      // Tight: the unit tests, and only the browser specs this request's own commits touched (the smoke spec when
+      // they touched none). The push starts verify, which runs what else the change reaches, beside the person.
+      `SPECS=$(git diff --name-only --diff-filter=d ${pr.headSha}..HEAD -- 'tests/*.spec.js' | grep -v qa-probe | tr '\n' ' ')`,
+      `GATE=$(GATE_SPECS="\${SPECS:-tests/smoke.spec.js}" GATE_BASE=${pr.headSha} node scripts/gate.mjs 2>"$JOB/gate.err" | tail -1)`,
       `GATE="$GATE" node -e 'require("fs").writeFileSync(process.env.JOB+"/result.json",JSON.stringify({gate:process.env.GATE}))'`,
     ].join('\n'));
     try {
       const r = JSON.parse(g?.gate || '');
       const failed: { test: string; error?: string }[] = [...(r.unit.failed ? [{ test: 'npm test' }] : []), ...r.browser.failed];
-      return { ok: Boolean(r.ok), failed, line: r.ok ? `✅ green — unit ${r.unit.passed}, browser ${r.browser.passed} (the specs this change reaches)` : `❌ red — ${failed.map((x) => x.test).join(', ')}` };
+      return { ok: Boolean(r.ok), failed, line: r.ok ? `✅ green — unit ${r.unit.passed}, browser ${r.browser.passed} (the specs this request touched; verify runs the rest)` : `❌ red — ${failed.map((x) => x.test).join(', ')}` };
     } catch { return { ok: false, failed: [], line: '⚠️ the gate did not report' }; }
   };
   let gateLine = '';
