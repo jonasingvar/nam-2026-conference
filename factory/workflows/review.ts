@@ -92,25 +92,32 @@ async function reviewRun(input: ReviewInput) {
   const docsOnly = /--docs-only=yes/.test(f);
   const risky = /--risky=yes/.test(f);
 
+  // A re-review (a fix was pushed after the last verdict) is sized by what changed since, not by the whole
+  // pull request: one combined lens over the fix, on the models a fast change gets. The last pass's blockers
+  // are rechecked either way.
+  const rereview = Boolean(previous?.commit && Array.isArray(facts?.delta));
+  const scoped: string[] = rereview ? facts.delta : files;
   // Which lenses: by kind of file; light (one combined lens) for small or docs-only changes.
-  const app = files.some((p) => /^(src|server|api|public)\//.test(p));
+  const app = scoped.some((p) => /^(src|server|api|public)\//.test(p));
   const kinds = new Set<string>();
   if (app) ['criteria', 'rules', 'logic', 'tests'].forEach((l) => kinds.add(l));
-  if (files.some((p) => p.startsWith('.github/workflows/'))) kinds.add('actions');
-  if (files.some((p) => /^(CLAUDE\.md|context\/|\.claude\/skills\/|specs\/)/.test(p))) kinds.add('docs');
-  if (files.some((p) => /^(factory\/|scripts\/|\.claude\/settings\.json)/.test(p))) { kinds.add('orchestration'); kinds.add('logic'); kinds.add('tests'); }
-  const full = pr.labels.includes('ship:full') || risky || kinds.has('orchestration') || (!pr.head.startsWith('issue-') && lines > 150);
-  const lenses: Lens[] = (full || docsOnly ? [...kinds] : ['combined', ...[...kinds].filter((x) => ['actions', 'orchestration'].includes(x))])
+  if (scoped.some((p) => p.startsWith('.github/workflows/'))) kinds.add('actions');
+  if (scoped.some((p) => /^(CLAUDE\.md|context\/|\.claude\/skills\/|specs\/)/.test(p))) kinds.add('docs');
+  if (scoped.some((p) => /^(factory\/|scripts\/|\.claude\/settings\.json)/.test(p))) { kinds.add('orchestration'); kinds.add('logic'); kinds.add('tests'); }
+  const full = !rereview && (pr.labels.includes('ship:full') || risky || kinds.has('orchestration') || (!pr.head.startsWith('issue-') && lines > 150));
+  const lenses: Lens[] = (rereview ? (scoped.length ? ['combined'] : []) : full || docsOnly ? [...kinds] : ['combined', ...[...kinds].filter((x) => ['actions', 'orchestration'].includes(x))])
     .filter((x, i, a) => a.indexOf(x) === i)
     .map((key) => ({ key, ask: LENSES[key] }));
-  if (!lenses.length) lenses.push({ key: 'combined', ask: LENSES.combined });
+  // Nothing pushed since the last verdict: no lens at all, only the recheck of its blockers.
+  if (!lenses.length && !(rereview && !scoped.length)) lenses.push({ key: 'combined', ask: LENSES.combined });
   const ticket = issue ? `The ticket, #${issue.number}: ${issue.title}\n\n${issue.body}\n` : `There is no linked ticket: judge the pull request against its own description.\n`;
   // Which model does each review job get: Jev reads the ticket and the diff's shape; the catalog prices it.
-  const size = full ? 'full' : 'small';
-  const choice = await chooseModels(`${ticket}\nPull request #${pr.number}: ${pr.title}\nFiles changed: ${files.join(', ')}\nFacts: ${f}\nLenses: ${lenses.map((l) => l.key).join(', ')}`,
+  const size = rereview ? 'fast' : full ? 'full' : 'small';
+  const choice = await chooseModels(`${ticket}\nPull request #${pr.number}: ${pr.title}\nFiles changed${rereview ? ' since the last review (this is a re-review of a fix)' : ''}: ${scoped.join(', ')}\nFacts: ${f}\nLenses: ${lenses.map((l) => l.key).join(', ')}`,
     size, ['recheck', 'reviewLens', 'skeptic']);
   const models = modelBook(choice, size);
   k.useModels(models);
+  if (rereview) k.log(`a re-review: only what changed since ${String(previous!.commit).slice(0, 7)} — ${scoped.length} file${scoped.length === 1 ? '' : 's'}`);
   k.log(`${lenses.map((l) => l.key).join(', ')} on ${describe(models.pick('reviewLens'))}; ${files.length} files, ${lines} code lines${risky ? ', risky' : ''}` +
     ` (models in ${choice.ms} ms${choice.why ? `; ${choice.why}` : ''})`);
   const scope = previous?.commit && facts?.delta
