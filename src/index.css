@@ -93,6 +93,13 @@ body::before {
 }
 @utility animate-rise { animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* My Agenda's card rail draws itself from the top down, in the session's colour. */
+@keyframes rail-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.agenda-rail { transform-origin: top; animation: rail-grow 0.9s cubic-bezier(0.65, 0, 0.35, 1) both; }
+
 /* Staggered list entrance. Children opt in with --i for their index. */
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(12px); }

@@ -123,6 +123,8 @@ export const LANES = {
   'seats.queue':      { desktop: { user: marcus, day: 0, slot: '13:30' }, mobile: { user: abraham, day: 0, slot: '10:15' } },
   'conflict.ui':      { desktop: { user: kenji, day: 3, clean: true },    mobile: { user: andy, day: 3, clean: true } },
   'conflict.api':     { desktop: { user: abraham, day: 3 },                 mobile: { user: jonas, day: 3 } },
+  // My Agenda books two sessions on day 1 and removes one; pinned to a clock on that day.
+  'agenda.page':      { desktop: { user: jonas, day: 1 },                 mobile: { user: abraham, day: 1 } },
   'schedule.grid':    { desktop: { user: sofia, day: 1 },                 mobile: { user: marcus, day: 1 } },
   // read-only: it books nothing, and needs a day the seed sells sessions out on
   'schedule.seats':   { desktop: { user: kenji, day: 1, readOnly: true }, mobile: { user: marcus, day: 0, readOnly: true } },

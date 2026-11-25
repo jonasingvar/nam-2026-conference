@@ -1,9 +1,8 @@
 import { test, expect } from './fixtures.js';
-import { API, visit, momentOn, bookableFor, ATTENDEES } from './helpers.js';
+import { API, visit, bookableFor, laneFor } from './helpers.js';
 
 // Day 1 (index 1) is untouched by the seed's attended morning; the clock is
 // pinned to Day 1 afternoon so "today" is that day for every state below.
-const LANE = { desktop: ATTENDEES.jonas, mobile: ATTENDEES.abraham };
 
 async function book(request, user, ids) {
   for (const id of ids) {
@@ -15,11 +14,13 @@ async function book(request, user, ids) {
 
 test.describe('My Agenda is your day', () => {
   test('lists confirmed seats as large clickable cards, and removes one after confirming', async ({ page, request }, testInfo) => {
-    const user = LANE[testInfo.project.name];
-    const at = await momentOn(1, '14:26');
-    const day = at.split('T')[0];
-    const free = (await bookableFor(request, user, day)).slice(0, 2);
-    expect(free.length).toBe(2);
+    const { user, day } = await laneFor('agenda.page', testInfo);
+    const at = `${day}T14:26`;
+    const open = await bookableFor(request, user, day);
+    // two seats that do not overlap each other, or the second is a clash
+    const first0 = open[0];
+    const free = [first0, open.find((s) => s.startsAt >= first0.endsAt)];
+    expect(free[1]).toBeTruthy();
     const ids = free.map((s) => s.id);
     await book(request, user, ids);
     try {
@@ -35,9 +36,9 @@ test.describe('My Agenda is your day', () => {
       await expect(first.getByTestId('agenda-rail')).toHaveAttribute('data-accent', /\w+/);
 
       // hover effect
-      const before = await first.evaluate((el) => getComputedStyle(el).transform);
+      const before = await first.evaluate((el) => getComputedStyle(el).translate);
       await first.hover();
-      await expect.poll(() => first.evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
+      await expect.poll(() => first.evaluate((el) => getComputedStyle(el).translate)).not.toBe(before);
 
       // portrait links to the speaker
       const portrait = first.getByTestId('agenda-speaker').first();
