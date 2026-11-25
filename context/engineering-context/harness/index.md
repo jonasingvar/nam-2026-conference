@@ -18,6 +18,7 @@ Gateway, and size each ticket with Jev. No GitHub Actions, no laptop.
 - [`github.md`](github.md) — the webhook, the secrets, the labels and commit statuses.
 - [`code-review-playbook.md`](code-review-playbook.md) — how review judges a pull request, and what it never flags.
 - [`qa-playbook.md`](qa-playbook.md) — how QA probes a pull request on its preview.
+- [`reference-playbook.md`](reference-playbook.md) — how a page is built to look exactly like an image a person supplied.
 
 ## 🧩 The workflows
 

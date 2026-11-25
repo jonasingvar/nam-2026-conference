@@ -7,12 +7,13 @@
  *   npm run shot -- /speakers/1 --mobile --user=2
  *   npm run shot -- / --at=2026-10-13T14:30   # pin the conference clock
  *   npm run shot -- / --full         # full-page instead of viewport
+ *   npm run shot -- /my-agenda --like=ref.png   # at exactly that image's size (PNG), to compare with it
  *
  * WEB_PORT points it at a particular app, so a worktree running its own lane
  * screenshots its own code.
  */
 import { chromium } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 
 /**
@@ -33,6 +34,20 @@ const DEFAULT_ROUTES = ['/', '/schedule', '/sessions/1', '/speakers', '/speakers
 const targets = routes.length ? routes : DEFAULT_ROUTES;
 const mobile = flags.has('--mobile');
 const fullPage = flags.has('--full');
+// --like=<image>: screenshot at that image's own width and height, at scale 1, so a page can be read
+// beside the reference it must match (context/engineering-context/harness/reference-playbook.md).
+const like = args.find((a) => a.startsWith('--like='))?.split('=')[1];
+/** A PNG's width and height, from its header; null for anything else. */
+function pngSize(buf) {
+  if (buf.length < 24 || buf.toString('latin1', 1, 4) !== 'PNG') return null;
+  const width = buf.readUInt32BE(16), height = buf.readUInt32BE(20);
+  return width > 0 && height > 0 && width <= 4000 && height <= 8000 ? { width, height } : null;
+}
+let likeSize = null;
+if (like) {
+  try { likeSize = pngSize(readFileSync(like)); } catch { /* unreadable: the default size */ }
+  if (!likeSize) console.log(`  --like: ${like} is not a readable PNG — using the default size`);
+}
 const outDir = '.screenshots';
 
 mkdirSync(outDir, { recursive: true });
@@ -62,8 +77,8 @@ if (!(await isUp())) {
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
-  viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 950 },
-  deviceScaleFactor: 2,
+  viewport: likeSize ?? (mobile ? { width: 390, height: 844 } : { width: 1440, height: 950 }),
+  deviceScaleFactor: likeSize ? 1 : 2,
 });
 await context.addInitScript(({ id, at }) => {
   window.localStorage.setItem('orbit:currentUserId', String(id));
@@ -79,7 +94,7 @@ for (const route of targets) {
   await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   const name = (route === '/' ? 'home' : route.replace(/^\//, '').replace(/\//g, '-'))
-    + (mobile ? '.mobile' : '') + '.png';
+    + (likeSize ? '-like' : '') + (mobile ? '.mobile' : '') + '.png';
   await page.screenshot({ path: `${outDir}/${name}`, fullPage });
   console.log(`  ${route.padEnd(16)} → ${outDir}/${name}`);
 }

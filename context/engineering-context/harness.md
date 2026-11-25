@@ -20,6 +20,7 @@ files:
   - context/engineering-context/harness/quickstart.md
   - context/engineering-context/harness/code-review-playbook.md
   - context/engineering-context/harness/qa-playbook.md
+  - context/engineering-context/harness/reference-playbook.md
   - scripts/gate.mjs
   - scripts/test-map.mjs
   - scripts/coverage-agent.mjs

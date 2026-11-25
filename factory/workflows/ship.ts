@@ -11,7 +11,7 @@ import { imageUrls, referenceRule, visionFloors } from '../lib/visuals';
 import { chooseModels, describe, modelBook, type Job, type ModelBook } from '../lib/models';
 import { disposeSandbox, prepareSandbox, stageReferences } from '../lib/sandbox-steps';
 import {
-  comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, pullRequestFiles, readIssue, readPullRequest, setLabels, type Issue,
+  branchPreview, comment, findDeployment, findEarlierAttempt, openPullRequest, peopleSaid, previewForPr, productionHealth, progress, pullRequestFiles, readIssue, readPullRequest, setLabels, type Issue,
 } from '../lib/github-steps';
 import { judgeAnswers, triageIssue, type Size, type Triage } from '../lib/triage';
 import { isTestGap } from '../lib/review-policy';
@@ -114,6 +114,8 @@ async function shipRun(input: ShipInput) {
   let specPath = '';
   let prUrl = '';
   let previewUrl = '';
+  /** The branch's newest ready preview, before there is a pull request. */
+  let earlyPreview: { url: string; sha: string } | null = null;
   /** The preview at the page this change is about (landingFor): what a person clicks. */
   let previewLanding = '';
 
@@ -126,7 +128,7 @@ async function shipRun(input: ShipInput) {
     '',
     profile ? `**Size:** ${profile.size}${profile.escalated ? ' (escalated on its diff)' : ''} — ${profile.why.replace(/^Jev: \w+ \((\d+% sure)\)$/, 'Jev, $1')}` : '',
     branch ? `**Branch:** \`${branch}\`${specPath ? ` · 📄 [Spec](https://github.com/${ALLOWED_REPO}/blob/${branch}/${specPath})` : ''}` : '',
-    prUrl ? `**Pull request:** ${prUrl}${previewUrl ? ` · 🔎 [Preview](${previewLanding || previewUrl})` : ''}` : '',
+    prUrl ? `**Pull request:** ${prUrl}` : '',
     rounds.length ? `\n| Round | Gate | Audit |\n| --- | --- | --- |\n${rounds.map((r) => `| ${r.round} | ${r.gate} | ${r.raised} raised · ${r.confirmed} confirmed |`).join('\n')}` : '',
     '',
     `**AI spend so far:** ${dollars(spend.total)} over ${spend.agents} agent run${spend.agents === 1 ? '' : 's'}` +
@@ -134,17 +136,29 @@ async function shipRun(input: ShipInput) {
       (models && models.attempts.length ? ` · expected ${dollars(models.totals().est)}${models.climbs.length ? ` · ${models.climbs.length} climb${models.climbs.length === 1 ? '' : 's'}` : ''}` : ''),
     // By phase: the comment changes only when a phase does, so "Gate · 10 min" read as a ten-minute gate when the build had taken nine.
     `**Time:** ${timeLine(time.read(Date.now()), { phases: true })}`,
+    // The three ways in, where a person looks first: what the agents are doing, the run, and the app itself.
+    '\n| | |',
+    '| --- | --- |',
+    `| 👀 **Agent output** | [Watch the agents work, live](${runUrl}?tab=streams) — what they say and every command they run |`,
+    `| ⚙️ **The run** | [Every step and its timing](${runUrl}) — it resumes from its last finished step if anything dies |`,
+    `| 🔎 **Preview** | ${prUrl && previewUrl ? `[Open the app with this change](${previewLanding || previewUrl})`
+      : earlyPreview ? `[Open the app as last pushed](${earlyPreview.url}) (\`${earlyPreview.sha}\`) — ⚠️ still being worked on: the run has not finished checking it, and it may change`
+      : 'Not built yet — a link appears here once the branch has a commit Vercel has built'} |`,
     models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
-    // An HTML link: GitHub does not render markdown links inside a <sub> line.
-    `<sub>Durable run <a href="${runUrl}">${workflowRunId}</a> · <a href="${runUrl}?tab=streams">watch the agents work, live</a> · resumes from its last finished step if anything dies</sub>`,
     '<!-- ship-on-vercel -->',
   ].filter((l) => l !== '').join('\n');
 
   // Every call publishes the comment and streams the lines logged since the last one.
   let streamed = 0;
   const show = async (headline = current) => {
+    // Before the pull request opens, the branch already has previews: every push is built. Show the newest
+    // one that is ready, so the work can be tried while the run is still checking it.
+    if (branch && !prUrl && ['Gate', 'Audit', 'Pull request'].includes(current)) {
+      const early = await branchPreview(branch).catch(() => null);
+      if (early?.state === 'ready' && early.url) earlyPreview = { url: early.url, sha: String(early.sha).slice(0, 7) };
+    }
     const fresh = lines.slice(streamed);
     streamed = lines.length;
     commentId = await progress(n, commentId, render(headline), [`— ${headline}`, ...fresh]);

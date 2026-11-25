@@ -172,6 +172,21 @@ async function deploymentFor(sha: string, kind: 'Preview' | 'Production') {
   return { state: 'none' as const, url: null, sha };
 }
 
+/**
+ * Vercel's preview of a branch as it was last pushed — there before any pull request is. Never throws:
+ * no branch on GitHub yet, or nothing built, is `none`.
+ */
+export async function branchPreview(branch: string) {
+  'use step';
+  try {
+    const head = await gh(`/commits/${encodeURIComponent(branch)}`);
+    return await deploymentFor(String(head.sha), 'Preview');
+  } catch {
+    return { state: 'none' as const, url: null, sha: '' };
+  }
+}
+branchPreview.maxRetries = 1;
+
 export async function findDeployment(sha: string, kind: 'Preview' | 'Production') {
   'use step';
   return deploymentFor(sha, kind);
