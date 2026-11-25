@@ -49,9 +49,8 @@ type Profile = {
 };
 
 const PROFILES: Record<Size, Omit<Profile, 'why'>> = {
-  // Every size gates on the tests its change needs (lib/select.ts: the map's
-  // candidates, the specs it reaches and smoke, never less than GATE_SCOPE=branch);
-  // verify and main run more. `gateScope` now only narrows the red-check to unit tests.
+  // Every size gates on the tests its change wrote and the smoke set (lib/select.ts,
+  // `tight`); verify runs what else the change reaches, and main runs everything. `gateScope` now only narrows the red-check to unit tests.
   // A person is waiting and the change is understood: one combined audit, a fix re-gated rather than re-audited.
   fast: { size: 'fast', planAudits: [], planRounds: 0, lenses: ['combined'], buildRounds: 2, probes: 0, gateScope: 'branch', reaudit: false, learns: false },
   // Contained: one combined audit, a browser audit only when
@@ -255,8 +254,9 @@ async function shipRun(input: ShipInput) {
     const chosen = await chooseTests({
       classified: classifyFiles(facts?.changed ?? []), facts, diff: String(ran.diff || ''), escapes: staged.escapes,
       pick: { model: p.model, price: models!.catalog[p.model] ?? null },
-      // Never weaker than GATE_SCOPE=branch; everything when a person asked for it.
-      options: { floor: true, full: fullSuite ? `the ${FULL_SUITE_LABEL} label` : undefined },
+      // Tight: the tests this change wrote, and smoke — a person is waiting on the loop, and verify runs what
+      // else the change reaches once the pull request is open. Everything when a person asked for it.
+      options: { tight: true, full: fullSuite ? `the ${FULL_SUITE_LABEL} label` : undefined },
     });
     if (chosen.asked) {
       models!.record({ job: 'testSelect', label: `select${tag}`, model: p.model, tier: p.tier, est: p.est, cost: chosen.cost, ok: !!chosen.answer, seconds: chosen.seconds });

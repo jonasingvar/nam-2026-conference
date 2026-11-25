@@ -267,7 +267,7 @@ export async function chooseTests(o: {
   let answer: SelectorAnswer | null = null;
   let cost = 0;
   let error = '';
-  const ask = o.classified.app && o.facts && !o.options.full && o.pick;
+  const ask = o.classified.app && o.facts && !o.options.full && !o.options.tight && o.pick;
   if (ask) {
     try {
       const r = await generateText({

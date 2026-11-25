@@ -154,6 +154,12 @@ export type SelectOptions = {
   full?: string;
   /** Ship's gate: never weaker than GATE_SCOPE=branch — its choice is a floor, and where it cannot be told, everything. */
   floor?: boolean;
+  /**
+   * Ship's gate: only the tests the change itself wrote (its own specs, whole) and the smoke set. The gate
+   * proves the change does what it set out to; what else it reaches is verify's, on the pull request, which
+   * runs whatever this did not while review and QA run. No model is asked, and no map is needed.
+   */
+  tight?: boolean;
 };
 
 export const none = (f: Facts | null, reason: string): Selection => ({
@@ -171,6 +177,17 @@ export function decideSelection(c: Classified, f: Facts | null, a: SelectorAnswe
   const runnable = (t: Listed) => f.deck || t.spec !== DECK;
   const allSpecs = new Set([...listed.desktop, ...listed.mobile].filter(runnable).map((t) => t.spec));
   if (o.floor && f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
+
+  if (o.tight) {
+    if (f.branch === null) return everything(f, 'it changes what runs the tests', confidence);
+    const mine: Record<Project, Map<string, Source>> = { desktop: new Map(), mobile: new Map() };
+    const put = (p: Project, t: Listed, why: Source) => { if (runnable(t) && !mine[p].has(nameOf(t))) mine[p].set(nameOf(t), why); };
+    for (const p of PROJECTS) for (const t of listed[p]) {
+      if (SMOKE_SET.some((s) => s.spec === t.spec && s.title === t.title)) put(p, t, 'smoke');
+      if (isSpec(t.spec) && f.changed.includes(t.spec)) put(p, t, 'own');
+    }
+    return finish({ mode: 'selected', reason: 'the tests this change wrote, and smoke — verify runs what else it reaches', confidence: null, notes: [] }, f, mine);
+  }
 
   const problem = mapProblem(f.map) ?? (!a ? 'the selector did not answer' : a.confidence < threshold ? `the selector was ${Math.round(a.confidence * 100)}% sure` : null);
   if (problem && f.branch === null) return everything(f, `${problem}, and its reach cannot be told`, confidence);

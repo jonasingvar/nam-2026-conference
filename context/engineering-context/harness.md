@@ -186,7 +186,7 @@ importer's tests stand for it — `carriedBy`): widen to the branch scope
 (`affectedSpecs || fastFallback`) and the map's candidate specs, whole — or
 everything where that cannot be told. Every selection is broken down by what
 brought each test in (`map`, `smoke`, `own`, `added`, `floor`, `widened`).
-Ship's gate adds the branch scope as a floor. Main runs everything.
+Ship's gate does none of this: it is `tight` — the specs the change itself wrote, whole, and the smoke set, with no model asked — so the loop a person waits on stays short; `verify` then runs what else the change reaches on the pull request, less what ship already ran green. respond's gate is tighter still: the specs its own commits touched. Main runs everything.
 
 **The test map** (`scripts/test-map.mjs build`) is built on every push to
 main that touches the app, in a third sandbox beside verify's shards so the

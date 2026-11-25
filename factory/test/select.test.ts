@@ -210,3 +210,14 @@ test('mapProblem: none for a current map', () => {
   assert.equal(mapProblem(map()), null);
   assert.equal(mapProblem(null), 'no test map yet');
 });
+
+test('tight (ship\'s gate): only the change\'s own specs and the smoke set, whatever the map says; everything when it changes what runs the tests', () => {
+  const s = decideSelection(app, facts(), sure, { tight: true });
+  assert.equal(s.mode, 'selected');
+  assert.deepEqual(Object.keys(s.breakdown).filter((k) => k !== 'smoke' && k !== 'own'), []);
+  assert.ok(s.ran < s.total);
+  assert.match(s.reason, /verify runs what else/);
+  // An unmapped file does not widen a tight gate.
+  assert.equal(decideSelection(app, facts({ map: map({ unmapped: ['src/lib/new.js'] }) }), null, { tight: true }).ran, s.ran);
+  assert.equal(decideSelection(classify(['playwright.config.js']), facts({ changed: ['playwright.config.js'], branch: null }), sure, { tight: true }).mode, 'full');
+});
