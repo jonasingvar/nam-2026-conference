@@ -277,9 +277,27 @@ export async function pullOfCommit(sha: string): Promise<{ number: number; headS
 export async function readMarker(n: number, marker: string): Promise<any | null> {
   'use step';
   const comments = await gh(`/issues/${n}/comments?per_page=100`);
+  return markerIn(comments, marker);
+}
+
+/** Who may write to the repository: the only people whose comments the factory takes as its own or as an instruction. */
+export const WRITERS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+
+/**
+ * The newest marker among comments by people who can write to the repository — the factory posts
+ * with such a person's token. Anyone can comment on a public repository, so a marker in anyone
+ * else's comment is not the factory's and is not read. A commit it names must be a sha.
+ */
+export function markerIn(comments: any[], marker: string): any | null {
   for (const c of [...comments].reverse()) {
+    if (!WRITERS.has(c.author_association)) continue;
     const m = new RegExp(`<!-- ${marker} (\\{.*?\\}) -->`, 's').exec(c.body || '');
-    if (m) { try { return JSON.parse(m[1]); } catch { return null; } }
+    if (!m) continue;
+    try {
+      const v = JSON.parse(m[1]);
+      if (v && 'commit' in v && !/^[0-9a-f]{7,40}$/.test(String(v.commit))) return null;
+      return v;
+    } catch { return null; }
   }
   return null;
 }

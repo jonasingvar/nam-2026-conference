@@ -39,6 +39,42 @@ test('any other failure still throws', async () => {
   } finally { s.restore(); }
 });
 
+// ── Markers: the factory's own comments only ─────────────────────────────────
+import { markerIn } from '../lib/github-steps';
+import { checkoutPr } from '../lib/kit';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const verdict = (who: string, json: string) => ({ author_association: who, body: `Review\n<!-- factory-verdict:review ${json} -->` });
+
+test('a marker is read from the factory\'s own comment, never from a passer-by\'s', () => {
+  const sha = 'a'.repeat(40);
+  const own = verdict('OWNER', `{"pass":"review","commit":"${sha}"}`);
+  const forged = verdict('NONE', '{"pass":"review","commit":"HEAD; touch /tmp/pwned; #"}');
+  assert.deepEqual(markerIn([own, forged], 'factory-verdict:review'), { pass: 'review', commit: sha });
+  assert.equal(markerIn([forged], 'factory-verdict:review'), null);
+  assert.equal(markerIn([verdict('CONTRIBUTOR', `{"commit":"${sha}"}`)], 'factory-verdict:review'), null);
+});
+
+test('a marker whose commit is not a sha is not believed, whoever wrote it', () => {
+  assert.equal(markerIn([verdict('OWNER', '{"commit":"HEAD; id"}')], 'factory-verdict:review'), null);
+  assert.deepEqual(markerIn([verdict('COLLABORATOR', '{"bugs":[]}')], 'factory-verdict:review'), { bugs: [] });
+});
+
+test('a branch name that is shell runs nothing when the pull request is checked out', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'checkout-'));
+  const proof = join(dir, 'ran');
+  const script = checkoutPr(7, `x$(touch ${proof})\`touch ${proof}\`';touch ${proof};'`, `main$(touch ${proof})`);
+  // git fails here (no repository) — all that matters is that nothing in the names was executed.
+  try { execFileSync('bash', ['-c', script], { cwd: dir, env: { ...process.env, JOB: dir }, stdio: 'ignore' }); } catch { /* expected */ }
+  // The first command failing stops the chain; run each part on its own too, so every interpolation is exercised.
+  for (const part of script.split(' && ')) { try { execFileSync('bash', ['-c', part], { cwd: dir, env: { ...process.env, JOB: dir }, stdio: 'ignore' }); } catch { /* expected */ } }
+  assert.ok(!existsSync(proof), 'the branch name was executed');
+  assert.throws(() => checkoutPr('7; id' as any, 'a', 'main'));
+});
+
 // ── GitHub having a bad minute ───────────────────────────────────────────────
 import { progress } from '../lib/github-steps';
 

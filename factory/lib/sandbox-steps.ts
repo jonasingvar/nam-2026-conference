@@ -1,6 +1,6 @@
 import { Sandbox, Snapshot } from '@vercel/sandbox';
 import { getWritable } from 'workflow';
-import { AGENT_ENV, lockedPolicy, type Mode } from './policy';
+import { AGENT_ENV, isPreviewHost, lockedPolicy, policySealed, sealPolicy, type Mode } from './policy';
 import { ALLOWED_REPO, FACTORY_DEPS, REPO_DIR } from './constants';
 import { priceUsage, short, type Catalog } from './models';
 
@@ -32,18 +32,36 @@ const secrets = () => {
 const HOSTS = `/vercel/.factory/preview-hosts`;
 /** The sandbox's mode, kept on its disk so a resumed sandbox can never come back with more than it had. */
 const MODE = `/vercel/.factory/mode`;
+/** The factory's seal over the two (`sealPolicy`): the disk is the sandbox's own, and what runs there can write it. */
+const SEAL = `/vercel/.factory/policy-seal`;
+const sealKey = () => { const s = secrets(); return `${s.githubToken}:${s.gatewayKey}`; };
+
+/** What the factory itself last wrote for this sandbox. Anything else on the disk — unsealed, edited, another sandbox's — reads as nothing. */
+export async function trustedState(sb: Sandbox): Promise<{ mode: Mode; hosts: string[] }> {
+  const r = await sh(sb, `echo "::mode=$(cat ${MODE} 2>/dev/null)"; echo "::seal=$(cat ${SEAL} 2>/dev/null)"; cat ${HOSTS} 2>/dev/null || true`);
+  const lines = r.out.split('\n').map((l) => l.trim());
+  const mode = /^::mode=(none|read|push)$/.exec(lines[0] ?? '')?.[1] as Mode | undefined;
+  const seal = /^::seal=([0-9a-f]+)$/.exec(lines[1] ?? '')?.[1] ?? '';
+  const hosts = lines.slice(2).filter(Boolean);
+  if (!mode || !hosts.every(isPreviewHost) || !policySealed(sealKey(), sb.name, mode, hosts, seal)) return { mode: 'none', hosts: [] };
+  return { mode, hosts };
+}
+export async function writeState(sb: Sandbox, mode: Mode, hosts: string[]) {
+  const safe = [...new Set(hosts.filter(isPreviewHost))];
+  await sh(sb, `mkdir -p /vercel/.factory && printf '%s\\n' ${safe.map(q).join(' ') || "''"} | sed '/^$/d' > ${HOSTS} && echo ${mode} > ${MODE} && echo ${sealPolicy(sealKey(), sb.name, mode, safe)} > ${SEAL}`);
+}
 async function policyFor(sb: Sandbox) {
-  const r = await sh(sb, `cat ${HOSTS} 2>/dev/null || true; echo "::mode=$(cat ${MODE} 2>/dev/null || echo none)"`);
-  const mode = (/::mode=(none|read|push)/.exec(r.out)?.[1] ?? 'none') as Mode;
-  return lockedPolicy(secrets(), r.out.split('\n').map((h) => h.trim()).filter((h) => h && !h.startsWith('::mode')), mode);
+  const { mode, hosts } = await trustedState(sb);
+  return lockedPolicy(secrets(), hosts, mode);
 }
 
 /** Let a sandbox reach these preview deployments (and only these), with the protection bypass injected. */
 export async function allowPreviews(name: string, urls: string[]) {
   'use step';
   const sb = await Sandbox.get({ name });
-  const hosts = urls.map((u) => new URL(u).host).filter((h) => /\.vercel\.app$/.test(h));
-  await sh(sb, `mkdir -p /vercel/.factory && printf '%s\\n' ${hosts.map((h) => `'${h}'`).join(' ')} >> ${HOSTS}`);
+  const hosts = urls.map((u) => new URL(u).host).filter(isPreviewHost);
+  const now = await trustedState(sb);
+  await writeState(sb, now.mode, [...now.hosts, ...hosts]);
   await sb.updateNetworkPolicy(await policyFor(sb));
   return hosts;
 }
@@ -107,7 +125,7 @@ export async function refreshWarm(ref = 'main') {
     ? await sh(sb, `set -e; cd ${REPO_DIR}; git fetch --prune --quiet origin; git checkout -q -B warm origin/${ref}; ` +
         `if [ "$(sha256sum package-lock.json | cut -c1-16)" != "$(cat ${ROOT}/prepared)" ]; then npm ci --no-audit --no-fund; npx playwright install --with-deps chromium; sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; fi; ` +
         `${FACTORY_DEPS}; ` +
-        `rm -rf ${ROOT}/[0-9]* ${HOSTS} ${MODE}`)
+        `rm -rf ${ROOT}/[0-9]* ${HOSTS} ${MODE} ${SEAL}`)
     : await sh(sb, `${INSTALL} && cd ${REPO_DIR} && git checkout -q -B warm origin/${ref}`);
   if (r.code !== 0) throw new Error(`warming failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
   await sb.updateNetworkPolicy(lockedPolicy(secrets(), [], 'none'));
@@ -157,7 +175,8 @@ export async function prepareSandbox(name: string, ref: string, mode: Mode) {
         `{ [ "$(sha256sum package-lock.json | cut -c1-16)" = "$(cat ${ROOT}/prepared)" ] || { npm ci --no-audit --no-fund && sha256sum package-lock.json | cut -c1-16 > ${ROOT}/prepared; }; }`);
   if (r.code !== 0) throw new Error(`preparing the sandbox failed (${r.code}): ${(r.err || r.out).slice(-800)}`);
   // Written once, before any agent runs; a fork of the warm sandbox starts at none.
-  await sh(sb, `mkdir -p /vercel/.factory && echo ${mode} > ${MODE}`);
+  // The hosts a resumed sandbox was already let through to stay; a fork's (the warm one's, another name's) do not.
+  await writeState(sb, mode, (await trustedState(sb)).hosts);
   await sb.updateNetworkPolicy(await policyFor(sb));
   return { name: sb.name, how, mode, seconds: Math.round((Date.now() - t0) / 1000) };
 }

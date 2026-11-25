@@ -3,7 +3,9 @@ import { warm } from '@/workflows/warm';
 
 /** Vercel Cron (vercel.json): refresh the warm sandbox daily, so a quiet week still forks a current one. */
 export async function GET(req: Request) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return Response.json({ error: 'unauthorized' }, { status: 401 });
+  // No secret configured is closed, not `Bearer undefined`.
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) return Response.json({ error: 'unauthorized' }, { status: 401 });
   const run = await start(warm, [{ ref: 'main' }]);
   return Response.json({ runId: run.runId });
 }
