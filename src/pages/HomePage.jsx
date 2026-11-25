@@ -3,6 +3,7 @@ import { useConference, useFetch } from '../lib/store.jsx';
 import { useDocumentTitle } from '../lib/useDocumentTitle.js';
 import * as api from '../lib/api.js';
 import { todaysSeats } from '../lib/agenda.js';
+import { accent } from '../lib/accents.js';
 import { hasEnded } from '../lib/clock.js';
 import { dayLabel, relativeDate, time as fmtTime, timeRange } from '../lib/format.js';
 import { SponsorMarquee } from '../components/SponsorMarquee.jsx';
@@ -60,35 +61,22 @@ function HeroBar({ conference }) {
  * Your day — the one section on Home that is about the person reading it.
  *
  * Every session they hold a confirmed seat for on the current conference day,
- * earliest first. Giving a seat back is the only thing possible here: there is
- * no bookmark (CLAUDE.md § There is exactly one action), and nothing is booked
- * from Home.
+ * earliest first, as one big panel each down the page. A day read top to bottom
+ * is a day you can follow; a row of cards you scroll sideways is one you cannot.
+ * Giving a seat back is the only thing possible here: there is no bookmark
+ * (CLAUDE.md § There is exactly one action), and nothing is booked from Home.
  *
  * The schedule and the attendee's own reservations arrive after the shell, and
- * at different times. So the section is the height of one card from the first
- * paint and swaps the cards in where the skeleton was; a section that is absent
- * until its data lands — or that says "nothing booked" and then grows cards —
- * shoves the page around, which is the flicker this avoids. For the same reason
- * it is not wrapped in `<Reveal>`, which would animate the swap, and the cards
- * sit in one fixed-height row rather than stacking: the count cannot change the
- * section's height, so the tiles below never move. The cards themselves rise
- * in, one behind the next.
+ * at different times. So the section holds a panel's worth of space from the
+ * first paint and swaps the panels in where the skeleton was, rather than being
+ * absent until its data lands or claiming the day is empty and then growing
+ * panels — the flash this avoids. For the same reason it is not wrapped in
+ * `<Reveal>`, which would animate the swap; the panels rise in one behind the
+ * next instead. `waiting` and `seats` come from `HomePage`, which holds
+ * everything below this section back until the day is known — see the note
+ * there on why the height cannot be reserved.
  */
-function TodaySeats() {
-  const { clock, days, ready, reservationsReady, currentUser, reservationFor,
-    releaseSeat, roomById, venueById } = useConference();
-  const { data, loading } = useFetch(
-    () => (currentUser ? api.getSchedule(currentUser.id) : null),
-    [currentUser?.id],
-  );
-
-  // Not until the store has both: an empty store means "nothing held" *and*
-  // "not loaded yet", and the section must not claim the day is empty while the
-  // attendee's own seats are still in flight.
-  const waiting = !ready || !reservationsReady || loading;
-  const seats = waiting ? [] : todaysSeats(data?.days, clock.day, reservationFor);
-  const today = days.find((d) => d.date === clock.day);
-
+function TodaySeats({ waiting, seats, today, clock, roomById, venueById, onRemove }) {
   return (
     <section data-testid="today-seats" aria-labelledby="today-seats-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -99,15 +87,15 @@ function TodaySeats() {
       </div>
 
       {waiting ? (
-        <Skeleton className="mt-4 h-[14rem] w-[min(100%,26rem)]" data-testid="today-seat-skeleton" />
+        <Skeleton className="mt-4 h-[11rem] w-full" data-testid="today-seat-skeleton" />
       ) : seats.length === 0 ? (
         <p className="mt-4 text-sm text-muted" data-testid="today-seats-empty">
           Nothing booked for today.
         </p>
       ) : (
-        <ul className="stagger mt-4 flex h-[14rem] snap-x gap-3 overflow-x-auto overflow-y-hidden">
+        <ul className="stagger mt-4 flex flex-col gap-3">
           {seats.map((s, i) => (
-            <TodaySeat key={s.id} index={i} session={s} clock={clock} onRemove={() => releaseSeat(s.id, s)}
+            <TodaySeat key={s.id} index={i} session={s} clock={clock} onRemove={() => onRemove(s)}
               room={roomById[s.room.id]} venue={venueById[s.venue.id]} />
           ))}
         </ul>
@@ -117,45 +105,58 @@ function TodaySeats() {
 }
 
 /**
- * One booked session, large enough to carry who is speaking and where it is.
- * The portrait is the way to the speaker, as the ticket asks; the title opens
- * the session itself.
+ * One booked session, as a big panel you can read at a glance: a large portrait
+ * on the left, the time, title, who is speaking and where across the middle, and
+ * the way to the speaker or the session.
+ *
+ * The whole panel is the link to the session — a stretched title link under the
+ * content, with the portrait link and Remove lifted above it — so pointing
+ * anywhere on the panel opens the session, and the one action it does have,
+ * giving the seat back, still gets its own button. The track's accent runs down
+ * the spine, so the day scans as a list of places rather than a wall of text.
  */
 function TodaySeat({ session: s, index, clock, room, venue, onRemove }) {
   const speakers = s.speakers ?? [];
+  const first = speakers[0];
+  const ended = hasEnded(s, clock);
+  const track = s.track ? accent(s.track.color) : null;
+  const role = first ? [first.jobTitle, first.company].filter(Boolean).join(' · ') : '';
 
   return (
     <li data-testid="today-seat" data-session-id={s.id} style={{ '--i': Math.min(index, 12) }}
-      className="flex h-[14rem] w-[min(100%,26rem)] shrink-0 snap-start gap-4 overflow-hidden rounded-2xl border border-hairline bg-surface p-4">
-      <div className="flex shrink-0 flex-col gap-2">
+      className="group relative flex min-h-[11rem] gap-4 overflow-hidden rounded-2xl border border-hairline bg-surface p-4 transition-[transform,border-color,background-color] duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-raised sm:gap-5 sm:p-5">
+      <span aria-hidden className={cx('animate-draw-down absolute inset-y-0 left-0 w-1', track ? track.dot : 'bg-violet-400')} />
+
+      <div className="flex shrink-0 flex-col gap-2 pl-1">
         {speakers.map((sp) => (
           <Link key={sp.id} to={`/speakers/${sp.id}`} aria-label={`About ${sp.name}`}
-            className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400">
-            <Avatar name={sp.name} initials={sp.initials} accent={sp.accent} imageUrl={sp.imageUrl} size="lg" />
+            className="relative z-10 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400">
+            <Avatar name={sp.name} initials={sp.initials} accent={sp.accent} imageUrl={sp.imageUrl} size="xl" />
           </Link>
         ))}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
-          {timeRange(s.startsAt, s.endsAt)}{hasEnded(s, clock) && ' · Finished'}
+        <p className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+          <span>{timeRange(s.startsAt, s.endsAt)}</span>
+          {s.track?.name && <span className={track?.text}>· {s.track.name}</span>}
+          {ended && <span>· Finished</span>}
         </p>
-        <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">
-          <Link to={`/sessions/${s.id}`} className="hover:text-violet-200">{s.title}</Link>
+        <h3 className="mt-1 font-display text-lg leading-snug sm:text-xl">
+          <Link to={`/sessions/${s.id}`} className="after:absolute after:inset-0 group-hover:text-violet-200">{s.title}</Link>
         </h3>
         {speakers.length > 0 && (
           <>
             <p className="mt-1 truncate text-[13px] text-muted">
               {speakers.map((sp) => sp.name).join(', ')}
             </p>
-            <p className="truncate text-xs text-faint">
-              {[speakers[0].jobTitle, speakers[0].company].filter(Boolean).join(' · ')}
-            </p>
+            {role && <p className="truncate text-xs text-faint">{role}</p>}
           </>
         )}
-        <p className="mt-0.5 truncate text-xs text-faint">{room?.name} · {venue?.shortName}</p>
-        <div className="mt-auto pt-3">
-          <Button variant="danger" size="sm" data-testid="remove-today-seat" onClick={onRemove}>
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-2 pt-3">
+          <p className="truncate text-xs text-faint">{room?.name} · {venue?.shortName}</p>
+          <Button variant="danger" size="sm" data-testid="remove-today-seat" onClick={onRemove}
+            className="relative z-10">
             <Icon name="close" className="size-3.5" /> Remove
           </Button>
         </div>
@@ -238,19 +239,44 @@ function LatestAnnouncement() {
 }
 
 export function HomePage() {
-  const { conference } = useConference();
+  const { conference, clock, days, ready, reservationsReady, currentUser, reservationFor,
+    releaseSeat, roomById, venueById } = useConference();
   useDocumentTitle("ORBIT '26");
+
+  const { data, loading } = useFetch(
+    () => (currentUser ? api.getSchedule(currentUser.id) : null),
+    [currentUser?.id],
+  );
+
+  // Not until the store has both: an empty store means "nothing held" *and*
+  // "not loaded yet", and the page must not claim the day is empty while the
+  // attendee's own seats are still in flight.
+  const waiting = !ready || !reservationsReady || loading;
+  const seats = waiting ? [] : todaysSeats(data?.days, clock.day, reservationFor);
+  const today = days.find((d) => d.date === clock.day);
 
   return (
     // Sections hide themselves when empty; hide their Reveal wrapper too, or
     // each one leaves a blank gap in the stack.
-    <div className="space-y-8 [&>:empty]:hidden">
+    //
+    // A day is as tall as it is long, so nothing under it is painted until it is
+    // known: a tile sitting under the one-panel skeleton is the thing the seats
+    // then shove down the page. And the page holds a viewport's height — on a
+    // shorter page the footer is parked at the foot of the screen, and the day
+    // landing either pushes it down or, when the day is short enough to leave
+    // the page under a screenful, pulls it back up. Home reads in two beats
+    // instead: the day above, the way in below.
+    <div className="min-h-dvh space-y-8 [&>:empty]:hidden">
       <HeroBar conference={conference} />
-      <TodaySeats />
-      {/* Each way out enters a beat behind the last, rather than all at once. */}
-      <QuickLinks />
-      <Reveal><LatestAnnouncement /></Reveal>
-      <SponsorMarquee />
+      <TodaySeats waiting={waiting} seats={seats} today={today} clock={clock}
+        roomById={roomById} venueById={venueById} onRemove={(s) => releaseSeat(s.id, s)} />
+      {!waiting && (
+        <>
+          <QuickLinks />
+          <Reveal><LatestAnnouncement /></Reveal>
+          <SponsorMarquee />
+        </>
+      )}
     </div>
   );
 }

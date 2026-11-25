@@ -87,9 +87,12 @@ asks for it. When you do:
 - A section that needs data the shell does not have **reserves its height** while
   it waits (a `Skeleton` the size of its content), and reads the store's
   `ready`/`reservationsReady` so it never flashes the empty state first — see
-  `TodaySeats`; that is the flicker #51 was about. The reservation has to hold
-  whatever arrives: `TodaySeats` keeps its cards in one fixed-height row, because
-  a placeholder one card tall cannot guess how long the attendee's day is.
+  `TodaySeats`; that is the flicker #51 was about. A placeholder one panel tall
+  cannot guess how long the attendee's day is, so what sits **below** the section
+  waits for it too, and the page keeps a viewport's height until it lands: on
+  Home the tiles and everything under them render only once your day is known,
+  with the footer already below the fold, and then stagger in. A section's own
+  space is a floor, not a promise.
 - Home is not a brochure: an attendee bought a ticket, so the dates and track
   list tell them nothing new. A section there has to answer "why here and not on
   the page that owns it?" (how: `context/engineering-context/agenda.md`)

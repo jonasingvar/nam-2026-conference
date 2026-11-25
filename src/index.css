@@ -143,6 +143,17 @@ body::before {
 }
 @utility animate-fill { animation: fill-bar linear both; transform-origin: left; }
 
+/* A card's accent rail drawing down it as the card arrives. On Home the rail
+   carries --i from the card it belongs to, so it draws a beat behind it. */
+@keyframes draw-down {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@utility animate-draw-down {
+  animation: draw-down 0.6s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i, 0) * 40ms + 80ms) both;
+  transform-origin: top;
+}
+
 /* Scroll reveal: elements start hidden and are released by an observer. */
 @utility reveal {
   opacity: 0;

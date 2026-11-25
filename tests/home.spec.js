@@ -96,6 +96,21 @@ test.describe('Your day on Home', () => {
     await expect(page.getByTestId('speaker-name')).toHaveText(speaker.name);
   });
 
+  test('the whole panel opens the session', async ({ page, request }) => {
+    const days = await conferenceDays();
+    const [first] = await bookedToday(request, ATTENDEES.kenji, days[1]);
+
+    await visit(page, '/', { as: ATTENDEES.kenji, at: await momentOn(1, '10:30') });
+    const card = page.getByTestId('today-seat').first();
+    await expect(card).toBeVisible();
+
+    // The portrait (a speaker) and Remove (an action) are their own ways, so
+    // take the panel somewhere else: it is a link to the session throughout.
+    const box = await card.boundingBox();
+    await page.mouse.click(box.x + box.width * 0.7, box.y + box.height / 2);
+    await expect(page).toHaveURL(new RegExp(`/sessions/${first.id}$`));
+  });
+
   test('a card is big, and says who is speaking and where it is', async ({ page, request }) => {
     const days = await conferenceDays();
     const [first] = await bookedToday(request, ATTENDEES.kenji, days[1]);

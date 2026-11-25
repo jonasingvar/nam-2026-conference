@@ -54,8 +54,9 @@ used by the header, toasts, menus), `hide-scrollbar`. Dark only
 visible): `animate-rise` (dialogs, menus, toasts), `stagger` (list entrance; children
 delay by `--i` × 40ms — set `style={{ '--i': i }}`, capped by callers at ~12),
 `animate-pulse-dot` (live indicators), `animate-ken-burns`, `animate-slide-in`,
-`animate-fade-zoom` and `animate-fill` (the speaker spotlight and its autoplay progress;
-duration set inline), `reveal` (scroll-triggered, + `data-visible="true"`),
+`animate-fade-zoom`, `animate-fill` (the speaker spotlight and its autoplay progress;
+duration set inline) and `animate-draw-down` (a card's accent rail, delayed off the
+card's `--i`), `reveal` (scroll-triggered, + `data-visible="true"`),
 `animate-marquee` (sponsor logos).
 JS-driven motion (`SpeakerSpotlight`, `HeroMedia`, `CountUp`) checks
 `matchMedia('(prefers-reduced-motion: reduce)')` itself.
@@ -159,29 +160,38 @@ buttons) → `TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
 (`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers, Venues,
 Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single newest
 posted one, pinned first, filtered by `postedAt <= clock`, so nothing appears
-before it was written) → `SponsorMarquee` (venues doc). Every way out of the page
-enters a beat behind the last (`stagger`).
+before it was written) → `SponsorMarquee` (venues doc). `HomePage` — not
+`TodaySeats` — owns the day's `useFetch`, the `waiting` flag, `seats` and
+`today`; the section takes them as props, and everything from `QuickLinks` down
+is held back until they settle (below).
 
 **`TodaySeats`** lists every session the attendee holds a **confirmed** seat for
-on `clock.day` (`data-testid="today-seat"`, earliest first): each is a large
-card (a fixed `h-[14rem]`, in one horizontally scrolling row so the section is
-one height whatever the count) with the speaker portraits linking to
-`/speakers/:id`, the title linking to the session, the speaker names, and the
-room and venue — and a
-`Remove` (`remove-today-seat`) that gives the seat back. It is the only action
+on `clock.day` (`data-testid="today-seat"`, earliest first). Each is a big panel
+across the page — a full-width `li` (`min-h-[11rem]`) carrying a large portrait
+linking to `/speakers/:id`, the time range, the track's name and colour and a
+"Finished" mark once it is over, the title, the speakers and their role, and the
+room and venue — with the whole panel opening the session (a stretched
+`after:inset-0` link on the title, the portrait link and the `Remove`
+(`remove-today-seat`) lifted above it). Giving the seat back is the only action
 here: there is no way to reserve from Home. It reads `api.getSchedule` through
 `src/lib/agenda.js:todaysSeats` and filters on `reservationFor`, so a removed
-card leaves at once (agenda doc). The schedule and the store's
+panel leaves at once (agenda doc). The schedule and the store's
 `reservationsReady` arrive after the shell and at different times, so the section
-holds that row's height (`today-seat-skeleton`, `h-[14rem]`) until both are in and
-then swaps the list in where the skeleton was — the one section deliberately
-*not* wrapped in `<Reveal>`, and the reason it is a `Skeleton` rather than
-nothing. A day with no seat shows `today-seats-empty`, not `null`.
+holds one panel's height (`today-seat-skeleton`, `h-[11rem]`) until both are in
+and then swaps the panels in where the skeleton was — the one section
+deliberately *not* wrapped in `<Reveal>`, and the reason it is a `Skeleton`
+rather than nothing. A day with no seat shows `today-seats-empty`, not `null`.
 
-The fixed row is what keeps the tiles below from moving: the day's card count
-cannot change the section's height, so a day with one seat and a day with four
-hold the tiles in the same place. Cards and tiles enter with `stagger` (each
-child `--i`, capped at 12).
+A day is as tall as the attendee's day is long, and no placeholder can reserve
+that: what holds the page still is that nothing below the day is painted until
+it is known (a tile rendered under a one-panel skeleton is what the seats then
+shoved down), and that the page keeps `min-h-dvh` throughout — the pinned footer
+stays below the fold while it waits, instead of being parked at the foot of the
+screen to be pushed down, or brought up under a day too short to fill it. The
+panels and the tiles enter with `stagger` (each child `--i`, capped at 12), and
+each panel's accent rail draws down a beat behind it (`animate-draw-down`).
+`tests/home.spec.js` measures the whole load at under 0.1 layout shift and the
+section at one panel's height through the swap.
 
 Sections that return `null` would leave their `<Reveal>` wrapper as a gap, so the
 container has `[&>:empty]:hidden`. `tests/home.spec.js` asserts the five links,
@@ -189,7 +199,8 @@ the announcement cut-off, and that none of `live-now`, `speaking-strip`,
 `followed-sessions`, `next-up` is on the page — no component renders those ids; a
 ticket that puts another personal or live section on Home updates that test (and
 this paragraph). A new *deferred* home section is a component that returns `null`
-when empty, wrapped in `<Reveal>`.
+when empty, wrapped in `<Reveal>` — below the day it goes inside the same gate,
+so it is only ever painted once the day is known.
 
 **`RouteChange`** — on `pathname` change only (not search), scrolls to top and
 focuses `#main`. **`NotFoundPage`** — the `*` route; its heading "Nothing

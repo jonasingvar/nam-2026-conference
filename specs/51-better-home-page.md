@@ -1,11 +1,11 @@
 # Better home page: today's reserved sessions
 
 ## What this changes
-Home is static today. It will open with a "Your day" section listing every session the signed-in attendee holds a **confirmed** seat for on the current conference day (`clock.day`), earliest first. Each entry is a large card: the speaker portrait(s) linking to `/speakers/:id`, title, time, room and venue, and a Remove button that gives the seat back. Nothing else can be done from it. The section reserves its height until its data is ready, and holds that height whatever the day turns out to contain, so nothing pops in or shifts (follow-up below).
+Home is static today. It will open with a "Your day" section listing every session the signed-in attendee holds a **confirmed** seat for on the current conference day (`clock.day`), earliest first. Each entry is a large panel: the speaker portrait(s) linking to `/speakers/:id`, title, time, room and venue, and a Remove button that gives the seat back. Nothing else can be done from it. The section reserves a panel's worth of space until its data is ready, and the rest of the page waits for it, so nothing pops in or shifts (follow-ups below).
 
 ## Where
 - `src/lib/agenda.js` (new, tiny) — pure `todaysSeats(days, day, reservationFor)`: picks the day's sessions from `getSchedule` output, keeps those whose store reservation is `'confirmed'`, sorts by `startsAt`; test in `tests/unit/agenda.test.js` (plain node:test like `tests/unit/format.test.js`).
-- `src/pages/HomePage.jsx` — new `TodaySeats` component placed between `HeroBar` and `QuickLinks`; `useFetch(api.getSchedule, [currentUser.id])`, filtered through `reservationFor` from `useConference()` (store is the source of truth, so a removed card disappears at once); portrait via `Avatar` (`imageUrl`) wrapped in `Link`; room/venue via `roomById`/`venueById`; Remove calls `releaseSeat(s.id, s)`. Show a fixed-height skeleton while `useFetch` is loading or `ready` is false, then swap content in place (no `Reveal` on it); render an empty-state line when nothing is booked. Remove `[&>:empty]:hidden` interactions only if needed.
+- `src/pages/HomePage.jsx` — new `TodaySeats` component placed between `HeroBar` and `QuickLinks`; `useFetch(api.getSchedule, [currentUser.id])`, filtered through `reservationFor` from `useConference()` (store is the source of truth, so a removed card disappears at once); portrait via `Avatar` (`imageUrl`) wrapped in `Link`; room/venue via `roomById`/`venueById`; Remove calls `releaseSeat(s.id, s)`. Show a one-panel skeleton until the store and the schedule are both in, then swap the panels in where it was (no `Reveal` on the swap); render an empty-state line when nothing is booked. The fetch, the `waiting` flag and the gate that holds the rest of the page back live in `HomePage` (follow-up below). Remove `[&>:empty]:hidden` interactions only if needed.
 - `tests/home.spec.js` — replace the "nothing on it is personal or live" test (it asserts the old static page; keep it asserting `live-now`, `next-up`, etc. stay absent); add specs using `visit(page, '/', { as, at: momentOn(0, '10:30') })`, `laneFor('home.today', testInfo)`, `bookableFor`, `API` to book via `POST /users/:id/reservations` and release after.
 - `tests/helpers.js` — add a `home.today` entry to `LANES` (a day-0 attendee/day pair no other lane shares, per `tests/unit/lanes.test.js`).
 - `context/engineering-context/ui.md` (Home section, ~line 155–167) and `agenda.md` (`/schedule` "no UI calls it yet") — update.
@@ -53,3 +53,39 @@ bumped down the page as the schedule and the reservations landed.
 - `tests/home.spec.js` — `the tiles and the day's cards play in, one behind the
   next`: both rows carry `rise-in` with distinct animation delays. The original
   section test is untouched.
+
+## Follow-up: the day reads top to bottom
+
+The fixed row kept the page still by refusing to grow, and made the day
+unreadable: sessions side by side, the tail of the day behind a sideways scroll.
+The owner asked for the day as big panels, one under the next, and for the page
+to build in rather than snap into place. So the row goes, and the shift is
+answered a different way — the reason the deferral was rejected the first time
+(the footer sitting on screen to jump as the content landed) is the thing to
+fix, not a reason to keep the row.
+
+- `TodaySeats` — the seats stack (`ul.stagger.flex.flex-col`, one full-width
+  `li` each, `min-h-[11rem]`) instead of sitting in a fixed-height row. A panel
+  is large and clickable: a big portrait to `/speakers/:id`, the time range, the
+  track's name and colour and a "Finished" mark for a session that is over, the
+  title, the speakers and their role, the room and venue, and `Remove`
+  (`remove-today-seat`) on the far side. The title carries a stretched
+  `after:inset-0` link, so the whole panel opens the session while the portrait
+  link and Remove stay above it.
+- `src/pages/HomePage.jsx` — `HomePage`, not the section, owns the day's fetch
+  (`waiting`, `seats`, `today` handed to `TodaySeats`), and nothing below the day
+  is painted until it is known: a panel count a placeholder cannot guess is what
+  made the tiles the thing that moved. The page also holds `min-h-dvh`
+  throughout, so the pinned footer is below the fold while it waits instead of
+  parked at the foot of the screen waiting to be pushed down — and stays below
+  the fold on a day too short to fill the viewport, which would otherwise bring
+  the footer *up* into view. Measured with a `PerformanceObserver` on four
+  seats, three seats and none, desktop and mobile: layout shift under 0.01 in
+  every case, so `loading the page shifts nothing` (still asserted < 0.1) and
+  `the section reserves its space and swaps in place` both stand unchanged.
+- `src/index.css` — `animate-draw-down`: each panel's accent rail draws down it
+  (`scaleY` from the top, delayed off the card's `--i` so it follows the panel
+  in). The reduced-motion block neutralises it like every other animation, so
+  the rail is simply there.
+- `tests/home.spec.js` — `the whole panel opens the session`: a click on the
+  panel away from the portrait and the Remove lands on `/sessions/:id`.
