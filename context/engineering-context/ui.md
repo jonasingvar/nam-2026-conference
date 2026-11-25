@@ -154,9 +154,11 @@ sticky `glass` header, `<main id="main">`, and the footer.
   (speakers doc). `tests/switcher.spec.js` covers the switcher and that link.
 
 **`HomePage`** (`/`) — a way in, and one thing about the person reading it. It
-stacks `HeroBar` (`hero`: name, `conference.dates · city`, a `Day n · time` chip
-from `clock`, and `Browse today` → `/schedule?day=<clock.day>` plus `Speakers`
-buttons) → `TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
+stacks `HeroBar` (`hero`: the day and the clock — `Day n · <time>` as the `h1`,
+a `Today` eyebrow with the pulsing dot, today's `dayLabel` beneath, and
+`conference.dates` · `city` as the quiet right-hand footnote; no conference name,
+which the header logo already carries, and no buttons into the nav) →
+`TodaySeats` (`today-seats`, "Your day") → `QuickLinks`
 (`quick-links`, a `nav` of the `LINKS` array: Schedule, Speakers, Venues,
 Food & drink, Expo) → `LatestAnnouncement` (`announcements`: the single newest
 posted one, pinned first, filtered by `postedAt <= clock`, so nothing appears

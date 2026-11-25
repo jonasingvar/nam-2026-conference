@@ -89,3 +89,24 @@ fix, not a reason to keep the row.
   the rail is simply there.
 - `tests/home.spec.js` — `the whole panel opens the session`: a click on the
   panel away from the portrait and the Remove lands on `/sessions/:id`.
+
+## Follow-up: the banner is today, not a second masthead
+
+The owner read the hero as competing with the chrome around it: the conference
+name and edition are in the header logo three lines above it, and both its
+buttons go where the nav already goes — `Browse today` (→ `/schedule?day=`) to
+a schedule that opens on `clock.day` by itself, `Speakers` to a page in the nav.
+None of it changed, and none of it was news. What does change, and what the new
+"Your day" below is about, is the day and the time.
+
+- `src/pages/HomePage.jsx` — `HeroBar` keeps only that: a `Today` eyebrow with
+  the pulsing dot, `Day n · <time>` as the page's `h1` set at `text-4xl` /
+  `sm:text-5xl` from `clock`, today's `dayLabel` beneath it, and
+  `conference.dates` · `conference.city` as the quiet right-hand footnote. The
+  name, the edition and both buttons go, and the `Chip` import with them. The
+  `h1` keeps a `sr-only` "Today at ORBIT, " prefix so the heading still names
+  the conference for a screen reader; the visible banner does not.
+- `tests/home.spec.js` — `the banner leads with the day and the clock, not the
+  nav again`: pinned to Day 2, 14:18, the `h1` reads `Day 2 · 2:18 PM` and the
+  banner holds no links.
+

@@ -9,16 +9,20 @@ import { dayLabel, relativeDate, time as fmtTime, timeRange } from '../lib/forma
 import { SponsorMarquee } from '../components/SponsorMarquee.jsx';
 import { Reveal } from '../components/Reveal.jsx';
 import { HeroMedia } from '../components/HeroMedia.jsx';
-import { Avatar, Button, Chip, Skeleton, cx } from '../components/ui.jsx';
+import { Avatar, Button, Skeleton, cx } from '../components/ui.jsx';
 import { Icon } from '../components/Icon.jsx';
 
 /**
- * A slim bar, not a brochure.
+ * Home opens on today, not a brochure.
  *
- * The page used to open with a marketing headline, four vanity stats and a
- * "programme at a glance" panel — 592px desktop and over a full screen on a
- * phone, none of it about the person holding the phone, all of it known before
- * they bought a ticket.
+ * This used to be a masthead: the conference name and edition — the header logo
+ * once more, three lines above it — the run of dates, and two buttons into
+ * pages the nav already holds (`Browse today` went to the schedule, which
+ * already opens on `clock.day`). Nothing there changed, and none of it was news
+ * to someone who bought a ticket. What does change, and what every section
+ * below is about, is which day it is and what time it is: so the day and the
+ * clock are the headline, set large, with the dates as the quiet footnote under
+ * them. Home's own "Your day" then picks the clock up directly.
  */
 function HeroBar({ conference }) {
   const { clock, days } = useConference();
@@ -29,28 +33,28 @@ function HeroBar({ conference }) {
       <HeroMedia />
       <div className="absolute inset-0 bg-[radial-gradient(30rem_14rem_at_12%_0%,rgba(139,92,246,0.22),transparent_65%)]" />
 
-      <div className="relative flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4 sm:px-7 sm:py-5">
+      <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-5 px-5 py-6 sm:px-8 sm:py-7">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-none tracking-tight sm:text-3xl">
-            {conference.name} <span className="text-muted">{conference.edition}</span>
-          </h1>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
-            {conference.dates} · {conference.city}
+          <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+            <span className="size-1.5 animate-pulse-dot rounded-full bg-cyan-400" />
+            Today
           </p>
+
+          <h1 className="mt-2 flex flex-wrap items-baseline gap-x-3 font-display text-4xl leading-none tracking-tight sm:text-5xl">
+            <span className="sr-only">Today at ORBIT, </span>
+            {today && <span>{today.label}</span>}
+            {today && <span aria-hidden className="text-muted">·</span>}
+            <span className="tabular-nums">{fmtTime(clock.time)}</span>
+          </h1>
+
+          {today && <p className="mt-3 text-sm text-muted">{dayLabel(today.date)}</p>}
         </div>
 
-        {today && (
-          <Chip accent="cyan" className="!py-1.5">
-            <span className="size-1.5 animate-pulse-dot rounded-full bg-cyan-400" />
-            {today.label} · {fmtTime(clock.time)}
-          </Chip>
-        )}
-
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button to={`/schedule?day=${clock.day}`} variant="primary" size="sm">
-            Browse today <Icon name="arrowRight" className="size-3.5" />
-          </Button>
-          <Button to="/speakers" size="sm">Speakers</Button>
+        <div className="shrink-0 sm:text-right">
+          <p className="font-display text-base tracking-tight">{conference.dates}</p>
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+            {conference.city}
+          </p>
         </div>
       </div>
     </section>

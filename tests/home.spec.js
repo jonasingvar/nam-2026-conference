@@ -26,6 +26,19 @@ test.describe('Home is a way in, not a feed', () => {
     }
   });
 
+  test('the banner leads with the day and the clock, not the nav again', async ({ page }) => {
+    // Pinned mid-afternoon on Day 2: what changes for someone in the venue is
+    // which day it is and what time it is, so that is the headline — and the
+    // banner is not a second way into the schedule or the speakers, which the
+    // header nav already carries.
+    await visit(page, '/', { at: await momentOn(1, '14:18') });
+    const hero = page.getByTestId('hero');
+    const headline = hero.getByRole('heading', { level: 1 });
+    await expect(headline).toContainText('Day 2');
+    await expect(headline).toContainText('2:18 PM');
+    await expect(hero.getByRole('link')).toHaveCount(0);
+  });
+
   test('no other page\'s section is duplicated here', async ({ page }) => {
     // A speaker, mid-morning, with sessions booked: the case that used to fill the page.
     await visit(page, '/', { as: ATTENDEES.andy, at: await momentOn(0, '10:30') });
