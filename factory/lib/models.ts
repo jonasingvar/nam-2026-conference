@@ -419,7 +419,8 @@ export function modelBook(choice: Choice, size: Size) {
      * the models are chosen — the model, its tier and how sure Jev was, the
      * expected cost, and once it has run what it cost and how often.
      */
-    table() {
+    /** `extra`: rows for work that runs no model (the gate) — what it did, how many times, how long. */
+    table(extra: { job: string; what: string; runs: number; seconds: number }[] = []) {
       const ran = new Map<Job, Attempt[]>();
       for (const a of attempts) ran.set(a.job, [...(ran.get(a.job) ?? []), a]);
       const jobs = [...new Set<Job>([...(Object.keys(picks) as Job[]), ...ran.keys()])];
@@ -439,7 +440,8 @@ export function modelBook(choice: Choice, size: Size) {
           const est = as.length ? as.reduce((s, a) => s + a.est, 0) : p?.est ?? 0;
           const actual = as.length ? `${usd(as.reduce((s, a) => s + a.cost, 0))}${as.length > 1 ? ` · ${as.length} runs` : ''}${failed ? ` · ${failed} failed` : ''}` : '—';
           return `| ${JOB_LABEL[j] ?? j} | \`${models}\`${climbed ? ` ↑ <sub>${climbed}</sub>` : ''} | ${tier} | ${jev} | ${usd(est)} | ${actual} | ${as.length ? took(as.reduce((t, a) => t + (a.seconds || 0), 0)) : '—'} |`;
-        }).join('\n');
+        }).join('\n') +
+        extra.map((x) => `\n| ${x.job} | ${x.what} | — | — | — | ${x.runs > 1 ? `${x.runs} runs` : '—'} | ${took(x.seconds)} |`).join('');
     },
   };
 }
