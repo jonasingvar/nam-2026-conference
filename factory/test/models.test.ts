@@ -122,4 +122,6 @@ test('the models table says how long each job has run so far, and a dash for one
   assert.match(table, /\| Job \| Model \| Tier \| Jev \| Est\. \| Actual \| Time \|/);
   assert.match(table, /Implement.*\| 7 min 11 s \|/);
   assert.match(table, /Audit.*\| — \| — \|/);
+  // Work that runs no model has a row too: what the gate ran, how often, how long.
+  assert.match(book.table([{ job: 'Gate', what: 'unit 330 · 4 of 92 browser tests', runs: 2, seconds: 95 }]), /\| Gate \| unit 330 · 4 of 92 browser tests \| — \| — \| — \| 2 runs \| 1 min 35 s \|$/);
 });

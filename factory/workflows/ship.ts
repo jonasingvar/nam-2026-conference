@@ -148,7 +148,7 @@ async function shipRun(input: ShipInput) {
       : prUrl && previewUrl ? `[Open the live preview](${previewLanding || previewUrl})`
       : earlyPreview ? `[Open the live preview](${earlyPreview.url}) (\`${earlyPreview.sha}\`) — ⚠️ still being worked on: the run has not finished checking it, and it may change`
       : 'Not built yet — a link appears here once the branch has a commit Vercel has built'} |`,
-    models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table()}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
+    models && models.table() ? `\n<details open><summary><b>Models</b> — which job runs on what, and what it costs</summary>\n\n${models.table(gateStats.runs ? [{ job: 'Gate', what: `*the tests — no model* · ${gateStats.last}`, runs: gateStats.runs, seconds: gateStats.seconds }] : [])}\n\n<sub>Picked per job by Jev from AI Gateway's live catalog: the cheapest tier likely to be enough. A failure climbs one tier (↑).</sub>\n</details>` : '',
     lines.length ? `\n<details><summary>Log</summary>\n\n${lines.map((l) => `- ${l}`).join('\n')}\n</details>` : '',
     '',
     '<!-- ship-on-vercel -->',
@@ -296,8 +296,10 @@ async function shipRun(input: ShipInput) {
     by: 'ship' as const, sha: head, ranAt: String(g.sha), pr: null, ok: !!g.ok, unitOk: !g.unit.failed,
     mode: sel.mode, reason: sel.reason, confidence: sel.confidence, tests: sel.tests,
   });
+  const gateStats = { runs: 0, seconds: 0, last: '' };
   /** The two shards on the selected commit; one verdict, as gate.mjs would give it, and the red-check from desktop. */
   async function gateShards(sel: Selection, sha: string, tag: string) {
+    const t0 = Date.now();
     if (!shardsReady) shardsReady = Promise.all([prepareSandbox(shardBox.desktop, BASE, 'none'), prepareSandbox(shardBox.mobile, BASE, 'none')]);
     await shardsReady;
     const checkout = `git fetch -q --prune origin && git fetch -q origin "+refs/factory/gate/${sha}:refs/factory/gate/${sha}" && git checkout -q --detach ${sha} && ` +
@@ -308,6 +310,10 @@ async function shipRun(input: ShipInput) {
     });
     lastSel = sel;
     const merged = mergeShards({ desktop: out.desktop.gate, mobile: out.mobile.gate });
+    // For the card's table: the gate is no model, but it is time, and a person wants to know what it ran.
+    gateStats.runs += 1;
+    gateStats.seconds += Math.max(0, Math.round((Date.now() - t0) / 1000));
+    gateStats.last = `${merged.ok ? '✅' : '❌'} unit ${merged.unit?.passed ?? 0} · ${sel.mode === 'full' ? `all ${sel.total} browser tests` : `${sel.ran} of ${sel.total} browser tests`}, desktop and mobile`;
     return { gate: { ...merged, scope: sel.mode }, red: out.desktop.red };
   }
 
@@ -513,8 +519,9 @@ async function shipRun(input: ShipInput) {
     `(a feature you built that a doc calls a placeholder, "coming soon", "not built yet" or "no UI calls it") — and fix each one. ` +
     `Prove each criterion at the cheapest layer (a rule, payload or 400 in a unit/API test; a browser test only for what only a page shows, ` +
     `the variants of one criterion in one test, never mode: 'serial'). Every state the change adds gets its own assertion; when a state depends on the clock, ` +
-    `also a moment before it applies (Day 1 08:00 — the seed's morning is already attended). A browser test you added runs once, alone, before you hand over ` +
-    `(\`npx playwright test <file> -g "<title>" --project=desktop\`); do NOT run the whole suite — the gate does. ` +
+    `also a moment before it applies (Day 1 08:00 — the seed's morning is already attended). A browser test you added runs once, alone, on BOTH projects before you hand over ` +
+    `(\`npx playwright test <file> -g "<title>"\`, which runs desktop and mobile): the gate runs both, and a test that only ever passed on desktop costs a whole fix round ` +
+    `(a hover that a touch phone does not have, a layout that wraps at 390 px). Do NOT run the whole suite — the gate does. ` +
     (profile.size === 'fast' ? 'This is a fast run: unit and API tests first, at most one browser test (none if nothing an attendee sees changes). ' : '') +
     `Leave \`git status\` clean.` +
     (carried.length ? `\n\nThe plan audit left these for the build to resolve:\n${list(carried)}` : ''),

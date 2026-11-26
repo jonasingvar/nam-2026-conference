@@ -48,18 +48,21 @@ const isUp = async () => {
 };
 
 let devServer;
+const stopDevServer = () => { if (!devServer) return; try { process.kill(-devServer.pid, 'SIGTERM'); } catch { try { devServer.kill(); } catch { /* already gone */ } } };
 if (!(await isUp())) {
   console.log(`  starting the app on ${WEB_PORT}…`);
   // NO_OPEN keeps Vite from launching a browser window. One is a courtesy;
   // ten agents taking screenshots at once is ten windows fighting for focus.
   devServer = spawn('npm', ['run', 'dev'], {
     stdio: 'ignore',
-    detached: false,
+    // Its own process group, so stopping it stops Vite and the API too. Killing only `npm` left both
+    // listening, and the next Playwright run in the same shell failed with "port already used".
+    detached: true,
     env: { ...process.env, NO_OPEN: '1' },
   });
   const deadline = Date.now() + 60_000;
   while (!(await isUp())) {
-    if (Date.now() > deadline) { devServer.kill(); throw new Error('App did not start within 60s'); }
+    if (Date.now() > deadline) { stopDevServer(); throw new Error('App did not start within 60s'); }
     await new Promise((r) => setTimeout(r, 1000));
   }
 }
@@ -82,7 +85,7 @@ if (like) {
   if (!likeSize) {
     console.error(`  --like: cannot read ${like} as an image — no screenshot taken`);
     await browser.close();
-    devServer?.kill();
+    stopDevServer();
     process.exit(2);
   }
   console.log(`  like ${like}: ${likeSize.width}×${likeSize.height}`);
@@ -111,7 +114,7 @@ for (const route of targets) {
 }
 
 await browser.close();
-devServer?.kill();
+stopDevServer();
 if (problems.length) {
   console.log('\n⚠ page problems:');
   problems.forEach((p) => console.log('  ', p));
