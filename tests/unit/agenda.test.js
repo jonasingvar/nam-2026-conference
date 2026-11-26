@@ -7,7 +7,7 @@ const days = [
   { date: '2026-11-25', sessions: [s(3, '11:00'), s(1, '09:00'), s(2, '10:00'), s(4, '12:00')] },
   { date: '2026-11-26', sessions: [s(9, '09:00')] },
 ];
-const store = (map) => (id) => (map[id] ? { status: map[id] } : null);
+const store = (map) => (id) => (map[id] ?? null);
 
 describe('My Agenda lists the seats you hold today', () => {
   test('keeps confirmed seats on the day, in start order', () => {

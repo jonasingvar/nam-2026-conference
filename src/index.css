@@ -156,6 +156,25 @@ body::before {
   }
 }
 
+/* My Agenda: the rail draws top to bottom; the card lifts and glows on hover. */
+@keyframes rail-draw {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@utility animate-rail-draw { animation: rail-draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.1s both; transform-origin: top; }
+
+.agenda-card {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, border-color 0.25s, background-color 0.25s;
+}
+@media (hover: hover) {
+  .agenda-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--color-surface);
+    box-shadow: 0 14px 34px -12px rgba(139, 92, 246, 0.35);
+  }
+}
+
 /* Logo marquee — the track is duplicated, so -50% is a seamless loop. */
 @keyframes marquee {
   from { transform: translateX(0); }
