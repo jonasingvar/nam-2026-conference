@@ -52,8 +52,17 @@ test.describe('My Agenda — your day', () => {
       await portrait.click();
       await expect(page).toHaveURL(new RegExp(`/speakers/${speaker.id}$`));
       await page.goBack();
-      await cards.nth(1).getByRole('heading').click();
+      // a click on the title (pointer-transparent) lands on the card's link
+      await cards.nth(1).getByRole('heading').scrollIntoViewIfNeeded();
+      const title = await cards.nth(1).getByRole('heading').boundingBox();
+      await page.mouse.click(title.x + 20, title.y + title.height / 2);
       await expect(page).toHaveURL(new RegExp(`/sessions/${b.id}$`));
+
+      // the list does not move once it has rendered
+      await page.goBack();
+      const h1 = (await page.getByTestId('agenda-list').boundingBox()).height;
+      await page.waitForTimeout(400);
+      expect((await page.getByTestId('agenda-list').boundingBox()).height).toBe(h1);
       expect(errors).toEqual([]);
     } finally {
       await release(request, lane, [a.id, b.id]);
@@ -86,21 +95,6 @@ test.describe('My Agenda — your day', () => {
       await cards.nth(0).getByTestId('agenda-remove').click();
       await page.getByTestId('agenda-remove-confirm').click();
       await expect(page.getByTestId('agenda-empty')).toBeVisible();
-    } finally {
-      await release(request, lane, [a.id, b.id]);
-    }
-  });
-
-  test('shows a skeleton and then every card at once, with no layout shift', async ({ page, request }, testInfo) => {
-    const lane = await laneFor('my-agenda', testInfo);
-    const [a, b] = await bookTwo(request, lane);
-    try {
-      await visit(page, '/my-agenda', { as: lane.user, at: `${lane.day}T08:00` });
-      await expect(page.getByTestId('agenda-card')).toHaveCount(2);
-      const h1 = (await page.getByTestId('agenda-list').boundingBox()).height;
-      await page.waitForTimeout(400);
-      const h2 = (await page.getByTestId('agenda-list').boundingBox()).height;
-      expect(h2).toBe(h1);
     } finally {
       await release(request, lane, [a.id, b.id]);
     }

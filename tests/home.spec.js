@@ -55,10 +55,10 @@ test.describe('My Agenda is a blank canvas', () => {
       await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /My Agenda/ }).click();
     }
     await expect(page).toHaveURL(/\/my-agenda$/);
-    await expect(page.getByTestId('agenda-coming-soon')).toContainText('Coming soon');
+    await expect(page.getByRole('heading', { name: 'Your day' })).toBeVisible();
 
     await visit(page, '/my-plan');
     await expect(page).toHaveURL(/\/my-agenda$/);
-    await expect(page.getByTestId('agenda-coming-soon')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your day' })).toBeVisible();
   });
 });

@@ -373,3 +373,18 @@ body::before {
   /* Revealed content must still be visible if the transition is skipped. */
   .reveal { opacity: 1 !important; transform: none !important; }
 }
+
+/* My Agenda: the rail down a card's left edge draws top to bottom, in the session's colour. */
+@keyframes agenda-rail { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@utility agenda-rail { transform-origin: top; animation: agenda-rail 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* Hover: lift, glow in the accent colour, portraits grow. --accent is set inline per card. */
+@utility agenda-card {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s, box-shadow 0.25s;
+  &:hover, &:focus-within {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 14px 40px -14px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  & .agenda-portrait { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+  &:hover .agenda-portrait { transform: scale(1.06); }
+}
